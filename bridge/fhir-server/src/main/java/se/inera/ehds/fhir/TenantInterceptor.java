@@ -11,6 +11,7 @@ public class TenantInterceptor {
 
     @Hook(Pointcut.SERVER_INCOMING_REQUEST_PRE_HANDLED)
     public void extractTenant(RequestDetails requestDetails, HttpServletRequest httpRequest) {
+        if (httpRequest == null) return;
         String vgHsaId = httpRequest.getHeader("X-VG-HSA-ID");
         if (vgHsaId != null && !vgHsaId.isBlank()) {
             requestDetails.setAttribute("vgHsaId", vgHsaId);

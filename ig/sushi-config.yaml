@@ -20,12 +20,16 @@ jurisdiction: urn:iso:std:iso:3166#SE "Sweden"
 
 dependencies:
   hl7.fhir.r4.core: 4.0.1
+  hl7.fhir.uv.ips: current        # International Patient Summary – basis för EURIDICE
+  hl7.eu.fhir.eu: current         # HL7 EU base library
 
 pages:
   index.md:
     title: Hem
   mapping-getdiagnosis.md:
     title: "Mappning: GetDiagnosis → Condition"
+  mapping-getdocumentlist.md:
+    title: "Mappning: GetDocumentList → DocumentReference"
   architecture.md:
     title: Arkitektur
 
@@ -33,5 +37,6 @@ menu:
   Hem: index.html
   Mappningar:
     "GetDiagnosis → Condition": mapping-getdiagnosis.html
+    "GetDocumentList → DocumentReference": mapping-getdocumentlist.html
   Arkitektur: architecture.html
   Artefakter: artifacts.html

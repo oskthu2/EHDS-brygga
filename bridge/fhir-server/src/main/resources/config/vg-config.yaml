@@ -1,0 +1,7 @@
+vgConfigs:
+  - vgHsaId: SE2321000016-4HK5
+    description: "VGR – Västra Götalandsregionen"
+    source: SOAP
+  - vgHsaId: SE2321000098-7XYZ
+    description: "SLL – Stockholms läns landsting"
+    source: SOAP

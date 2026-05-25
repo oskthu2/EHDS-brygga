@@ -1,5 +1,6 @@
 'use strict';
 const express = require('express');
+const axios = require('axios');
 const { v4: uuidv4 } = require('uuid');
 const tak = require('../services/tak');
 const ei = require('../services/ei');
@@ -36,43 +37,51 @@ router.get('/:resource', async (req, res, next) => {
 
     const requestId = uuidv4();
     const entries = [];
+    const issues = [];
 
-    // Step 1: TAK – find physical address(es) for logical address(es)
-    let logicalAddresses = [];
+    // Step 1: TAK – get all known routes (logical addresses) for this contract
+    let takRoutes = [];
     if (contract.useTAK) {
-      logicalAddresses = await tak.getRoutes(contract.namespace);
+      takRoutes = await tak.getRoutes(contract.namespace);
     }
 
-    // Step 2: EI – find which source systems have data for this patient
-    let engagements = [];
+    // Step 2: EI – which logical addresses have data for this patient?
+    // EI provides logical addresses only; TAK is the authoritative source for physical addresses.
+    let logicalAddresses;
     if (contract.useEI) {
-      engagements = await ei.getEngagements(patientSystem, patientValue, contract.namespace);
+      const engagements = await ei.getEngagements(patientSystem, patientValue, contract.namespace);
+      logicalAddresses = engagements.length > 0
+        ? engagements.map(e => e.logicalAddress)
+        : takRoutes.map(r => r.logicalAddress);
+    } else {
+      logicalAddresses = takRoutes.map(r => r.logicalAddress);
     }
-
-    // If neither TAK nor EI found anything, use defaults
-    const targets = engagements.length > 0
-      ? engagements
-      : logicalAddresses.map(la => ({ logicalAddress: la.logicalAddress, physicalAddress: la.physicalAddress }));
 
     const transformer = transformerRegistry.get(contract.transformer);
 
-    for (const target of targets) {
+    for (const logicalAddress of logicalAddresses) {
       // Step 3: Spärrtjänst check
       if (contract.useSparr) {
-        const blocked = await sparr.isBlocked(patientSystem, patientValue, target.logicalAddress);
+        const blocked = await sparr.isBlocked(patientSystem, patientValue, logicalAddress);
         if (blocked) {
-          console.log(`Spärr: patient ${patientValue} blocked for ${target.logicalAddress}`);
+          console.log(`Spärr: patient ${patientValue} blocked for ${logicalAddress}`);
+          issues.push({ severity: 'information', code: 'suppressed', diagnostics: `Spärr: ${logicalAddress}` });
           continue;
         }
       }
 
-      // Step 4: Call SOAP backend
-      const physUrl = target.physicalAddress || await tak.getPhysicalAddress(contract.namespace, target.logicalAddress);
-      const soapRequest = transformer.toSoap({ patientSystem, patientValue, logicalAddress: target.logicalAddress });
+      // Step 4: TAK – resolve logical address → physical URL
+      const physUrl = await tak.getPhysicalAddress(contract.namespace, logicalAddress);
+      if (!physUrl) {
+        console.warn(`TAK: no physical address for ${logicalAddress}`);
+        issues.push({ severity: 'warning', code: 'not-found', diagnostics: `TAK: ingen adress för ${logicalAddress}` });
+        continue;
+      }
 
+      // Step 5: Call SOAP backend
+      const soapRequest = transformer.toSoap({ patientSystem, patientValue, logicalAddress });
       let soapResponse;
       try {
-        const axios = require('axios');
         const { data } = await axios.post(physUrl, soapRequest, {
           headers: {
             'Content-Type': 'text/xml; charset=utf-8',
@@ -82,43 +91,52 @@ router.get('/:resource', async (req, res, next) => {
         });
         soapResponse = data;
       } catch (err) {
-        console.error(`SOAP call failed for ${target.logicalAddress}:`, err.message);
+        console.error(`SOAP call failed for ${logicalAddress} (${physUrl}):`, err.message);
+        issues.push({ severity: 'error', code: 'exception', diagnostics: `SOAP-fel för ${logicalAddress}: ${err.message}` });
         continue;
       }
 
-      // Step 5: Transform SOAP response → FHIR resources
+      // Step 6: Transform SOAP response → FHIR resources
       const resources = transformer.fromSoap(soapResponse, { patientSystem, patientValue });
       entries.push(...resources);
 
-      // Step 6: Log to Loggtjänst
+      // Step 7: Log to Loggtjänst
       if (contract.useLogg) {
         logg.log({
           requestId,
           patientId: patientValue,
           patientIdSystem: patientSystem,
           serviceContract: contract.namespace,
-          logicalAddress: target.logicalAddress,
+          logicalAddress,
           resourceType: contract.fhirResource,
           count: resources.length,
         }).catch(err => console.error('Log error:', err.message));
       }
     }
 
-    // Build FHIR Bundle
-    const bundle = {
+    // Build FHIR Bundle; include OperationOutcome if any issues occurred
+    const bundleEntries = entries.map(resource => ({
+      fullUrl: `urn:uuid:${resource.id}`,
+      resource,
+      search: { mode: 'match' },
+    }));
+
+    if (issues.length > 0) {
+      bundleEntries.push({
+        fullUrl: `urn:uuid:${uuidv4()}`,
+        resource: { resourceType: 'OperationOutcome', issue: issues },
+        search: { mode: 'outcome' },
+      });
+    }
+
+    res.json({
       resourceType: 'Bundle',
       id: requestId,
       meta: { lastUpdated: new Date().toISOString() },
       type: 'searchset',
       total: entries.length,
-      entry: entries.map(resource => ({
-        fullUrl: `urn:uuid:${resource.id}`,
-        resource,
-        search: { mode: 'match' },
-      })),
-    };
-
-    res.json(bundle);
+      entry: bundleEntries,
+    });
   } catch (err) {
     next(err);
   }

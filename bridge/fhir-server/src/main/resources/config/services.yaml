@@ -11,5 +11,20 @@ serviceContracts:
     useLogg: true
     searchParams:
       - name: "patient.identifier"
-        description: "Patient personnummer or samordningsnummer (system|value)"
+        description: "Patient personnummer eller samordningsnummer (system|value)"
+        required: true
+
+  - id: GetDocumentList
+    namespace: "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1"
+    soapAction: "GetDocumentList"
+    fhirResource: DocumentReference
+    fhirPath: DocumentReference
+    transformer: GetDocumentList
+    useTAK: true
+    useEI: true
+    useSparr: true
+    useLogg: true
+    searchParams:
+      - name: "patient.identifier"
+        description: "Patient personnummer eller samordningsnummer (system|value)"
         required: true

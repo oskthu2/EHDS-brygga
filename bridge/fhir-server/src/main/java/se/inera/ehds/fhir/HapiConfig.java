@@ -6,14 +6,22 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.client.RestTemplate;
 import se.inera.ehds.fhir.provider.ConditionResourceProvider;
+import se.inera.ehds.fhir.provider.DocumentReferenceResourceProvider;
 
 @Configuration
 @EnableAsync
 public class HapiConfig {
 
     @Bean
-    public EhdsFhirServer fhirServer(ConditionResourceProvider conditionProvider) {
-        return new EhdsFhirServer(conditionProvider);
+    public TenantInterceptor tenantInterceptor() {
+        return new TenantInterceptor();
+    }
+
+    @Bean
+    public EhdsFhirServer fhirServer(ConditionResourceProvider conditionProvider,
+                                     DocumentReferenceResourceProvider documentReferenceProvider,
+                                     TenantInterceptor tenantInterceptor) {
+        return new EhdsFhirServer(conditionProvider, documentReferenceProvider, tenantInterceptor);
     }
 
     @Bean

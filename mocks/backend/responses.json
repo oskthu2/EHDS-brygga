@@ -38,5 +38,33 @@
         "periodEnd": null
       }
     ]
+  },
+  "documents": {
+    "191212121212": [
+      {
+        "documentId": "doc-001-vgr",
+        "title": "Inskrivningsanteckning akutmottagning",
+        "documentTime": "20230601120000",
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "careUnitHSAId": "SE2321000016-4HK5",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "typeCode": "74155-3",
+        "typeCodeSystem": "2.16.840.1.113883.6.1",
+        "typeDisplayName": "Hospital admission note",
+        "statusCode": "active"
+      },
+      {
+        "documentId": "doc-002-sll",
+        "title": "Mottagningsanteckning kardiologi",
+        "documentTime": "20220315090000",
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "careUnitHSAId": "SE2321000098-7XYZ",
+        "careProviderHSAId": "SE2321000098-7XYZ",
+        "typeCode": "11506-3",
+        "typeCodeSystem": "2.16.840.1.113883.6.1",
+        "typeDisplayName": "Progress note",
+        "statusCode": "active"
+      }
+    ]
   }
 }

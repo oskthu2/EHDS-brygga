@@ -1,5 +1,6 @@
 package se.inera.ehds.config;
 
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.springframework.context.annotation.Bean;
@@ -19,8 +20,7 @@ public class BridgeConfigLoader {
         ClassPathResource resource = new ClassPathResource("config/services.yaml");
         Map<String, List<ServiceContractConfig>> raw = mapper.readValue(
                 resource.getInputStream(),
-                mapper.getTypeFactory().constructMapType(Map.class, String.class,
-                        mapper.getTypeFactory().constructCollectionType(List.class, ServiceContractConfig.class)));
+                new TypeReference<>() {});
         return raw.getOrDefault("serviceContracts", List.of());
     }
 }

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import se.inera.ehds.config.AppProperties;
 import java.time.Instant;
+import java.util.HashMap;
 import java.util.Map;
 
 @Service
@@ -27,19 +28,18 @@ public class LoggService {
                           String serviceContract, String logicalAddress,
                           String resourceType, int resultCount, String bridgeHsaId) {
         try {
-            Map<String, Object> entry = Map.of(
-                    "type", "AuditEvent",
-                    "subtype", "read",
-                    "requestId", requestId,
-                    "timestamp", Instant.now().toString(),
-                    "patientId", patientId,
-                    "patientIdSystem", patientSystem,
-                    "serviceContract", serviceContract,
-                    "logicalAddress", logicalAddress,
-                    "resourceType", resourceType,
-                    "resultCount", resultCount,
-                    "agentHsaId", bridgeHsaId     // bridge as the acting agent
-            );
+            Map<String, Object> entry = new HashMap<>();
+            entry.put("type", "AuditEvent");
+            entry.put("subtype", "read");
+            entry.put("requestId", requestId);
+            entry.put("timestamp", Instant.now().toString());
+            entry.put("patientId", patientId);
+            entry.put("patientIdSystem", patientSystem);
+            entry.put("serviceContract", serviceContract);
+            entry.put("logicalAddress", logicalAddress);
+            entry.put("resourceType", resourceType);
+            entry.put("resultCount", resultCount);
+            entry.put("agentHsaId", bridgeHsaId);
             rest.postForEntity(loggUrl + "/log", entry, Void.class);
         } catch (Exception e) {
             log.warn("Audit log failed: {}", e.getMessage());

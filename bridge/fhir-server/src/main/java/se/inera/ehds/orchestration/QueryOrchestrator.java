@@ -8,18 +8,24 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import se.inera.ehds.config.AppProperties;
 import se.inera.ehds.config.ServiceContractConfig;
+import se.inera.ehds.config.SourceStrategy;
+import se.inera.ehds.config.VgConfig;
+import se.inera.ehds.config.VgConfigLoader;
 import se.inera.ehds.mapping.rivta.GetDiagnosisResponse;
 import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.getdiagnosis.GetDiagnosisMapper;
 import se.inera.ehds.model.EiEngagement;
 import se.inera.ehds.model.TakRoute;
 import se.inera.ehds.service.EiService;
+import se.inera.ehds.service.FhirPassthroughClient;
 import se.inera.ehds.service.LoggService;
 import se.inera.ehds.service.SparrFilterService;
 import se.inera.ehds.service.TakService;
 import se.inera.ehds.soap.client.GetDiagnosisClient;
 
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
 
 /**
  * Orchestrates the full FHIR Condition search pipeline:
@@ -30,6 +36,9 @@ import java.util.*;
  *   4. Map  – transform GetDiagnosisResponse → List<Condition>
  *   5. Sparr (POST-QUERY) – filter conditions by source system blocking
  *   6. Log  – fire-and-forget ATNA/BALP audit entry
+ *
+ * When vgHsaId is provided, only that VG is queried (no EI lookup needed).
+ * When vgHsaId is null, all VGs are aggregated using EI/TAK logic.
  */
 @Service
 public class QueryOrchestrator {
@@ -44,6 +53,9 @@ public class QueryOrchestrator {
     private final LoggService logg;
     private final List<ServiceContractConfig> contracts;
     private final AppProperties props;
+    private final List<VgConfig> vgConfigs;
+    private final VgConfigLoader vgConfigLoader;
+    private final FhirPassthroughClient fhirPassthrough;
 
     public QueryOrchestrator(TakService tak, EiService ei,
                               GetDiagnosisClient soapClient,
@@ -51,7 +63,10 @@ public class QueryOrchestrator {
                               SparrFilterService sparr,
                               LoggService logg,
                               List<ServiceContractConfig> contracts,
-                              AppProperties props) {
+                              AppProperties props,
+                              List<VgConfig> vgConfigs,
+                              VgConfigLoader vgConfigLoader,
+                              FhirPassthroughClient fhirPassthrough) {
         this.tak = tak;
         this.ei = ei;
         this.soapClient = soapClient;
@@ -60,61 +75,67 @@ public class QueryOrchestrator {
         this.logg = logg;
         this.contracts = contracts;
         this.props = props;
+        this.vgConfigs = vgConfigs;
+        this.vgConfigLoader = vgConfigLoader;
+        this.fhirPassthrough = fhirPassthrough;
     }
 
-    public Bundle searchConditions(String patientSystem, String patientValue) {
+    public Bundle searchConditions(String vgHsaId, String patientSystem, String patientValue) {
         ServiceContractConfig contract = contracts.stream()
                 .filter(c -> "Condition".equals(c.getFhirResource()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No contract configured for Condition"));
 
         String requestId = UUID.randomUUID().toString();
-        List<Condition> allConditions = new ArrayList<>();
 
-        // Step 1: TAK – all registered logical addresses for this contract
-        List<TakRoute> takRoutes = contract.isUseTAK()
-                ? tak.getRoutes(contract.getNamespace())
-                : List.of();
+        // If VG-scoped and source is FHIR_PASSTHROUGH, delegate directly
+        if (vgHsaId != null) {
+            Optional<VgConfig> vgOpt = vgConfigLoader.findByHsaId(vgConfigs, vgHsaId);
+            if (vgOpt.isPresent() && vgOpt.get().getSource() == SourceStrategy.FHIR_PASSTHROUGH) {
+                Bundle result = fhirPassthrough.searchConditions(vgOpt.get(), patientSystem, patientValue);
+                // Still log the access
+                if (contract.isUseLogg()) {
+                    logg.logAccess(requestId, patientValue, patientSystem, contract.getNamespace(),
+                            vgHsaId, "Condition",
+                            result.getTotal(), props.getBridgeHsaId());
+                }
+                return result;
+            }
+        }
 
-        // Step 2: EI – patient-specific logical addresses
-        // EI tells us which VGs actually have data for this patient.
-        // TAK is used as fallback if EI returns nothing.
+        // Determine logical addresses to query
         List<String> logicalAddresses;
-        if (contract.isUseEI()) {
-            List<EiEngagement> engagements = ei.getEngagements(patientSystem, patientValue, contract.getNamespace());
-            logicalAddresses = engagements.isEmpty()
-                    ? takRoutes.stream().map(TakRoute::getLogicalAddress).toList()
-                    : engagements.stream().map(EiEngagement::getLogicalAddress).toList();
+        if (vgHsaId != null) {
+            // VG-scoped SOAP: TAK is authoritative, skip EI
+            logicalAddresses = List.of(vgHsaId);
         } else {
-            logicalAddresses = takRoutes.stream().map(TakRoute::getLogicalAddress).toList();
-        }
+            // Global: use TAK + EI
+            List<TakRoute> takRoutes = contract.isUseTAK()
+                    ? tak.getRoutes(contract.getNamespace())
+                    : List.of();
 
-        // Steps 3+4: SOAP calls + mapping – NO Sparr check here
-        for (String logicalAddress : logicalAddresses) {
-            // TAK is authoritative for physical URL resolution
-            String physUrl = tak.getPhysicalAddress(contract.getNamespace(), logicalAddress);
-            if (physUrl == null) {
-                log.warn("TAK: no physical address for {} – skipping", logicalAddress);
-                continue;
-            }
-
-            String patientRoot = patientSystem.startsWith("urn:oid:")
-                    ? patientSystem.substring(8) : patientSystem;
-
-            try {
-                GetDiagnosisResponse response = soapClient.call(
-                        physUrl, logicalAddress, patientRoot, patientValue);
-                MapperContext ctx = new MapperContext(patientSystem, patientValue);
-                List<Condition> conditions = mapper.map(response, ctx);
-                allConditions.addAll(conditions);
-                log.debug("Got {} Conditions from {}", conditions.size(), logicalAddress);
-            } catch (Exception e) {
-                log.error("SOAP call failed for {} ({}): {}", logicalAddress, physUrl, e.getMessage());
+            if (contract.isUseEI()) {
+                List<EiEngagement> engagements = ei.getEngagements(patientSystem, patientValue, contract.getNamespace());
+                logicalAddresses = engagements.isEmpty()
+                        ? takRoutes.stream().map(TakRoute::getLogicalAddress).toList()
+                        : engagements.stream().map(EiEngagement::getLogicalAddress).toList();
+            } else {
+                logicalAddresses = takRoutes.stream().map(TakRoute::getLogicalAddress).toList();
             }
         }
+
+        // Async SOAP calls + mapping
+        List<CompletableFuture<List<Condition>>> futures = logicalAddresses.stream()
+                .map(la -> CompletableFuture.supplyAsync(
+                        () -> callSoapAndMap(la, contract, patientSystem, patientValue)))
+                .toList();
+
+        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+        List<Condition> allConditions = futures.stream()
+                .flatMap(f -> f.join().stream())
+                .collect(Collectors.toList());
 
         // Step 5: POST-QUERY Sparr filter
-        // This is the correct position per architecture: all data collected first, then filtered.
         if (contract.isUseSparr()) {
             allConditions = sparr.filter(allConditions, patientSystem, patientValue);
         }
@@ -127,6 +148,25 @@ public class QueryOrchestrator {
         }
 
         return buildBundle(requestId, allConditions);
+    }
+
+    private List<Condition> callSoapAndMap(String la, ServiceContractConfig contract,
+                                            String patientSystem, String patientValue) {
+        String physUrl = tak.getPhysicalAddress(contract.getNamespace(), la);
+        if (physUrl == null) {
+            log.warn("TAK: no route for {}", la);
+            return List.of();
+        }
+        String root = patientSystem.startsWith("urn:oid:") ? patientSystem.substring(8) : patientSystem;
+        try {
+            GetDiagnosisResponse r = soapClient.call(physUrl, la, root, patientValue);
+            List<Condition> conditions = mapper.map(r, new MapperContext(patientSystem, patientValue));
+            log.debug("Got {} Conditions from {}", conditions.size(), la);
+            return conditions;
+        } catch (Exception e) {
+            log.error("SOAP failed for {}: {}", la, e.getMessage());
+            return List.of();
+        }
     }
 
     private Bundle buildBundle(String requestId, List<Condition> conditions) {

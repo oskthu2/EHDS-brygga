@@ -12,6 +12,8 @@ Identifieraren är ett HSA-id på formatet SE{organisationsnummer}-{enhetskod}.
 * ^experimental = true
 * ^context[+].type = #element
 * ^context[=].expression = "Condition"
+* ^context[+].type = #element
+* ^context[=].expression = "DocumentReference"
 
 * value[x] only Identifier
 * valueIdentifier.system ^short = "Identifierarsystem för HSA-id (urn:oid:1.2.752.129.2.1.4.1)"

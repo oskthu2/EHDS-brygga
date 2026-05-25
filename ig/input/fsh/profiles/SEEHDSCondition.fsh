@@ -1,9 +1,10 @@
 Profile: SEEHDSCondition
-Parent: Condition
+Parent: $ipsCondition
 Id: se-ehds-condition
 Title: "SE EHDS Condition"
 Description: """
-FHIR Condition-profil för EHDS-bryggan.
+FHIR Condition-profil för EHDS-bryggan, alignad med IPS (International Patient Summary)
+och EURIDICE/EHDS EU-specifikationer.
 Mappas från Ineras RIVTA-tjänstekontrakt GetDiagnosis
 (clinicalprocess:activity:conditions:GetDiagnosis:2).
 
@@ -13,6 +14,15 @@ Profilen säkerställer att:
 - Diagnostyp (huvud-/bidiagnos) är angiven
 - Källsystem kan spåras via extension och recorder
 """
+
+* ^url = "https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition"
+
+// EURIDICE/EHDS alignment: markera att denna profil implementerar EU EHDS Condition
+* ^baseDefinition = "http://hl7.org/fhir/uv/ips/StructureDefinition/Condition-uv-ips"
+
+// IPS kräver att patientens medicinska historia är representerad
+* bodySite MS
+* note MS
 
 * extension contains ExtSourceSystem named sourceSystem 0..1 MS
 * extension[sourceSystem] ^short = "HSA-id för källsystemet som registrerade diagnosen"

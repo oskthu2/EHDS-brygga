@@ -40,6 +40,12 @@
       <artifactId>hapi-fhir-structures-r4</artifactId>
     </dependency>
 
+    <!-- HAPI FHIR passthrough client -->
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-client</artifactId>
+    </dependency>
+
     <!-- YAML config loading -->
     <dependency>
       <groupId>com.fasterxml.jackson.dataformat</groupId>

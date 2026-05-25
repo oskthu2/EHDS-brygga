@@ -38,11 +38,22 @@ check "Condition – test patient (3 diagnoses × 2 VGs = 6 total)" \
   "$GATEWAY_URL/fhir/Condition?patient.identifier=urn:oid:1.2.752.129.2.1.3.1%7C191212121212"
 
 echo ""
-echo "--- Mock health checks ---"
-check "TAK mock"    "http://localhost:4001/health" 2>/dev/null || echo "  (TAK not exposed on host)"
-check "EI mock"     "http://localhost:4002/health" 2>/dev/null || echo "  (EI not exposed on host)"
-check "Spärr mock"  "http://localhost:4003/health" 2>/dev/null || echo "  (Spärr not exposed on host)"
-check "Logg mock"   "http://localhost:4004/health" 2>/dev/null || echo "  (Logg not exposed on host)"
+echo "--- Mock health checks (informational — mocks are not exposed on host ports) ---"
+info_check() {
+  local desc="$1"
+  local url="$2"
+  local status
+  status=$(curl -s -o /dev/null -w "%{http_code}" --max-time 2 "$url" 2>/dev/null || echo "000")
+  if [ "$status" = "200" ]; then
+    echo "  OK  $desc ($status)"
+  else
+    echo "  --  $desc (not reachable from host — OK in Docker)"
+  fi
+}
+info_check "TAK mock"   "http://localhost:4001/health"
+info_check "EI mock"    "http://localhost:4002/health"
+info_check "Spärr mock" "http://localhost:4003/health"
+info_check "Logg mock"  "http://localhost:4004/health"
 
 echo ""
 if [ "$FAILED" -eq 1 ]; then

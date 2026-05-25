@@ -4,13 +4,15 @@
       "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
       "logicalAddress": "SE2321000016-4HK5",
       "physicalAddress": "http://mock-backend:4005/soap",
-      "description": "VGR GetDiagnosis"
+      "description": "VGR – GetDiagnosis (konsument: brygga SE2321000999-EHDS)",
+      "authorizedConsumers": ["SE2321000999-EHDS"]
     },
     {
       "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
       "logicalAddress": "SE2321000098-7XYZ",
       "physicalAddress": "http://mock-backend:4005/soap",
-      "description": "SLL GetDiagnosis"
+      "description": "SLL – GetDiagnosis (konsument: brygga SE2321000999-EHDS)",
+      "authorizedConsumers": ["SE2321000999-EHDS"]
     }
   ]
 }

@@ -1,0 +1,41 @@
+package se.inera.ehds.fhir.provider;
+
+import ca.uhn.fhir.rest.annotation.RequiredParam;
+import ca.uhn.fhir.rest.annotation.Search;
+import ca.uhn.fhir.rest.param.TokenParam;
+import ca.uhn.fhir.rest.server.IResourceProvider;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.Condition;
+import org.springframework.stereotype.Component;
+import se.inera.ehds.orchestration.QueryOrchestrator;
+
+@Component
+public class ConditionResourceProvider implements IResourceProvider {
+
+    private final QueryOrchestrator orchestrator;
+
+    public ConditionResourceProvider(QueryOrchestrator orchestrator) {
+        this.orchestrator = orchestrator;
+    }
+
+    @Override
+    public Class<Condition> getResourceType() {
+        return Condition.class;
+    }
+
+    /**
+     * GET /Condition?patient.identifier=<system>|<value>
+     *
+     * patient.identifier uses token format: system|value
+     * Example: urn:oid:1.2.752.129.2.1.3.1|191212121212
+     */
+    @Search
+    public Bundle searchConditions(
+            @RequiredParam(name = "patient.identifier") TokenParam patientIdentifier
+    ) {
+        String system = (patientIdentifier.getSystem() != null && !patientIdentifier.getSystem().isBlank())
+                ? patientIdentifier.getSystem()
+                : "urn:oid:1.2.752.129.2.1.3.1";
+        return orchestrator.searchConditions(system, patientIdentifier.getValue());
+    }
+}

@@ -1,0 +1,10 @@
+name: "DiagnosisType"
+entries:
+  - sourceCode: "HD"
+    targetSystem: "http://terminology.hl7.org/CodeSystem/condition-category"
+    targetCode: "encounter-diagnosis"
+    display: "Encounter Diagnosis"
+  - sourceCode: "BY"
+    targetSystem: "https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType"
+    targetCode: "bi-diagnos"
+    display: "Bidiagnos"

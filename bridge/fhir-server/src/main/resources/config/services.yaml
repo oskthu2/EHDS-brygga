@@ -1,0 +1,15 @@
+serviceContracts:
+  - id: GetDiagnosis
+    namespace: "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2"
+    soapAction: "GetDiagnosis"
+    fhirResource: Condition
+    fhirPath: Condition
+    transformer: GetDiagnosis
+    useTAK: true
+    useEI: true
+    useSparr: true
+    useLogg: true
+    searchParams:
+      - name: "patient.identifier"
+        description: "Patient personnummer or samordningsnummer (system|value)"
+        required: true

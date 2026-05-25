@@ -1,0 +1,16 @@
+{
+  "routes": [
+    {
+      "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
+      "logicalAddress": "SE2321000016-4HK5",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "description": "VGR GetDiagnosis"
+    },
+    {
+      "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
+      "logicalAddress": "SE2321000098-7XYZ",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "description": "SLL GetDiagnosis"
+    }
+  ]
+}

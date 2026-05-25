@@ -1,0 +1,16 @@
+{
+  "issuer": "http://localhost:8080",
+  "jwks_uri": "http://localhost:8080/.well-known/jwks.json",
+  "authorization_endpoint": "http://localhost:8080/auth/authorize",
+  "token_endpoint": "http://localhost:8080/auth/token",
+  "token_endpoint_auth_methods_supported": ["client_secret_basic", "private_key_jwt"],
+  "grant_types_supported": ["authorization_code", "client_credentials"],
+  "registration_endpoint": "http://localhost:8080/auth/register",
+  "scopes_supported": ["openid", "fhirUser", "launch", "patient/*.read", "user/*.read"],
+  "response_types_supported": ["code"],
+  "management_endpoint": "http://localhost:8080/auth/manage",
+  "introspection_endpoint": "http://localhost:8080/auth/introspect",
+  "revocation_endpoint": "http://localhost:8080/auth/revoke",
+  "capabilities": ["launch-ehr", "client-public", "client-confidential-symmetric", "context-ehr-patient", "permission-patient"],
+  "code_challenge_methods_supported": ["S256"]
+}

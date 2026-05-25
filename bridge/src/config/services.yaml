@@ -1,0 +1,27 @@
+# Service contract configuration for EHDS-brygga
+# Add a new service contract here to expose it via the FHIR API
+serviceContracts:
+  - id: GetDiagnosis
+    # RIVTA service namespace
+    namespace: "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2"
+    # SOAP action
+    soapAction: "GetDiagnosis"
+    # FHIR resource type this maps to
+    fhirResource: Condition
+    # URL path segment (GET /<fhirPath>)
+    fhirPath: Condition
+    # Which transformer to use (maps to src/transformers/<transformer>/)
+    transformer: GetDiagnosis
+    # Whether to consult TAK for routing
+    useTAK: true
+    # Whether to consult EI for source system discovery
+    useEI: true
+    # Whether to check Spärrtjänst
+    useSparr: true
+    # Whether to log to Loggtjänst
+    useLogg: true
+    # FHIR search parameters supported
+    searchParams:
+      - name: "patient.identifier"
+        description: "Patient personnummer or samordningsnummer"
+        required: true

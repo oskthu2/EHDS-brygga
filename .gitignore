@@ -1,0 +1,9 @@
+node_modules/
+.env
+*.log
+.DS_Store
+output/
+temp/
+ig/output/
+ig/input-cache/
+ig/fsh-generated/

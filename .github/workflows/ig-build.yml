@@ -1,0 +1,48 @@
+name: Build IG
+
+on:
+  push:
+    paths:
+      - "ig/**"
+    branches: ["**"]
+  workflow_dispatch:
+
+jobs:
+  build-ig:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install SUSHI
+        run: npm install -g fsh-sushi
+
+      - name: Compile FSH
+        working-directory: ig
+        run: sushi .
+
+      - name: Set up Java (for IG Publisher)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Download IG Publisher
+        run: |
+          mkdir -p ig/input-cache
+          curl -L -o ig/input-cache/publisher.jar \
+            "https://github.com/HL7/fhir-ig-publisher/releases/latest/download/publisher.jar"
+
+      - name: Run IG Publisher
+        working-directory: ig
+        run: java -jar input-cache/publisher.jar -ig ig.ini
+
+      - name: Upload IG output
+        uses: actions/upload-artifact@v4
+        with:
+          name: ig-output
+          path: ig/output/
+          retention-days: 14

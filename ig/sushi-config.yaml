@@ -1,0 +1,37 @@
+id: se.ehds.brygga
+canonical: https://ehds-brygga.inera.se/fhir
+name: SEEHDSBrygga
+title: "SE EHDS Brygga Implementation Guide"
+description: >
+  Implementation Guide för EHDS-bryggan. Definierar FHIR-profiler och mappningar
+  för konvertering av Ineras RIVTA-tjänstekontrakt till FHIR R4.
+status: draft
+version: 0.1.0
+fhirVersion: 4.0.1
+copyrightYear: 2024+
+releaseLabel: ci-build
+
+publisher:
+  name: Inera AB
+  url: https://www.inera.se
+  email: ehds@inera.se
+
+jurisdiction: urn:iso:std:iso:3166#SE "Sweden"
+
+dependencies:
+  hl7.fhir.r4.core: 4.0.1
+
+pages:
+  index.md:
+    title: Hem
+  mapping-getdiagnosis.md:
+    title: "Mappning: GetDiagnosis → Condition"
+  architecture.md:
+    title: Arkitektur
+
+menu:
+  Hem: index.html
+  Mappningar:
+    "GetDiagnosis → Condition": mapping-getdiagnosis.html
+  Arkitektur: architecture.html
+  Artefakter: artifacts.html

@@ -1,0 +1,69 @@
+services:
+  gateway:
+    build: ./gateway
+    ports:
+      - "8080:80"
+    depends_on:
+      - bridge
+    networks:
+      - ehds-net
+    environment:
+      - BRIDGE_HOST=bridge:3000
+
+  bridge:
+    build: ./bridge
+    networks:
+      - ehds-net
+    environment:
+      - PORT=3000
+      - TAK_URL=http://mock-tak:4001
+      - EI_URL=http://mock-ei:4002
+      - SPARR_URL=http://mock-sparr:4003
+      - LOGG_URL=http://mock-logg:4004
+      - NODE_ENV=production
+    depends_on:
+      - mock-tak
+      - mock-ei
+      - mock-sparr
+      - mock-logg
+      - mock-backend
+
+  mock-tak:
+    build: ./mocks/tak
+    networks:
+      - ehds-net
+    environment:
+      - PORT=4001
+      - BACKEND_URL=http://mock-backend:4005
+
+  mock-ei:
+    build: ./mocks/ei
+    networks:
+      - ehds-net
+    environment:
+      - PORT=4002
+
+  mock-sparr:
+    build: ./mocks/sparr
+    networks:
+      - ehds-net
+    environment:
+      - PORT=4003
+
+  mock-logg:
+    build: ./mocks/logg
+    networks:
+      - ehds-net
+    environment:
+      - PORT=4004
+
+  mock-backend:
+    build: ./mocks/backend
+    networks:
+      - ehds-net
+    environment:
+      - PORT=4005
+
+networks:
+  ehds-net:
+    driver: bridge

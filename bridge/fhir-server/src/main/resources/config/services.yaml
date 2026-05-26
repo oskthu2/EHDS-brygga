@@ -1,10 +1,16 @@
 serviceContracts:
+
+  # --- Resursorienterade informationsmängder (outputMode: RESOURCE_PER_ELEMENT) ---
+  # Varje SOAP-element → en enskild FHIR-resurs.
+  # Används för strukturerade kliniska data med väldefinierade FHIR-resurstyper.
+
   - id: GetDiagnosis
     namespace: "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2"
     soapAction: "GetDiagnosis"
     fhirResource: Condition
     fhirPath: Condition
     transformer: GetDiagnosis
+    outputMode: RESOURCE_PER_ELEMENT
     useTAK: true
     useEI: true
     useSparr: true
@@ -20,6 +26,7 @@ serviceContracts:
     fhirResource: DocumentReference
     fhirPath: DocumentReference
     transformer: GetDocumentList
+    outputMode: RESOURCE_PER_ELEMENT
     useTAK: true
     useEI: true
     useSparr: true
@@ -28,3 +35,25 @@ serviceContracts:
       - name: "patient.identifier"
         description: "Patient personnummer eller samordningsnummer (system|value)"
         required: true
+
+  # --- EURIDICE dokumentutbyte (outputMode: COMPOSITION_ASSEMBLY) ---
+  # Flera SOAP-element → en FHIR Composition med sektioner (IHE XDS-style).
+  # Används för journalantecknings-TK:er där dokumentet är den naturliga enheten.
+  #
+  # Exempel (aktivera när GetCareDocumentationMapper är implementerad):
+  #
+  # - id: GetCareDocumentation
+  #   namespace: "urn:riv:clinicalprocess:healthrecord:getcaredocumentation:GetCareDocumentationResponder:3"
+  #   soapAction: "GetCareDocumentation"
+  #   fhirResource: Composition
+  #   fhirPath: Composition
+  #   transformer: GetCareDocumentation
+  #   outputMode: COMPOSITION_ASSEMBLY
+  #   useTAK: true
+  #   useEI: true
+  #   useSparr: true
+  #   useLogg: true
+  #   searchParams:
+  #     - name: "patient.identifier"
+  #       description: "Patient personnummer eller samordningsnummer (system|value)"
+  #       required: true

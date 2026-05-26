@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import se.inera.ehds.config.AppProperties;
+import se.inera.ehds.config.OutputMode;
 import se.inera.ehds.config.ServiceContractConfig;
 import se.inera.ehds.config.SourceStrategy;
 import se.inera.ehds.config.VgConfig;
@@ -85,6 +86,12 @@ public class QueryOrchestrator {
                 .filter(c -> "Condition".equals(c.getFhirResource()))
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("No contract configured for Condition"));
+
+        if (contract.getOutputMode() == OutputMode.COMPOSITION_ASSEMBLY) {
+            throw new UnsupportedOperationException(
+                    "outputMode COMPOSITION_ASSEMBLY är inte implementerat för " + contract.getId()
+                    + " – aktivera när GetCareDocumentationMapper finns");
+        }
 
         String requestId = UUID.randomUUID().toString();
 

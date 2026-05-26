@@ -9,6 +9,7 @@ public class ServiceContractConfig {
     private String fhirResource;
     private String fhirPath;
     private String transformer;
+    private OutputMode outputMode = OutputMode.RESOURCE_PER_ELEMENT;
     private boolean useTAK = true;
     private boolean useEI = true;
     private boolean useSparr = true;
@@ -27,6 +28,8 @@ public class ServiceContractConfig {
     public void setFhirPath(String fhirPath) { this.fhirPath = fhirPath; }
     public String getTransformer() { return transformer; }
     public void setTransformer(String transformer) { this.transformer = transformer; }
+    public OutputMode getOutputMode() { return outputMode; }
+    public void setOutputMode(OutputMode outputMode) { this.outputMode = outputMode; }
     public boolean isUseTAK() { return useTAK; }
     public void setUseTAK(boolean useTAK) { this.useTAK = useTAK; }
     public boolean isUseEI() { return useEI; }

@@ -64,7 +64,7 @@ Profilen säkerställer att:
 * subject.identifier 1..1 MS
 * subject.identifier ^short = "Patientidentifierare (personnummer eller samordningsnummer)"
 * subject.identifier.system 1..1 MS
-* subject.identifier.system ^short = "OID-system för personnummer (urn:oid:1.2.752.129.2.1.3.1) eller samordningsnummer (urn:oid:1.2.752.129.2.1.3.3)"
+* subject.identifier.system ^short = "http://electronichealth.se/identifier/personnummer eller http://electronichealth.se/identifier/samordningsnummer"
 * subject.identifier.value 1..1 MS
 * subject.identifier.value ^short = "Personnummer eller samordningsnummer, t.ex. 191212121212"
 
@@ -85,6 +85,6 @@ Profilen säkerställer att:
 * recorder.identifier MS
 * recorder.identifier ^short = "HSA-id för registrerande system eller enhet"
 * recorder.identifier.system MS
-* recorder.identifier.system ^short = "OID-system för HSA-id: urn:oid:1.2.752.129.2.1.4.1"
+* recorder.identifier.system ^short = "urn:oid:1.2.752.129.2.1.4.1 (HSA-id, Inera NTjP) eller urn:oid:1.2.752.29.4.19 (HSA-id, basprofil)"
 * recorder.identifier.value MS
 * recorder.identifier.value ^short = "HSA-id, t.ex. SE2321000016-4HK5"

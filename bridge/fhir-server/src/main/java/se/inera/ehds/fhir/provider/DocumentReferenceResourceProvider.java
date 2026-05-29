@@ -38,7 +38,7 @@ public class DocumentReferenceResourceProvider implements IResourceProvider {
         String vgHsaId = (String) requestDetails.getAttribute("vgHsaId");
         String system = patientIdentifier.getSystem() != null && !patientIdentifier.getSystem().isBlank()
                 ? patientIdentifier.getSystem()
-                : "urn:oid:1.2.752.129.2.1.3.1";
+                : "http://electronichealth.se/identifier/personnummer";
         return orchestrator.searchDocumentReferences(vgHsaId, system, patientIdentifier.getValue());
     }
 }

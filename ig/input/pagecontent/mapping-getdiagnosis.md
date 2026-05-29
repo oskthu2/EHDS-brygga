@@ -29,13 +29,15 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 ## OID till URI-mappningar
 
 RIVTA använder OID-identifierare (Object Identifiers) för kodsystem och personidentifierare.
-FHIR föredrar URI:er. EHDS-bryggan utför följande konverteringar:
+FHIR föredrar URI:er. EHDS-bryggan utför följande konverteringar enligt
+[HL7 Sweden basprofiler-r4](https://github.com/HL7Sweden/basprofiler-r4):
 
 | OID | URI | Beskrivning |
 |---|---|---|
-| `1.2.752.129.2.1.3.1` | `urn:oid:1.2.752.129.2.1.3.1` | Personnummer |
-| `1.2.752.129.2.1.3.3` | `urn:oid:1.2.752.129.2.1.3.3` | Samordningsnummer |
-| `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id |
+| `1.2.752.129.2.1.3.1` | `http://electronichealth.se/identifier/personnummer` | Personnummer |
+| `1.2.752.129.2.1.3.3` | `http://electronichealth.se/identifier/samordningsnummer` | Samordningsnummer |
+| `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id (Inera NTjP) |
+| `1.2.752.29.4.19` | `urn:oid:1.2.752.29.4.19` | HSA-id (HL7 Sweden basprofiler) |
 | `1.2.752.116.1.1.1.1.3` | `https://www.icd10.se/` | ICD-10-SE |
 
 OID:er som inte har en känd URI-mappning bevaras som `urn:oid:{oid}`.
@@ -164,7 +166,7 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
   },
   "subject": {
     "identifier": {
-      "system": "urn:oid:1.2.752.129.2.1.3.1",
+      "system": "http://electronichealth.se/identifier/personnummer",
       "value": "191212121212"
     }
   },
@@ -184,7 +186,7 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
 - `clinicalStatus = active` – inget slutdatum i `diagnosisTimePeriod`, så diagnosen är fortfarande aktiv
 - `category = encounter-diagnosis` – `diagnosisType = HD` (Huvuddiagnos) mappas till standard-FHIR-koden
 - `code.coding.system = https://www.icd10.se/` – OID `1.2.752.116.1.1.1.1.3` konverteras till ICD-10-SE URI
-- `subject.identifier.system = urn:oid:1.2.752.129.2.1.3.1` – OID för personnummer bevaras som URN
+- `subject.identifier.system = http://electronichealth.se/identifier/personnummer` – OID `1.2.752.129.2.1.3.1` konverteras till kanonisk URI (HL7 Sweden basprofiler)
 - `recordedDate` – `20230601120000` konverteras till `2023-06-01T12:00:00`
 - `onsetDateTime` – `20230601` konverteras till `2023-06-01`
 - `extension[sourceSystem]` och `recorder` – båda pekar på `SE2321000016-4HK5` (källsystemets HSA-id)

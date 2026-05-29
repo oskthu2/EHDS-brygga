@@ -44,7 +44,7 @@ och säkerställer att:
 * author ^short = "Vårdenhetens HSA-id (careUnitHSAId från RIVTA)"
 * author.identifier MS
 * author.identifier.system MS
-* author.identifier.system ^short = "urn:oid:1.2.752.129.2.1.4.1 (HSA-id OID)"
+* author.identifier.system ^short = "urn:oid:1.2.752.129.2.1.4.1 (HSA-id Inera) eller urn:oid:1.2.752.29.4.19 (HSA-id basprofil)"
 * author.identifier.value MS
 
 * custodian MS

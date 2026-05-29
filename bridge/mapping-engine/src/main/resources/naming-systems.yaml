@@ -1,19 +1,46 @@
 entries:
+  # --- Patientidentifierare (HL7 Sweden basprofiler-r4) ---
+  - oid: "1.2.752.129.2.1.3.1"
+    uri: "http://electronichealth.se/identifier/personnummer"
+    description: "Personnummer"
+  - oid: "1.2.752.129.2.1.3.3"
+    uri: "http://electronichealth.se/identifier/samordningsnummer"
+    description: "Samordningsnummer"
+
+  # --- Diagnoskodsystem ---
   - oid: "1.2.752.116.1.1.1.1.3"
     uri: "https://www.icd10.se/"
     description: "ICD-10-SE"
   - oid: "2.16.840.1.113883.6.3"
     uri: "http://hl7.org/fhir/sid/icd-10"
     description: "ICD-10 (international)"
-  - oid: "1.2.752.129.2.1.3.1"
-    uri: "urn:oid:1.2.752.129.2.1.3.1"
-    description: "Personnummer"
-  - oid: "1.2.752.129.2.1.3.3"
-    uri: "urn:oid:1.2.752.129.2.1.3.3"
-    description: "Samordningsnummer"
+  - oid: "2.16.840.1.113883.6.96"
+    uri: "http://snomed.info/sct"
+    description: "SNOMED CT"
+
+  # --- Åtgärdskodsystem ---
+  - oid: "1.2.752.116.1.1.1.1.1"
+    uri: "https://www.socialstyrelsen.se/statistik-och-data/klassifikationer-och-koder/kva/"
+    description: "KVÅ (Klassifikation av vårdåtgärder)"
+
+  # --- Vård- och omsorgsidentifierare ---
   - oid: "1.2.752.129.2.1.4.1"
     uri: "urn:oid:1.2.752.129.2.1.4.1"
-    description: "HSA-id"
-  - oid: "1.2.752.116.1.1.1.1.1"
-    uri: "https://www.socialstyrelsen.se/KVA"
-    description: "KVÅ (Klassifikation av vårdåtgärder)"
+    description: "HSA-id (Inera NTjP/RIVTA)"
+  - oid: "1.2.752.29.4.19"
+    uri: "urn:oid:1.2.752.29.4.19"
+    description: "HSA-id (HL7 Sweden basprofiler)"
+
+  # --- Professionella identifierare (HL7 Sweden basprofiler-r4) ---
+  - oid: "1.2.752.116.3.1.1"
+    uri: "urn:oid:1.2.752.116.3.1.1"
+    description: "Legitimationsnummer (Socialstyrelsen)"
+  - oid: "1.2.752.116.3.1.2"
+    uri: "urn:oid:1.2.752.116.3.1.2"
+    description: "Förskrivarkod (Socialstyrelsen)"
+  - oid: "1.2.752.116.3.1.3"
+    uri: "urn:oid:1.2.752.116.3.1.3"
+    description: "HOSP-yrken (Socialstyrelsen)"
+  - oid: "1.2.752.116.1.3.6"
+    uri: "urn:oid:1.2.752.116.1.3.6"
+    description: "SOSNYK yrkeskategorier (Socialstyrelsen)"

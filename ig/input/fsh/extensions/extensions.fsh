@@ -16,6 +16,6 @@ Identifieraren är ett HSA-id på formatet SE{organisationsnummer}-{enhetskod}.
 * ^context[=].expression = "DocumentReference"
 
 * value[x] only Identifier
-* valueIdentifier.system ^short = "Identifierarsystem för HSA-id (urn:oid:1.2.752.129.2.1.4.1)"
+* valueIdentifier.system ^short = "urn:oid:1.2.752.129.2.1.4.1 (Inera NTjP) eller urn:oid:1.2.752.29.4.19 (basprofil)"
 * valueIdentifier.value 1..1
 * valueIdentifier.value ^short = "HSA-id för källsystemet, t.ex. SE2321000016-4HK5"

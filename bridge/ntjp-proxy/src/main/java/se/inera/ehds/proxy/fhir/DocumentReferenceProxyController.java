@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import se.inera.ehds.mapping.naming.NamingSystemRegistry;
 import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
 import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.getdocumentlist.GetDocumentListMapper;
@@ -30,15 +31,18 @@ public class DocumentReferenceProxyController {
     private final ProxyTakService tak;
     private final GetDocumentListClient soapClient;
     private final GetDocumentListMapper mapper;
+    private final NamingSystemRegistry namingRegistry;
     private final IParser fhirParser;
 
     public DocumentReferenceProxyController(ProxyTakService tak,
                                              GetDocumentListClient soapClient,
                                              GetDocumentListMapper mapper,
+                                             NamingSystemRegistry namingRegistry,
                                              FhirContext fhirContext) {
         this.tak = tak;
         this.soapClient = soapClient;
         this.mapper = mapper;
+        this.namingRegistry = namingRegistry;
         this.fhirParser = fhirContext.newJsonParser().setPrettyPrint(true);
     }
 
@@ -48,7 +52,7 @@ public class DocumentReferenceProxyController {
             @RequestParam("patient.identifier") String patientIdentifier) {
 
         String[] parts = patientIdentifier.split("\\|", 2);
-        String patientSystem = parts.length == 2 ? parts[0] : "urn:oid:1.2.752.129.2.1.3.1";
+        String patientSystem = parts.length == 2 ? parts[0] : "http://electronichealth.se/identifier/personnummer";
         String patientValue  = parts.length == 2 ? parts[1] : parts[0];
 
         String physUrl = tak.getPhysicalAddress(NAMESPACE, vgHsaId);
@@ -57,7 +61,7 @@ public class DocumentReferenceProxyController {
             return ResponseEntity.ok(emptyBundle());
         }
 
-        String root = patientSystem.startsWith("urn:oid:") ? patientSystem.substring(8) : patientSystem;
+        String root = namingRegistry.uriToOid(patientSystem);
         List<DocumentReference> docs;
         try {
             GetDocumentListResponse response = soapClient.call(physUrl, vgHsaId, root, patientValue);

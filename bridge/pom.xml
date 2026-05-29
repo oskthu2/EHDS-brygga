@@ -13,6 +13,7 @@
     <module>mapping-engine</module>
     <module>soap-client</module>
     <module>fhir-server</module>
+    <module>ntjp-proxy</module>
   </modules>
 
   <properties>

@@ -24,9 +24,13 @@ public class EiService {
     @SuppressWarnings("unchecked")
     public List<EiEngagement> getEngagements(String patientSystem, String patientId, String namespace) {
         try {
-            String url = eiUrl + "/engagement?patientSystem=" + patientSystem
-                    + "&patientId=" + patientId + "&namespace=" + namespace;
-            Map<String, Object> body = rest.getForObject(url, Map.class);
+            StringBuilder url = new StringBuilder(eiUrl)
+                .append("/engagement?patientSystem=").append(patientSystem)
+                .append("&patientId=").append(patientId);
+            if (namespace != null && !namespace.isBlank()) {
+                url.append("&namespace=").append(namespace);
+            }
+            Map<String, Object> body = rest.getForObject(url.toString(), Map.class);
             if (body == null) return List.of();
             List<Map<String, String>> engs = (List<Map<String, String>>) body.get("engagements");
             if (engs == null) return List.of();

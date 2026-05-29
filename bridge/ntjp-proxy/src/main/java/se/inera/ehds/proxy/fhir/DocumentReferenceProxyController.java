@@ -1,0 +1,93 @@
+package se.inera.ehds.proxy.fhir;
+
+import ca.uhn.fhir.context.FhirContext;
+import ca.uhn.fhir.parser.IParser;
+import org.hl7.fhir.r4.model.Bundle;
+import org.hl7.fhir.r4.model.DocumentReference;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
+import se.inera.ehds.mapping.tk.MapperContext;
+import se.inera.ehds.mapping.tk.getdocumentlist.GetDocumentListMapper;
+import se.inera.ehds.proxy.service.ProxyTakService;
+import se.inera.ehds.soap.client.GetDocumentListClient;
+
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
+
+@RestController
+@RequestMapping("/fhir/{vgHsaId}")
+public class DocumentReferenceProxyController {
+
+    private static final Logger log = LoggerFactory.getLogger(DocumentReferenceProxyController.class);
+    private static final String NAMESPACE =
+            "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1";
+
+    private final ProxyTakService tak;
+    private final GetDocumentListClient soapClient;
+    private final GetDocumentListMapper mapper;
+    private final IParser fhirParser;
+
+    public DocumentReferenceProxyController(ProxyTakService tak,
+                                             GetDocumentListClient soapClient,
+                                             GetDocumentListMapper mapper,
+                                             FhirContext fhirContext) {
+        this.tak = tak;
+        this.soapClient = soapClient;
+        this.mapper = mapper;
+        this.fhirParser = fhirContext.newJsonParser().setPrettyPrint(true);
+    }
+
+    @GetMapping(value = "/DocumentReference", produces = "application/fhir+json")
+    public ResponseEntity<String> searchDocumentReferences(
+            @PathVariable String vgHsaId,
+            @RequestParam("patient.identifier") String patientIdentifier) {
+
+        String[] parts = patientIdentifier.split("\\|", 2);
+        String patientSystem = parts.length == 2 ? parts[0] : "urn:oid:1.2.752.129.2.1.3.1";
+        String patientValue  = parts.length == 2 ? parts[1] : parts[0];
+
+        String physUrl = tak.getPhysicalAddress(NAMESPACE, vgHsaId);
+        if (physUrl == null) {
+            log.warn("Ingen fysisk adress i TAK för {} / {}", NAMESPACE, vgHsaId);
+            return ResponseEntity.ok(emptyBundle());
+        }
+
+        String root = patientSystem.startsWith("urn:oid:") ? patientSystem.substring(8) : patientSystem;
+        List<DocumentReference> docs;
+        try {
+            GetDocumentListResponse response = soapClient.call(physUrl, vgHsaId, root, patientValue);
+            docs = mapper.map(response, new MapperContext(patientSystem, patientValue));
+            log.debug("GetDocumentList för {} returnerade {} DocumentReference(s)", vgHsaId, docs.size());
+        } catch (Exception e) {
+            log.error("SOAP-fel mot {}: {}", vgHsaId, e.getMessage());
+            return ResponseEntity.ok(emptyBundle());
+        }
+
+        Bundle bundle = buildBundle(docs);
+        return ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType("application/fhir+json"))
+                .body(fhirParser.encodeResourceToString(bundle));
+    }
+
+    private Bundle buildBundle(List<DocumentReference> docs) {
+        Bundle b = new Bundle();
+        b.setId(UUID.randomUUID().toString());
+        b.getMeta().setLastUpdated(new Date());
+        b.setType(Bundle.BundleType.SEARCHSET);
+        b.setTotal(docs.size());
+        for (DocumentReference dr : docs) {
+            b.addEntry().setFullUrl("urn:uuid:" + dr.getId()).setResource(dr)
+             .getSearch().setMode(Bundle.SearchEntryMode.MATCH);
+        }
+        return b;
+    }
+
+    private String emptyBundle() {
+        return fhirParser.encodeResourceToString(buildBundle(List.of()));
+    }
+}

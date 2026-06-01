@@ -6,20 +6,25 @@ import se.inera.ehds.mapping.concept.ConceptMapRegistry;
 import se.inera.ehds.mapping.naming.NamingSystemRegistry;
 import se.inera.ehds.mapping.rivta.*;
 import se.inera.ehds.mapping.tk.MapperContext;
-import se.inera.ehds.mapping.tk.TkMapper;
+import se.inera.ehds.mapping.tk.MappedDiagnosisEntry;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class GetDiagnosisMapper implements TkMapper<GetDiagnosisResponse, Condition> {
+public class GetDiagnosisMapper {
 
     private static final String CANONICAL_BASE = "https://ehds-brygga.inera.se/fhir";
-    private static final String HSA_OID = "1.2.752.129.2.1.4.1";
+    private static final String HSA_OID_INERA = "1.2.752.129.2.1.4.1";
     private static final String CLIN_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-clinical";
     private static final String VER_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-ver-status";
+    private static final String PROV_PARTICIPANT_SYS = "http://terminology.hl7.org/CodeSystem/provenance-participant-type";
     private static final String EXT_SOURCE_SYSTEM = CANONICAL_BASE + "/StructureDefinition/ext-source-system";
+    private static final String EXT_CARE_PROVIDER  = CANONICAL_BASE + "/StructureDefinition/ext-care-provider";
+    private static final String EXT_CARE_UNIT      = CANONICAL_BASE + "/StructureDefinition/ext-care-unit";
+    private static final String EXT_ASSERTED_DATE  = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-condition";
 
     private final NamingSystemRegistry namingSystem;
@@ -30,8 +35,7 @@ public class GetDiagnosisMapper implements TkMapper<GetDiagnosisResponse, Condit
         this.conceptMaps = conceptMaps;
     }
 
-    @Override
-    public List<Condition> map(GetDiagnosisResponse response, MapperContext ctx) {
+    public List<MappedDiagnosisEntry> map(GetDiagnosisResponse response, MapperContext ctx) {
         if (response == null || response.getDiagnosis() == null) return List.of();
         ResultType result = response.getResult();
         if (result != null && !"OK".equals(result.getResultCode())) return List.of();
@@ -42,7 +46,7 @@ public class GetDiagnosisMapper implements TkMapper<GetDiagnosisResponse, Condit
                 .collect(Collectors.toList());
     }
 
-    private Condition mapDiagnosis(Diagnosis diag, MapperContext ctx) {
+    private MappedDiagnosisEntry mapDiagnosis(Diagnosis diag, MapperContext ctx) {
         if (diag == null) return null;
         DiagnosisHeader header = diag.getDiagnosisHeader();
         DiagnosisBody body = diag.getDiagnosisBody();
@@ -106,26 +110,93 @@ public class GetDiagnosisMapper implements TkMapper<GetDiagnosisResponse, Condit
             c.setRecordedDateElement(new DateTimeType(parseRivDate(header.getDocumentTime())));
         }
 
-        // recorder: source system HSA-id
+        String hsaSystem = namingSystem.oidToUri(HSA_OID_INERA);
+
+        // recorder + ext-source-system: sourceSystemHSAId
         String sourceHsaId = header.getSourceSystemHSAId();
         if (sourceHsaId != null) {
-            String hsaSystem = namingSystem.oidToUri(HSA_OID);
             c.setRecorder(new Reference().setIdentifier(
                     new Identifier().setSystem(hsaSystem).setValue(sourceHsaId)));
-
-            // extension: ext-source-system (used by SparrFilterService to identify the source)
-            Extension ext = new Extension(EXT_SOURCE_SYSTEM);
-            ext.setValue(new Identifier().setSystem(hsaSystem).setValue(sourceHsaId));
-            c.addExtension(ext);
+            Extension extSrc = new Extension(EXT_SOURCE_SYSTEM);
+            extSrc.setValue(new Identifier().setSystem(hsaSystem).setValue(sourceHsaId));
+            c.addExtension(extSrc);
         }
 
-        return c;
+        // ext-care-provider: careProviderHSAId (accountable healthcare provider – used for Sparr)
+        String careProviderHsaId = header.getCareProviderHSAId();
+        if (careProviderHsaId != null) {
+            Extension extCp = new Extension(EXT_CARE_PROVIDER);
+            extCp.setValue(new Identifier().setSystem(hsaSystem).setValue(careProviderHsaId));
+            c.addExtension(extCp);
+        }
+
+        // ext-care-unit: careUnitHSAId
+        String careUnitHsaId = header.getCareUnitHSAId();
+        if (careUnitHsaId != null) {
+            Extension extCu = new Extension(EXT_CARE_UNIT);
+            extCu.setValue(new Identifier().setSystem(hsaSystem).setValue(careUnitHsaId));
+            c.addExtension(extCu);
+        }
+
+        // ext-asserted-date: EPS extension – administrative assertion date (author-time)
+        if (body.getAssertedDate() != null) {
+            Extension extAd = new Extension(EXT_ASSERTED_DATE);
+            extAd.setValue(new DateTimeType(parseRivDate(body.getAssertedDate())));
+            c.addExtension(extAd);
+        }
+
+        // Provenance: carries organisational provenance for the Condition
+        Provenance prov = buildProvenance(c.getId(), header, ctx, hsaSystem);
+
+        return new MappedDiagnosisEntry(c, prov);
     }
 
-    /** Convert RIVTA date string to ISO 8601.
-     *  YYYYMMDD → YYYY-MM-DD
-     *  YYYYMMDDHHmmss → YYYY-MM-DDTHH:mm:ss
-     */
+    private Provenance buildProvenance(String conditionId, DiagnosisHeader header,
+                                        MapperContext ctx, String hsaSystem) {
+        Provenance p = new Provenance();
+        p.setId(UUID.randomUUID().toString());
+
+        // target: the Condition this provenance describes
+        p.addTarget(new Reference("urn:uuid:" + conditionId));
+
+        // recorded: use documentTime, fall back to now
+        if (header.getDocumentTime() != null) {
+            String isoDate = parseRivDate(header.getDocumentTime());
+            p.setRecordedElement(new InstantType(isoDate.length() == 10
+                    ? isoDate + "T00:00:00Z" : isoDate + "Z"));
+        } else {
+            p.setRecorded(new Date());
+        }
+
+        // agent[0]: author = accountable healthcare provider (careProviderHSAId)
+        // This is what Sparrtjänsten uses for organisational-level blocking
+        if (header.getCareProviderHSAId() != null) {
+            p.addAgent()
+                .setType(codeable(PROV_PARTICIPANT_SYS, "author"))
+                .setWho(new Reference().setIdentifier(
+                    new Identifier().setSystem(hsaSystem).setValue(header.getCareProviderHSAId())));
+        }
+
+        // agent[1]: custodian = care unit (careUnitHSAId)
+        if (header.getCareUnitHSAId() != null) {
+            p.addAgent()
+                .setType(codeable(PROV_PARTICIPANT_SYS, "custodian"))
+                .setWho(new Reference().setIdentifier(
+                    new Identifier().setSystem(hsaSystem).setValue(header.getCareUnitHSAId())));
+        }
+
+        // agent[2]: assembler = the bridge (EHDS-bryggan)
+        if (ctx.getBridgeHsaId() != null) {
+            p.addAgent()
+                .setType(codeable(PROV_PARTICIPANT_SYS, "assembler"))
+                .setWho(new Reference().setIdentifier(
+                    new Identifier().setSystem(hsaSystem).setValue(ctx.getBridgeHsaId())));
+        }
+
+        return p;
+    }
+
+    /** Convert RIVTA date string to ISO 8601. */
     private String parseRivDate(String d) {
         if (d == null || d.isBlank()) return null;
         String s = d.trim();

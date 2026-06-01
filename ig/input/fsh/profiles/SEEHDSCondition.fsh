@@ -25,7 +25,13 @@ Profilen säkerställer att:
 * note MS
 
 * extension contains ExtSourceSystem named sourceSystem 0..1 MS
+* extension contains ExtCareProvider named careProvider 0..1 MS
+* extension contains ExtCareUnit named careUnit 0..1 MS
+* extension contains ExtAssertedDate named assertedDate 0..1 MS
 * extension[sourceSystem] ^short = "HSA-id för källsystemet som registrerade diagnosen"
+* extension[careProvider] ^short = "HSA-id för ansvarig vårdgivare – används av Sparrtjänsten"
+* extension[careUnit] ^short = "HSA-id för vårdenhet"
+* extension[assertedDate] ^short = "Administrativt datum (EPS extension:assertedDate)"
 
 * clinicalStatus 1..1 MS
 * clinicalStatus ^short = "Klinisk status: active om ingen slutdatum, resolved om slutdatum finns"

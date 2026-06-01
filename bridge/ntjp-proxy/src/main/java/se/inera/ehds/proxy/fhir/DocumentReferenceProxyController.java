@@ -65,7 +65,7 @@ public class DocumentReferenceProxyController {
         List<DocumentReference> docs;
         try {
             GetDocumentListResponse response = soapClient.call(physUrl, vgHsaId, root, patientValue);
-            docs = mapper.map(response, new MapperContext(patientSystem, patientValue));
+            docs = mapper.map(response, new MapperContext(patientSystem, patientValue, null));
             log.debug("GetDocumentList för {} returnerade {} DocumentReference(s)", vgHsaId, docs.size());
         } catch (Exception e) {
             log.error("SOAP-fel mot {}: {}", vgHsaId, e.getMessage());

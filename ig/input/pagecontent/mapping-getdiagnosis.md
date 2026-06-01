@@ -25,6 +25,11 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 | `diagnosisBody.diagnosisType` (BY) | `Condition.category` = `bi-diagnos` | Bidiagnos → svensk tilläggskod |
 | `diagnosisBody.diagnosisTimePeriod.start` | `Condition.onsetDateTime` | Format YYYYMMDD → YYYY-MM-DD |
 | `diagnosisBody.diagnosisTimePeriod.end` | `Condition.abatementDateTime` | Om satt: resolved, annars active |
+| `diagnosisHeader.careProviderHSAId` | `Condition.extension[careProvider]` + `Provenance.agent[author]` | Ansvarig vårdgivare – används för Sparr |
+| `diagnosisHeader.careUnitHSAId` | `Condition.extension[careUnit]` + `Provenance.agent[custodian]` | Vårdenhet |
+| EPS `extension:assertedDate` | `Condition.extension[assertedDate]` | Administrativt datum (om tillämpligt) |
+| `diagnosisHeader.documentTime` | `Provenance.recorded` | Tidsstämpel för Provenance |
+| (bryggan självt, `EHDS_BRIDGE_HSA_ID`) | `Provenance.agent[assembler]` | Bryggan som sammansättande aktör |
 
 ## OID till URI-mappningar
 
@@ -41,6 +46,15 @@ FHIR föredrar URI:er. EHDS-bryggan utför följande konverteringar enligt
 | `1.2.752.116.1.1.1.1.3` | `https://www.icd10.se/` | ICD-10-SE |
 
 OID:er som inte har en känd URI-mappning bevaras som `urn:oid:{oid}`.
+
+Provenance-resurser inkluderas i sökbundlen med `searchMode = include` och refererar till sitt Condition via `Provenance.target`.
+
+| FHIR-resurs | Koppling | Beskrivning |
+|---|---|---|
+| `Provenance.target` | `urn:uuid:{Condition.id}` | Provenance beskriver denna Condition |
+| `Provenance.agent[author]` | `careProviderHSAId` | Ansvarig vårdgivare (organisationsnivå, Sparr) |
+| `Provenance.agent[custodian]` | `careUnitHSAId` | Vårdenhet som förvaltar posten |
+| `Provenance.agent[assembler]` | `EHDS_BRIDGE_HSA_ID` | Bryggan som sammansatte FHIR-svaret |
 
 ## Härledning av clinicalStatus
 
@@ -202,3 +216,25 @@ Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver f
 - `subject.identifier` – patientidentifierare med system och value
 
 Bryggan avvisar RIVTA-svar som saknar obligatoriska fält och loggar valideringsfel.
+
+## Provenance
+
+För varje Condition skapas en Provenance-resurs som inkluderas i sökbundlen med `Bundle.entry.search.mode = include`. Provenance-resursen bär den fullständiga provenanskedjan:
+
+| Agent-roll | Källa | Syfte |
+|---|---|---|
+| `author` | `diagnosisHeader.careProviderHSAId` | Ansvarig vårdgivare – organisationsnivå, används av Sparrtjänsten |
+| `custodian` | `diagnosisHeader.careUnitHSAId` | Förvaltar journalposten |
+| `assembler` | `EHDS_BRIDGE_HSA_ID` (env-variabel) | EHDS-bryggan som sammansatte FHIR-bundlen |
+
+`Provenance.recorded` sätts till `diagnosisHeader.documentTime` (konverterad till ISO 8601 + UTC).
+Om `documentTime` saknas används aktuell systemtid.
+
+Provenance-resursen refererar Condition via `Provenance.target = urn:uuid:{Condition.id}`.
+
+## PoC-begränsningar
+
+### Spärr: inre och yttre
+EHDS-bryggan är avsedd för cross-border och ska applicera alla spärrar. Sparrkontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med Ineras spärrtjänst som beskrivs på [Ineras konfluensida](https://inera.atlassian.net/wiki/spaces/PIS/pages/3435203724/).
+
+**Utanför PoC-scope:** En vårdgivare som tillhör en spärrad enhet men ändå har rätt att ta del av informationen (t.ex. nödsituationer / break-the-glass) hanteras inte. Denna logik kräver kontextinformation om inloggad användares behörighet och är out of scope för PoC:en.

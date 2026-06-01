@@ -9,18 +9,18 @@ app.use(express.json());
 
 /**
  * POST /check
- * Body: { patientSystem, patientId, sourceSystem }
+ * Body: { patientSystem, patientId, careProviderHsaId }
  *
- * Returns whether the patient has blocked the given sourceSystem.
+ * Returns whether the patient has blocked the given careProviderHsaId (organisationsnivå).
  * Special case: patientId "000000000000" is fully blocked.
  */
 app.post('/check', (req, res) => {
-  const { patientSystem, patientId, sourceSystem } = req.body || {};
+  const { patientSystem, patientId, careProviderHsaId } = req.body || {};
 
-  if (!patientSystem || !patientId || !sourceSystem) {
+  if (!patientSystem || !patientId || !careProviderHsaId) {
     return res
       .status(400)
-      .json({ error: 'Missing required body fields: patientSystem, patientId, sourceSystem' });
+      .json({ error: 'Missing required body fields: patientSystem, patientId, careProviderHsaId' });
   }
 
   // Special test case: magic patient ID is fully blocked

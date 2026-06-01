@@ -10,7 +10,7 @@ tjänsteplattform (NTjP).
 Systemet är utformat för att vara:
 
 - **VG-scopat** – ett URL-segment per VG; ingen aggregering över VG-gränser i ett anrop
-- **Konfigurationsdrivet** – nya tjänstekontrakt aktiveras via `services.yaml` + ny mappningsklass
+- **Konfigurationsdrivet** – nya tjänstekontrakt aktiveras via `vg-config.yaml` + ny mappningsklass
 - **Stateless** – bryggan cachelagrar ingen patientdata; alla anrop är realtidsgenomströmning
 - **Spårbart** – alla anrop loggas (ATNA/BALP) i Ineras loggtjänst
 - **Säkert** – JWT-validering, mTLS mot NTjP, post-query spärrfiltrering
@@ -23,7 +23,7 @@ Ingångspunkt för alla externa FHIR-anrop. Hanterar:
 
 - TLS-terminering
 - Multi-tenant URL-routing: extraherar `{vg-hsa-id}` ur `/fhir/{vg-hsa-id}/{resurs}`
-  och vidarebefordrar det som `X-VG-HSA-ID`-header till bryggtjänsten
+  och vidarebefordrar det som `X-VG-HSA-ID`-header till fhir-server
 - *Planerat:* vidarebefordran till Åtkomstintygstjänsten för JWT-validering
 
 ### Åtkomstintygstjänst *(planerad)*
@@ -32,22 +32,40 @@ Validerar JWT-åtkomstintyg och kontrollerar att anropande system har rätt scop
 (t.ex. `system/Condition.read`). Extraherar HoS-person, vårdgivare och vårdsyfte
 ur JWT-claims och gör dessa tillgängliga för bryggtjänsten.
 
-### Bryggtjänst (Spring Boot + HAPI FHIR, Java)
+### fhir-server (Spring Boot + HAPI FHIR)
 
-Kärnkomponenten. Innehåller tre interna Maven-moduler:
-
-**fhir-server** — tar emot och validerar FHIR-förfrågningar, extraherar VG-kontexten
+Kärnan i FHIR-laget. Tar emot och validerar FHIR-förfrågningar, extraherar VG-kontexten
 från `X-VG-HSA-ID`-headern och driver anropsflödet:
 
-1. Slår upp logisk adress för VG:n i `vg-config.yaml`
+1. Slår upp konfigurerad FHIR-endpoint för VG:n i `vg-config.yaml`
 2. Frågar EI om patienten har data registrerat hos VG:ns system
-3. Delegerar till mappningsmotorn och SOAP-klienten
-4. Filtrerar svaret mot Säkerhetstjänsten (spärr)
+3. Anropar ntjp-proxy via HTTP/FHIR för varje VG-endpoint
+4. Filtrerar svaret mot Säkerhetstjänsten (spärr, organisationsnivå)
 5. Loggar åtkomsten (ATNA/BALP)
+6. Returnerar sammansatt `Bundle` till konsumenten
 
-**mapping-engine** — tvåfas semantisk översättning (se [Mappningsmotor](#mappningsmotor))
+### ntjp-proxy (Spring Boot + Apache CXF)
 
-**soap-client** — Apache CXF-klient mot NTjP/VP, mTLS (SITHS), RIVTA BP 2.1
+Separat tjänst (port 8091) som äger all RIVTA SOAP-logik. Tar emot FHIR-förfrågningar
+från fhir-server och returnerar FHIR-resurser, men utför internt:
+
+1. Konverterar FHIR-frågeparametrar till SOAP-request (URI → OID via `NamingSystemRegistry`)
+2. Anropar NTjP/VP med mTLS och korrekt `LogicalAddress` + `x-rivta-original-serviceconsumer-hsaid`
+3. Mappar SOAP-svar till FHIR-resurser + Provenance-poster (via `GetDiagnosisMapper`)
+4. Returnerar en lokal `Bundle` med `searchMode=match` (Condition) och `searchMode=include` (Provenance)
+
+Gränssnittet mot fhir-server är rent FHIR HTTP — fhir-server vet inte om endpointen är
+ntjp-proxy eller ett nativt FHIR-API. Det styrs enbart av `fhirEndpointUrl` i `vg-config.yaml`.
+
+### mapping-engine (Maven-bibliotek)
+
+Delat bibliotek som innehåller:
+
+- RIVTA JAXB-typer (`mapping/rivta/`)
+- `NamingSystemRegistry` — OID ↔ URI-mappning, inkl. HL7 Sweden basprofiler-r4
+- `ConceptMapRegistry` — RIVTA-kod → FHIR-kod (t.ex. diagnostyp → category)
+- `GetDiagnosisMapper` / `GetDocumentListMapper` — TK-specifik mappningslogik
+- `MappedDiagnosisEntry` — record som håller `(Condition, Provenance)` länkade genom pipelinen
 
 ### EI (Engagemangsindex)
 
@@ -62,13 +80,17 @@ SOAP-klienten skickar VG:ns HSA-id som logisk adress; NTjP resolver den fysiska 
 
 ### Säkerhetstjänsten (Spärr)
 
-Post-query-filtrering: körs efter att SOAP-svaret mappats till FHIR-resurser.
-Filtrerar bort resurser vars källsystem (`ext-source-system`-extension) patienten
-har spärrat eller som anroparen saknar behörighet till.
+Post-query-filtrering: körs efter att SOAP-svaret mappats till FHIR-resurser, på fhir-server-sidan.
+Sparrtjänsten arbetar på **organisationsnivå** — kontrollen sker mot `careProviderHSAId`
+(ansvarig vårdgivare), inte mot källsystemet. `careProviderHSAId` bärs av `ext-care-provider`-
+extensionen på varje Condition-resurs och sätts i Provenance som `agent[author]`.
 
-Spärrkontrollen är synkron och sker per unika källsystem i svaret. Vid fel mot
-Säkerhetstjänsten gäller *fail-open* — bryggan döljer aldrig data på grund av
-infrastrukturfel.
+Spärrkontrollen är synkron och sker per unikt `careProviderHSAId` i svaret (cachelagrat
+per request). Vid fel mot Säkerhetstjänsten gäller *fail-open* — bryggan döljer aldrig
+data på grund av infrastrukturfel.
+
+**PoC-begränsning:** En vårdgivare från en spärrad enhet som ändå har rätt att ta del av
+informationen (t.ex. nödsituationer, break-the-glass) hanteras inte. Se [Kända begränsningar](#kanda-begransningar).
 
 ### Loggtjänst (ATNA/BALP)
 
@@ -80,42 +102,41 @@ Bundle levererats till klienten.
 ### VG-scopat anrop: GET /fhir/{vg-hsa-id}/Condition
 
 ```
-Konsument          Gateway          Bryggtjänst           Inera / VG
-    |                  |                  |                    |
-    |-- GET /fhir/     |                  |                    |
-    |   {vg-hsa-id}/   |                  |                    |
-    |   Condition?     |                  |                    |
-    |   patient={pnr} →|                  |                    |
-    |                  |-- X-VG-HSA-ID   |                    |
-    |                  |   + strip prefix→|                    |
-    |                  |                  |                    |
-    |              [JWT-validering, scope: system/Condition.read — planerat]
-    |                  |                  |                    |
-    |                  |                  |-- Slå upp logisk  |
-    |                  |                  |   adress i        |
-    |                  |                  |   vg-config.yaml  |
-    |                  |                  |                    |
-    |                  |                  |-- EI: finns data? →|
-    |                  |                  |←-- ja/nej ---------|
-    |                  |                  |                    |
-    |                  |           [Mappning FHIR→SOAP         |
-    |                  |            lager 3+1+2a]              |
-    |                  |                  |                    |
-    |                  |                  |-- GetDiagnosis:2  →| (NTjP/VP)
-    |                  |                  |                    |→ Regionens producent
-    |                  |                  |                    |←- SOAP-svar
-    |                  |                  |←-- SOAP-svar ------|
-    |                  |                  |                    |
-    |                  |           [Mappning SOAP→FHIR         |
-    |                  |            lager 3+1+2a+2b]           |
-    |                  |                  |                    |
-    |                  |           [Spärr/filtrering:          |
-    |                  |            ta bort resurser från VG:er|
-    |                  |            som patienten spärrat]     |
-    |                  |                  |                    |
-    |                  |           [Åtkomstlogg ATNA/BALP]     |
-    |                  |                  |                    |
-    |←-- 200 OK -------|←-- Bundle -------|                    |
+Konsument        Gateway       fhir-server        ntjp-proxy        Inera / VG
+    |                |               |                  |                |
+    |-- GET /fhir/   |               |                  |                |
+    |   {vg-hsa-id}/ |               |                  |                |
+    |   Condition?   |               |                  |                |
+    |   patient={pnr}→               |                  |                |
+    |                |-- X-VG-HSA-ID |                  |                |
+    |                |   + routing  →|                  |                |
+    |                |               |                  |                |
+    |          [JWT-validering, scope: system/Condition.read — planerat]
+    |                |               |                  |                |
+    |                |               |-- EI: finns data?→               |
+    |                |               |←-- ja/nej ------------------------|
+    |                |               |                  |                |
+    |                |               |-- GET Condition? →               |
+    |                |               |   (FHIR HTTP)    |               |
+    |                |               |                  |-- SOAP        |
+    |                |               |                  |   GetDiagnosis:2
+    |                |               |                  |              →| (NTjP/VP)
+    |                |               |                  |               |→ Producent
+    |                |               |                  |               |←- SOAP-svar
+    |                |               |                  |←-- SOAP-svar --|
+    |                |               |                  |                |
+    |                |               |              [Mappning SOAP→FHIR  |
+    |                |               |               Condition+Provenance]
+    |                |               |←-- Bundle (match+include) --------|
+    |                |               |                  |                |
+    |                |           [pair Condition↔Provenance via target]
+    |                |               |                  |                |
+    |                |           [Spärr: careProviderHSAId               |
+    |                |            (organisationsnivå)]  |                |
+    |                |               |                  |                |
+    |                |           [Åtkomstlogg ATNA/BALP]                 |
+    |                |               |                  |                |
+    |←-- 200 OK -----|←-- Bundle ----|                  |                |
 ```
 
 **Viktigt:** ett VG-scopat anrop resulterar i exakt ett SOAP-anrop till exakt en
@@ -123,47 +144,59 @@ logisk adress. Bryggan aggregerar inte data över VG-gränser. En producent kan 
 data från flera vårdenheter inom samma VG — dessa inkluderas alla, men data som
 tillhör andra VG:er i samma producentsystem filtreras bort av spärrkomponenten.
 
+## Provenance
+
+För varje Condition skapas en länkad Provenance-resurs som inkluderas i svaret med
+`Bundle.entry.search.mode = include`. Provenance följer IHE QEDm-mönstret och innehåller
+tre agentroller:
+
+| Agent-roll | Källa | Syfte |
+|---|---|---|
+| `author` | `careProviderHSAId` | Ansvarig vårdgivare (organisationsnivå, används av Sparrtjänsten) |
+| `custodian` | `careUnitHSAId` | Vårdenhet som förvaltar journalposten |
+| `assembler` | `EHDS_BRIDGE_HSA_ID` (env-variabel) | EHDS-bryggan som sammansatte FHIR-bundlen |
+
+`Provenance.target` pekar på `urn:uuid:{Condition.id}`. `MappedDiagnosisEntry` håller
+Condition och Provenance länkade som ett par genom hela pipelinen, inklusive Sparr-filtret —
+om en Condition filtreras bort tas även dess Provenance bort.
+
 ## Mappningsmotor
 
-Tvåfas, tre-lagers-arkitektur:
+Tvåfas, tre-lagers-arkitektur, implementerad i `mapping-engine`-modulen:
 
 ### Fas 1: FHIR → SOAP (begäran)
 
 Lager 3 (TK-specifik mappningsklass) + Lager 1 (RIVTA JAXB-typer) + Lager 2a (NamingSystem)
 konstruerar SOAP-begäranstrukturen från FHIR-frågeparametrarna.
+`NamingSystemRegistry.uriToOid()` konverterar t.ex. `http://electronichealth.se/identifier/personnummer`
+→ `1.2.752.129.2.1.3.1`.
 
 ### Fas 2: SOAP → FHIR (svar)
 
-Lager 3 + Lager 1 + Lager 2a + Lager 2b (ConceptMap) producerar FHIR-resurser från
-SOAP-svarets element.
+Lager 3 + Lager 1 + Lager 2a + Lager 2b (ConceptMap) producerar FHIR-resurser + Provenance
+från SOAP-svarets element. `NamingSystemRegistry.oidToUri()` konverterar OID:er till
+kanoniska URI:er (HL7 Sweden basprofiler-r4).
 
 | Lager | Innehåll | Klass/fil |
 |-------|----------|-----------|
 | 1 | RIVTA JAXB-typer: `CVType`, `PersonIdType`, `DatePeriodType` m.fl. | `mapping/rivta/`, `mapping/rivta/doclist/` |
-| 2a | OID ↔ FHIR URI: `1.2.752.129.2.1.3.1` → personnummer-system | `NamingSystemRegistry` / `naming-systems.yaml` |
+| 2a | OID ↔ FHIR URI (bidirektionell): `1.2.752.129.2.1.3.1` ↔ personnummer-URI | `NamingSystemRegistry` / `naming-systems.yaml` |
 | 2b | Kod ↔ kod: RIVTA diagnosTyp → FHIR `category` | `ConceptMapRegistry` / `concept-maps.yaml` |
 | 3 | TK-specifik logik per tjänstekontrakt | `GetDiagnosisMapper`, `GetDocumentListMapper` |
 
-### Utdataläge per informationsmängd
-
-Styrs av `outputMode` i `services.yaml`:
-
-| Värde | Beskrivning | Exempel |
-|-------|-------------|---------|
-| `RESOURCE_PER_ELEMENT` | Varje SOAP-element → en FHIR-resurs | GetDiagnosis → `Condition` |
-| `COMPOSITION_ASSEMBLY` | Flera element → en `Composition` med sektioner (EURIDICE dokumentutbyte) | GetCareDocumentation → `Composition` *(planerat)* |
-
 ## Lägga till ett nytt tjänstekontrakt
 
-1. **`services.yaml`** — lägg till en ny rad med `id`, `namespace`, `fhirResource`,
-   `transformer` och `outputMode`
-2. **Java-mappningsklass** — implementera `TkMapper<ResponseType, FhirType>` som
-   `GetDiagnosisMapper` / `GetDocumentListMapper` (lager 3)
+1. **`vg-config.yaml`** — se till att `fhirEndpointUrl` pekar på ntjp-proxy för de VG:er
+   som ska använda det nya kontraktet
+2. **Java-mappningsklass** — implementera mappningslogiken (lager 3) i `mapping-engine`;
+   returnera `List<MappedDiagnosisEntry>` (eller motsvarande record med resurs + Provenance)
 3. **JAXB-typer** — lägg till kontraktets XML-typer i `mapping/rivta/` (lager 1)
-4. **SOAP SEI** — `@WebService`-interface för det nya kontraktet i `soap-client`
-5. **FHIR-profil** — ny FSH-profil i denna IG + mappningssida
+4. **ntjp-proxy controller** — registrera en ny `@RestController` i ntjp-proxy som
+   tar emot FHIR-frågan, anropar SOAP via `soap-client` och returnerar en lokal Bundle
+5. **ProxyBeanConfig** — registrera eventuellt ny SOAP-tjänsteklient (CXF)
+6. **FHIR-profil** — ny FSH-profil i denna IG + mappningssida
 
-Ingen ändring i Gateway, orkestrerare eller HAPI-konfiguration behövs.
+Ingen ändring i Gateway, fhir-server-orkestrerare eller HAPI-konfiguration behövs.
 
 ## Säkerhet och dataskydd
 
@@ -176,8 +209,10 @@ Ingen ändring i Gateway, orkestrerare eller HAPI-konfiguration behövs.
 ### Åtkomstkontroll
 
 - Post-query: spärrtjänsten filtrerar svar *efter* SOAP-anrop och mappning
-- 0-tolerans för läckage: filtrering sker alltid oavsett om spärrkontroll lyckas
-  (fail-open innebär att data visas vid infrastrukturfel — inte att spärrar ignoreras)
+- Filtrering sker alltid oavsett om spärrkontroll lyckas (fail-open innebär att data
+  visas vid infrastrukturfel — inte att spärrar ignoreras)
+- Kontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med
+  Ineras spärrtjänst
 
 ### Loggning (PDL / ATNA/BALP)
 
@@ -186,10 +221,27 @@ Loggposter skickas till Ineras loggtjänst i ATNA/BALP-format.
 
 ## Driftsättning
 
-Bryggan driftsätts som två containers i Kubernetes:
+Bryggan driftsätts som tre containers i Kubernetes:
 
 - `gateway` — NGINX, TLS-terminering, multi-tenant routing
-- `bridge` — Spring Boot fat JAR med mapping-engine och soap-client inbyggda
+- `fhir-server` — Spring Boot, FHIR-lager, EI + Sparr + Logg
+- `ntjp-proxy` — Spring Boot, SOAP-lager, CXF + mappning
 
 I lokal utveckling tillkommer fem mock-containers (TAK, EI, Spärr, Logg, Backend-SOAP)
 via `docker-compose.yml` i projektets rot.
+
+## Kända begränsningar
+
+### Break-the-glass
+
+En vårdgivare som tillhör en spärrad enhet men ändå har rätt att ta del av informationen
+(t.ex. nödsituationer) hanteras inte. Denna logik kräver kontextinformation om inloggad
+användares behörighet och är out of scope för PoC:en. EHDS-bryggan applicerar alla spärrar
+utan undantag.
+
+### DocumentReference: Sparr och Provenance
+
+`GetDocumentListMapper` sätter för närvarande `ext-source-system` men inte `ext-care-provider`.
+Sparr-filtret kontrollerar `ext-care-provider` (Condition-pipelinen) och filtrerar därmed
+inte DocumentReference-poster på organisationsnivå. Provenance skapas inte heller för
+DocumentReference-poster. Båda luckor är kända PoC-begränsningar.

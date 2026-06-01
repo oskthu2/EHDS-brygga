@@ -15,9 +15,34 @@
 | `documentEntry.patientId` | `DocumentReference.subject.identifier` | Personnummer/samordningsnummer |
 | `documentEntry.careUnitHSAId` | `DocumentReference.author[0].identifier` | HSA-id vårdenhet |
 | `documentEntry.careProviderHSAId` | `DocumentReference.custodian.identifier` | HSA-id vårdgivare |
-| `documentEntry.sourceSystemHSAId` | `extension:ext-source-system` | Används för Spärr-filtrering |
+| `documentEntry.sourceSystemHSAId` | `extension:ext-source-system` | Källsystemets HSA-id |
 | `statusCode == "active"` | `status = current` | Annars `superseded` |
 
 ## EURIDICE/IPS-alignment
 Profilen `SEEHDSDocumentReference` alignar med EU EHDS dokumentspecifikationer
 och IHE-dokumentkategorier (LOINC c80-doc-typecodes).
+
+## OID-URI-mappningar
+
+Personnummer och samordningsnummer konverteras till kanoniska URI:er enligt
+[HL7 Sweden basprofiler-r4](https://github.com/HL7Sweden/basprofiler-r4):
+
+| OID | URI |
+|---|---|
+| `1.2.752.129.2.1.3.1` | `http://electronichealth.se/identifier/personnummer` |
+| `1.2.752.129.2.1.3.3` | `http://electronichealth.se/identifier/samordningsnummer` |
+
+## PoC-begränsningar
+
+### Spärr (Sparr)
+
+`GetDocumentListMapper` sätter `ext-source-system` men inte `ext-care-provider`.
+Sparr-filtret i fhir-server kontrollerar `ext-care-provider` (careProviderHSAId,
+organisationsnivå) och filtrerar därmed **inte** DocumentReference-poster.
+Sparr-stöd för DocumentReference är out of scope för PoC:en.
+
+### Provenance
+
+Inga Provenance-resurser skapas för DocumentReference-poster. Hela Provenance-kedjan
+(vårdgivare → vårdenhet → brygga) som beskrivs för Condition-flödet saknas här.
+Detta är en känd PoC-begränsning.

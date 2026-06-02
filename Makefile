@@ -1,4 +1,4 @@
-.PHONY: up down build test validate ig logs
+.PHONY: up down build test e2e validate ig logs
 
 up:
 	docker compose up -d
@@ -11,6 +11,10 @@ build:
 
 test: up
 	bash scripts/test.sh
+
+e2e: up
+	@echo "Waiting 5s for stack to be ready..."; sleep 5
+	bash scripts/e2e-test.sh
 
 validate:
 	bash scripts/validate.sh

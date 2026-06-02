@@ -3,11 +3,11 @@ package se.inera.ehds.mapping.tk.getdocumentlist;
 import org.hl7.fhir.r4.model.*;
 import se.inera.ehds.mapping.concept.ConceptMapRegistry;
 import se.inera.ehds.mapping.naming.NamingSystemRegistry;
-import se.inera.ehds.mapping.rivta.CVType;
-import se.inera.ehds.mapping.rivta.PersonIdType;
-import se.inera.ehds.mapping.rivta.ResultType;
+import se.inera.ehds.mapping.rivta.doclist.CVType;
 import se.inera.ehds.mapping.rivta.doclist.DocumentEntry;
+import se.inera.ehds.mapping.rivta.doclist.PersonIdType;
 import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
+import se.inera.ehds.mapping.rivta.doclist.ResultType;
 import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.TkMapper;
 

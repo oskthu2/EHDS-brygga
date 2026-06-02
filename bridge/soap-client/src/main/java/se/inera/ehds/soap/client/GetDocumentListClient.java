@@ -5,8 +5,8 @@ import jakarta.xml.ws.handler.MessageContext;
 import org.apache.cxf.jaxws.JaxWsProxyFactoryBean;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import se.inera.ehds.mapping.rivta.PersonIdType;
 import se.inera.ehds.mapping.rivta.doclist.GetDocumentList;
+import se.inera.ehds.mapping.rivta.doclist.PersonIdType;
 import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
 import se.inera.ehds.soap.sei.GetDocumentListResponderInterface;
 

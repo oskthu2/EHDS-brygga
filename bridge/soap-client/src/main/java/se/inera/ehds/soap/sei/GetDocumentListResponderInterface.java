@@ -4,6 +4,7 @@ import jakarta.jws.WebMethod;
 import jakarta.jws.WebParam;
 import jakarta.jws.WebResult;
 import jakarta.jws.WebService;
+import jakarta.jws.soap.SOAPBinding;
 import se.inera.ehds.mapping.rivta.doclist.GetDocumentList;
 import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
 
@@ -16,6 +17,7 @@ import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
         name = "GetDocumentListResponderInterface",
         targetNamespace = "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1"
 )
+@SOAPBinding(parameterStyle = SOAPBinding.ParameterStyle.BARE)
 public interface GetDocumentListResponderInterface {
 
     @WebMethod(operationName = "GetDocumentList")

@@ -16,17 +16,17 @@ app.use(express.json());
 app.get('/engagement', (req, res) => {
   const { patientSystem, patientId, namespace } = req.query;
 
-  if (!patientSystem || !patientId || !namespace) {
+  if (!patientSystem || !patientId) {
     return res
       .status(400)
-      .json({ error: 'Missing required query parameters: patientSystem, patientId, namespace' });
+      .json({ error: 'Missing required query parameters: patientSystem, patientId' });
   }
 
   const engagements = data.engagements.filter(
     (e) =>
       e.patientId === patientId &&
       e.patientSystem === patientSystem &&
-      e.namespace === namespace
+      (!namespace || e.namespace === namespace)
   );
 
   return res.json({ engagements });

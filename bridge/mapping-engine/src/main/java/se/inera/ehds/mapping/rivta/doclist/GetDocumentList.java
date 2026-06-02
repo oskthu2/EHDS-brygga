@@ -4,7 +4,7 @@ import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
 import jakarta.xml.bind.annotation.XmlRootElement;
 import jakarta.xml.bind.annotation.XmlType;
-import se.inera.ehds.mapping.rivta.PersonIdType;
+
 
 @XmlRootElement(name = "GetDocumentList")
 @XmlAccessorType(XmlAccessType.FIELD)

@@ -3,8 +3,7 @@ package se.inera.ehds.mapping.rivta.doclist;
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
 import jakarta.xml.bind.annotation.XmlType;
-import se.inera.ehds.mapping.rivta.CVType;
-import se.inera.ehds.mapping.rivta.PersonIdType;
+
 
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "DocumentEntryType", propOrder = {

@@ -108,12 +108,12 @@ public class QueryOrchestrator {
         bundle.setTotal(entries.size()); // total = number of Conditions (not Provenances)
         for (MappedDiagnosisEntry entry : entries) {
             bundle.addEntry()
-                    .setFullUrl("urn:uuid:" + entry.condition().getId())
+                    .setFullUrl(entry.condition().getId())
                     .setResource(entry.condition())
                     .getSearch().setMode(Bundle.SearchEntryMode.MATCH);
             if (entry.provenance() != null) {
                 bundle.addEntry()
-                        .setFullUrl("urn:uuid:" + entry.provenance().getId())
+                        .setFullUrl(entry.provenance().getId())
                         .setResource(entry.provenance())
                         .getSearch().setMode(Bundle.SearchEntryMode.INCLUDE);
             }

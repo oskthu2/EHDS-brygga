@@ -15,6 +15,46 @@
       "logicalAddress": "SE2321000098-7XYZ",
       "physicalAddress": "http://mock-backend:4005/soap",
       "clinicalProcessInterestId": "SE2321000098-7XYZ#clinicalprocess:activity:conditions"
+    },
+    {
+      "patientId": "200001011234",
+      "patientSystem": "http://electronichealth.se/identifier/personnummer",
+      "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
+      "logicalAddress": "SE2321000016-4HK5",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "clinicalProcessInterestId": "SE2321000016-4HK5#clinicalprocess:activity:conditions"
+    },
+    {
+      "patientId": "198505152222",
+      "patientSystem": "http://electronichealth.se/identifier/personnummer",
+      "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
+      "logicalAddress": "SE2321000016-4HK5",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "clinicalProcessInterestId": "SE2321000016-4HK5#clinicalprocess:activity:conditions"
+    },
+    {
+      "patientId": "198505152222",
+      "patientSystem": "http://electronichealth.se/identifier/personnummer",
+      "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
+      "logicalAddress": "SE2321000098-7XYZ",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "clinicalProcessInterestId": "SE2321000098-7XYZ#clinicalprocess:activity:conditions"
+    },
+    {
+      "patientId": "195810161234",
+      "patientSystem": "http://electronichealth.se/identifier/personnummer",
+      "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
+      "logicalAddress": "SE2321000016-4HK5",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "clinicalProcessInterestId": "SE2321000016-4HK5#clinicalprocess:activity:conditions"
+    },
+    {
+      "patientId": "195810161234",
+      "patientSystem": "http://electronichealth.se/identifier/personnummer",
+      "namespace": "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
+      "logicalAddress": "SE2321000098-7XYZ",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "clinicalProcessInterestId": "SE2321000098-7XYZ#clinicalprocess:activity:conditions"
     }
   ]
 }

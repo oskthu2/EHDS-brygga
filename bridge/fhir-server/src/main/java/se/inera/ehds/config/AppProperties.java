@@ -10,6 +10,7 @@ public class AppProperties {
     private String sparrUrl = "http://mock-sparr:4003";
     private String loggUrl = "http://mock-logg:4004";
     private String bridgeHsaId = "SE2321000999-EHDS";
+    private String authBaseUrl = "http://localhost:8080";
 
     public String getEiUrl() { return eiUrl; }
     public void setEiUrl(String eiUrl) { this.eiUrl = eiUrl; }
@@ -19,4 +20,6 @@ public class AppProperties {
     public void setLoggUrl(String loggUrl) { this.loggUrl = loggUrl; }
     public String getBridgeHsaId() { return bridgeHsaId; }
     public void setBridgeHsaId(String bridgeHsaId) { this.bridgeHsaId = bridgeHsaId; }
+    public String getAuthBaseUrl() { return authBaseUrl; }
+    public void setAuthBaseUrl(String authBaseUrl) { this.authBaseUrl = authBaseUrl; }
 }

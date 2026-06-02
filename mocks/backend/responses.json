@@ -37,6 +37,164 @@
         "periodStart": "20190515",
         "periodEnd": null
       }
+    ],
+
+    "200001011234": [
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240115090000",
+        "careUnitHSAId": "SE2321000016-E000000000001",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "J06.9",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Akut infektion i övre luftvägarna, ospecificerad",
+        "diagnosisType": "HD",
+        "periodStart": "20240115",
+        "periodEnd": null
+      }
+    ],
+
+    "198505152222": [
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240901130000",
+        "careUnitHSAId": "SE2321000016-E000000000002",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "E11.9",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Diabetes mellitus typ 2 utan komplikationer",
+        "diagnosisType": "HD",
+        "periodStart": "20150301",
+        "periodEnd": null,
+        "assertedDate": "20150301"
+      },
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240901130000",
+        "careUnitHSAId": "SE2321000016-E000000000002",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "I10",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Essentiell hypertoni",
+        "diagnosisType": "BY",
+        "periodStart": "20120601",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240901130000",
+        "careUnitHSAId": "SE2321000016-E000000000002",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "Z79.4",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Långtidsanvändning av insulin",
+        "diagnosisType": "BY",
+        "periodStart": "20150301",
+        "periodEnd": null,
+        "assertedDate": "20150301"
+      },
+      {
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "documentTime": "20230601120000",
+        "careUnitHSAId": "SE2321000098-E000000000005",
+        "careProviderHSAId": "SE2321000098-7XYZ",
+        "diagnosisCode": "J44.1",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Kronisk obstruktiv lungsjukdom med akut exacerbation",
+        "diagnosisType": "HD",
+        "periodStart": "20230510",
+        "periodEnd": "20230625"
+      },
+      {
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "documentTime": "20240101080000",
+        "careUnitHSAId": "SE2321000098-E000000000005",
+        "careProviderHSAId": "SE2321000098-7XYZ",
+        "diagnosisCode": "F32.1",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Depressiv episod, måttlig",
+        "diagnosisType": "BY",
+        "periodStart": "20231201",
+        "periodEnd": null,
+        "assertedDate": "20231201"
+      }
+    ],
+
+    "195810161234": [
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240601090000",
+        "careUnitHSAId": "SE2321000016-E000000000003",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "E11.3",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Diabetes mellitus typ 2 med ögonkomplikationer",
+        "diagnosisType": "HD",
+        "periodStart": "20120101",
+        "periodEnd": null,
+        "assertedDate": "20120101"
+      },
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240601090000",
+        "careUnitHSAId": "SE2321000016-E000000000003",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "I25.9",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Kronisk ischemisk hjärtsjukdom, ospecificerad",
+        "diagnosisType": "HD",
+        "periodStart": "20100601",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240601090000",
+        "careUnitHSAId": "SE2321000016-E000000000003",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "I10",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Essentiell hypertoni",
+        "diagnosisType": "BY",
+        "periodStart": "20100601",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240601090000",
+        "careUnitHSAId": "SE2321000016-E000000000003",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "Z79.4",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Långtidsanvändning av insulin",
+        "diagnosisType": "BY",
+        "periodStart": "20120101",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "documentTime": "20230901110000",
+        "careUnitHSAId": "SE2321000098-E000000000006",
+        "careProviderHSAId": "SE2321000098-7XYZ",
+        "diagnosisCode": "N18.3",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Kronisk njursjukdom, stadium 3",
+        "diagnosisType": "BY",
+        "periodStart": "20180901",
+        "periodEnd": null,
+        "assertedDate": "20180901"
+      },
+      {
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "documentTime": "20220601080000",
+        "careUnitHSAId": "SE2321000098-E000000000006",
+        "careProviderHSAId": "SE2321000098-7XYZ",
+        "diagnosisCode": "I50.9",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Hjärtsvikt, ospecificerad",
+        "diagnosisType": "HD",
+        "periodStart": "20220520",
+        "periodEnd": "20220715"
+      }
     ]
   },
   "documents": {

@@ -6,6 +6,9 @@ Alias: $ipsPatient = http://hl7.org/fhir/uv/ips/StructureDefinition/Patient-uv-i
 Alias: $euCondition = https://hl7.eu/fhir/ehds/StructureDefinition/Condition-eu-ehds
 Alias: $euDocumentReference = https://hl7.eu/fhir/ehds/StructureDefinition/DocumentReference-eu-ehds
 
+// EU EPS (European Patient Summary) – HL7 Europe
+Alias: $epsConditionObl = http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps
+
 // Terminologi
 Alias: $iheDocType = http://ihe.net/connectathon/classCodes
 

@@ -111,6 +111,10 @@ function buildSoapResponse(patientId, diagnoses) {
         ? `\n            <ns1:end>${d.periodEnd}</ns1:end>`
         : '';
 
+      const assertedDateEl = d.assertedDate
+        ? `\n            <ns1:assertedDate>${d.assertedDate}</ns1:assertedDate>`
+        : '';
+
       return `
       <ns1:diagnosis>
         <ns1:diagnosisHeader>
@@ -132,7 +136,7 @@ function buildSoapResponse(patientId, diagnoses) {
           <ns1:diagnosisType>${d.diagnosisType}</ns1:diagnosisType>
           <ns1:diagnosisTimePeriod>
             <ns1:start>${d.periodStart}</ns1:start>${periodEnd}
-          </ns1:diagnosisTimePeriod>
+          </ns1:diagnosisTimePeriod>${assertedDateEl}
         </ns1:diagnosisBody>
       </ns1:diagnosis>`;
     })

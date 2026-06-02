@@ -20,6 +20,7 @@ services:
       - EHDS_SPARR_URL=http://mock-sparr:4003
       - EHDS_LOGG_URL=http://mock-logg:4004
       - EHDS_BRIDGE_HSA_ID=SE2321000999-EHDS
+      - EHDS_AUTH_BASE_URL=http://localhost:8080
     depends_on:
       - ntjp-proxy
       - mock-ei

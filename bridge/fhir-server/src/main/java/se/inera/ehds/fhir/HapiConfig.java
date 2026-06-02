@@ -5,6 +5,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.client.RestTemplate;
+import se.inera.ehds.config.AppProperties;
 import se.inera.ehds.fhir.provider.ConditionResourceProvider;
 import se.inera.ehds.fhir.provider.DocumentReferenceResourceProvider;
 
@@ -18,10 +19,17 @@ public class HapiConfig {
     }
 
     @Bean
+    public CapabilityStatementEnricher capabilityStatementEnricher(AppProperties props) {
+        return new CapabilityStatementEnricher(props.getAuthBaseUrl());
+    }
+
+    @Bean
     public EhdsFhirServer fhirServer(ConditionResourceProvider conditionProvider,
                                      DocumentReferenceResourceProvider documentReferenceProvider,
-                                     TenantInterceptor tenantInterceptor) {
-        return new EhdsFhirServer(conditionProvider, documentReferenceProvider, tenantInterceptor);
+                                     TenantInterceptor tenantInterceptor,
+                                     CapabilityStatementEnricher csEnricher) {
+        return new EhdsFhirServer(conditionProvider, documentReferenceProvider,
+                tenantInterceptor, csEnricher);
     }
 
     @Bean

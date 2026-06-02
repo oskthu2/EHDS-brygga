@@ -17,14 +17,17 @@ public class EhdsFhirServer extends RestfulServer {
     private final ConditionResourceProvider conditionProvider;
     private final DocumentReferenceResourceProvider documentReferenceProvider;
     private final TenantInterceptor tenantInterceptor;
+    private final CapabilityStatementEnricher csEnricher;
 
     public EhdsFhirServer(ConditionResourceProvider conditionProvider,
                           DocumentReferenceResourceProvider documentReferenceProvider,
-                          TenantInterceptor tenantInterceptor) {
+                          TenantInterceptor tenantInterceptor,
+                          CapabilityStatementEnricher csEnricher) {
         super(FhirContext.forR4Cached());
         this.conditionProvider = conditionProvider;
         this.documentReferenceProvider = documentReferenceProvider;
         this.tenantInterceptor = tenantInterceptor;
+        this.csEnricher = csEnricher;
     }
 
     @Override
@@ -35,6 +38,8 @@ public class EhdsFhirServer extends RestfulServer {
 
         // Tenant interceptor: extracts X-VG-HSA-ID header into RequestDetails
         registerInterceptor(tenantInterceptor);
+        // CapabilityStatement enricher: adds EU HDA/EPS conformance, SMART security, profiles
+        registerInterceptor(csEnricher);
 
         CorsConfiguration cors = new CorsConfiguration();
         cors.addAllowedHeader("*");

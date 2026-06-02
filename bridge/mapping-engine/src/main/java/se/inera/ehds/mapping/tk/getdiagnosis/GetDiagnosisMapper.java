@@ -26,6 +26,8 @@ public class GetDiagnosisMapper {
     private static final String EXT_CARE_UNIT      = CANONICAL_BASE + "/StructureDefinition/ext-care-unit";
     private static final String EXT_ASSERTED_DATE  = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-condition";
+    private static final String PROFILE_URL_EU_EPS =
+            "http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps";
 
     private final NamingSystemRegistry namingSystem;
     private final ConceptMapRegistry conceptMaps;
@@ -55,6 +57,7 @@ public class GetDiagnosisMapper {
         Condition c = new Condition();
         c.setId(UUID.randomUUID().toString());
         c.getMeta().addProfile(PROFILE_URL);
+        c.getMeta().addProfile(PROFILE_URL_EU_EPS);
 
         // clinicalStatus: active unless there is an end date
         boolean resolved = body.getDiagnosisTimePeriod() != null

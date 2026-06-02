@@ -2,8 +2,59 @@
   "issuer": "http://localhost:8080",
   "authorization_endpoint": "http://localhost:8080/auth/authorize",
   "token_endpoint": "http://localhost:8080/auth/token",
+  "userinfo_endpoint": "http://localhost:8080/auth/userinfo",
   "jwks_uri": "http://localhost:8080/.well-known/jwks.json",
-  "response_types_supported": ["code"],
-  "subject_types_supported": ["public"],
-  "id_token_signing_alg_values_supported": ["RS256"]
+  "introspection_endpoint": "http://localhost:8080/auth/introspect",
+  "revocation_endpoint": "http://localhost:8080/auth/revoke",
+  "registration_endpoint": "http://localhost:8080/auth/register",
+  "response_types_supported": [
+    "code"
+  ],
+  "grant_types_supported": [
+    "authorization_code",
+    "client_credentials"
+  ],
+  "subject_types_supported": [
+    "public"
+  ],
+  "id_token_signing_alg_values_supported": [
+    "RS256",
+    "RS384",
+    "ES384"
+  ],
+  "token_endpoint_auth_methods_supported": [
+    "client_secret_basic",
+    "private_key_jwt"
+  ],
+  "token_endpoint_auth_signing_alg_values_supported": [
+    "RS256",
+    "RS384",
+    "ES384"
+  ],
+  "scopes_supported": [
+    "openid",
+    "profile",
+    "email",
+    "fhirUser",
+    "launch",
+    "launch/patient",
+    "patient/*.read",
+    "user/*.read",
+    "system/*.read",
+    "offline_access"
+  ],
+  "claims_supported": [
+    "sub",
+    "iss",
+    "aud",
+    "exp",
+    "iat",
+    "fhirUser",
+    "patient",
+    "profile",
+    "email"
+  ],
+  "code_challenge_methods_supported": [
+    "S256"
+  ]
 }

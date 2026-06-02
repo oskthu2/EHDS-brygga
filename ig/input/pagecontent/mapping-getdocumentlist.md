@@ -32,14 +32,19 @@ Personnummer och samordningsnummer konverteras till kanoniska URI:er enligt
 | `1.2.752.129.2.1.3.1` | `http://electronichealth.se/identifier/personnummer` |
 | `1.2.752.129.2.1.3.3` | `http://electronichealth.se/identifier/samordningsnummer` |
 
+## Spärr (Sparr)
+
+`GetDocumentListMapper` sätter `ext-care-provider` med `careProviderHSAId`.
+`DocumentQueryOrchestrator` läser denna extension och utför spärrkontroll på
+organisationsnivå – samma mönster som Condition-flödet via `SparrFilterService`.
+
+| Fält | Källa | Syfte |
+|---|---|---|
+| `extension[ext-care-provider]` | `careProviderHSAId` | Används av spärrfiltret |
+| `custodian.identifier` | `careProviderHSAId` | Synlig i FHIR-resursen |
+| `author[0].identifier` | `careUnitHSAId` | Vårdenhet |
+
 ## PoC-begränsningar
-
-### Spärr (Sparr)
-
-`GetDocumentListMapper` sätter `ext-source-system` men inte `ext-care-provider`.
-Sparr-filtret i fhir-server kontrollerar `ext-care-provider` (careProviderHSAId,
-organisationsnivå) och filtrerar därmed **inte** DocumentReference-poster.
-Sparr-stöd för DocumentReference är out of scope för PoC:en.
 
 ### Provenance
 

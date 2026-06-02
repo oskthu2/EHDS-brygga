@@ -21,6 +21,7 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
     private static final String CANONICAL_BASE = "https://ehds-brygga.inera.se/fhir";
     private static final String HSA_OID = "1.2.752.129.2.1.4.1";
     private static final String EXT_SOURCE_SYSTEM = CANONICAL_BASE + "/StructureDefinition/ext-source-system";
+    private static final String EXT_CARE_PROVIDER  = CANONICAL_BASE + "/StructureDefinition/ext-care-provider";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-document-reference";
 
     private final NamingSystemRegistry namingSystem;
@@ -101,6 +102,10 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
             String hsaSystem = namingSystem.oidToUri(HSA_OID);
             dr.setCustodian(new Reference().setIdentifier(
                     new Identifier().setSystem(hsaSystem).setValue(careProviderHsaId)));
+            // ext-care-provider: organisationsnivå-identifierare för Sparr (samma mönster som Condition)
+            Extension extCp = new Extension(EXT_CARE_PROVIDER);
+            extCp.setValue(new Identifier().setSystem(hsaSystem).setValue(careProviderHsaId));
+            dr.addExtension(extCp);
         }
 
         // extension: ext-source-system (used by SparrFilterService)

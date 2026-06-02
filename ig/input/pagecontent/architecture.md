@@ -239,9 +239,9 @@ En vårdgivare som tillhör en spärrad enhet men ändå har rätt att ta del av
 användares behörighet och är out of scope för PoC:en. EHDS-bryggan applicerar alla spärrar
 utan undantag.
 
-### DocumentReference: Sparr och Provenance
+### DocumentReference: Provenance
 
-`GetDocumentListMapper` sätter för närvarande `ext-source-system` men inte `ext-care-provider`.
-Sparr-filtret kontrollerar `ext-care-provider` (Condition-pipelinen) och filtrerar därmed
-inte DocumentReference-poster på organisationsnivå. Provenance skapas inte heller för
-DocumentReference-poster. Båda luckor är kända PoC-begränsningar.
+Sparr-filtret körs på organisationsnivå (`careProviderHSAId`) för både Condition och
+DocumentReference. Däremot skapas inga Provenance-resurser för DocumentReference-poster –
+hela kedjan (author/custodian/assembler) som finns för Condition saknas. Detta är en känd
+PoC-begränsning.

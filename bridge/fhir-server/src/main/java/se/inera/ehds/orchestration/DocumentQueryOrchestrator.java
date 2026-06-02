@@ -21,8 +21,8 @@ import java.util.stream.Collectors;
 public class DocumentQueryOrchestrator {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentQueryOrchestrator.class);
-    private static final String EXT_SOURCE_SYSTEM =
-            "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-source-system";
+    private static final String EXT_CARE_PROVIDER =
+            "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-care-provider";
 
     private final EiService ei;
     private final FhirProxyClient fhirClient;
@@ -91,32 +91,32 @@ public class DocumentQueryOrchestrator {
         Map<String, Boolean> cache = new HashMap<>();
         return docs.stream()
                 .filter(dr -> {
-                    String hsaId = extractSourceHsaId(dr);
-                    if (hsaId == null) return true;
+                    String hsaId = extractCareProviderHsaId(dr);
+                    if (hsaId == null) return true; // fail-open
                     boolean blocked = cache.computeIfAbsent(hsaId,
                             id -> checkBlocked(patientSystem, patientValue, id));
-                    if (blocked) log.info("Sparr: blockerar DocumentReference från {} för patient {}", hsaId, patientValue);
+                    if (blocked) log.info("Sparr: blockerar DocumentReference från vårdgivare {} för patient {}", hsaId, patientValue);
                     return !blocked;
                 })
                 .collect(Collectors.toList());
     }
 
-    private String extractSourceHsaId(DocumentReference dr) {
-        Extension ext = dr.getExtensionByUrl(EXT_SOURCE_SYSTEM);
+    private String extractCareProviderHsaId(DocumentReference dr) {
+        Extension ext = dr.getExtensionByUrl(EXT_CARE_PROVIDER);
         if (ext == null || !(ext.getValue() instanceof Identifier id)) return null;
         return id.getValue();
     }
 
     @SuppressWarnings("unchecked")
-    private boolean checkBlocked(String patientSystem, String patientId, String sourceSystem) {
+    private boolean checkBlocked(String patientSystem, String patientId, String careProviderHsaId) {
         try {
             Map<String, String> req = Map.of("patientSystem", patientSystem,
-                    "patientId", patientId, "sourceSystem", sourceSystem);
+                    "patientId", patientId, "careProviderHsaId", careProviderHsaId);
             Map<String, Object> resp = rest.postForObject(
                     props.getSparrUrl() + "/check", req, Map.class);
             return Boolean.TRUE.equals(resp != null ? resp.get("blocked") : Boolean.FALSE);
         } catch (Exception e) {
-            log.warn("Sparr check failed for {}: {} — failing open", sourceSystem, e.getMessage());
+            log.warn("Sparr check failed for {}: {} — failing open", careProviderHsaId, e.getMessage());
             return false;
         }
     }

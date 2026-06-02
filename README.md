@@ -85,7 +85,12 @@ cd EHDS-brygga
 cp .env.example .env
 make up          # startar gateway + bridge + ntjp-proxy + 5 mock-containers
 
-# Kör integrationstest mot lokal stack
+# Kör E2E-tester mot lokal stack (30 tester, PowerShell)
+.\scripts\e2e-test.ps1
+# Eller via Make (kör e2e-test.sh på Linux/Mac):
+make e2e
+
+# Enklare smoke-tester (HTTP-statuskodkontroller)
 make test
 
 # Bygg utan Docker
@@ -570,7 +575,9 @@ EHDS-brygga/
 │       └── pagecontent/           # architecture.md, mapping-*.md
 │
 ├── scripts/
-│   ├── test.sh                    # Integrationstester mot live stack
+│   ├── test.sh                    # Smoke-tester (HTTP-statuskoder) mot live stack
+│   ├── e2e-test.sh                # E2E-tester, 30 scenarion (bash, Linux/Mac)
+│   ├── e2e-test.ps1               # E2E-tester, 30 scenarion (PowerShell, Windows)
 │   ├── validate.sh                # Maven-build + FHIR Validator
 │   └── build-ig.sh                # Bygger IG med SUSHI + FHIR Publisher
 │

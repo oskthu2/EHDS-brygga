@@ -33,6 +33,7 @@ konfigurationsdrivna och nya tjänstekontrakt kan läggas till utan kodändringa
 | RIVTA-tjänstekontrakt | FHIR-resurs | Status |
 |---|---|---|
 | `GetDiagnosis:2` | [Condition](StructureDefinition-se-ehds-condition.html) | Implementerad |
+| `GetDocumentList:1` | [DocumentReference](StructureDefinition-se-ehds-document-reference.html) | Implementerad |
 
 ### Planerade mappningar
 
@@ -45,6 +46,7 @@ konfigurationsdrivna och nya tjänstekontrakt kan läggas till utan kodändringa
 ## Dokumentation
 
 - [Mappning: GetDiagnosis → Condition](mapping-getdiagnosis.html) – Detaljerad mappningstabell och exempel
+- [Mappning: GetDocumentList → DocumentReference](mapping-getdocumentlist.html) – Fältmappning och OID-konverteringar
 - [Arkitektur](architecture.html) – Systembeskrivning och flödesdiagram
 - [Artefakter](artifacts.html) – Alla FHIR-profiler, kodsystem och valuemängder
 

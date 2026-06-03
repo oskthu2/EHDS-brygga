@@ -17,6 +17,7 @@ publisher:
   email: ehds@inera.se
 
 jurisdiction: urn:iso:std:iso:3166#SE "Sweden"
+language: sv
 
 dependencies:
   hl7.fhir.uv.ips: current        # International Patient Summary – basis för EURIDICE
@@ -36,6 +37,8 @@ pages:
     title: Arkitektur
   downloads.md:
     title: Nedladdningar
+  artifacts.html:
+    title: Artefakter
 
 menu:
   Hem: index.html

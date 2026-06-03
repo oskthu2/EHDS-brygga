@@ -31,11 +31,26 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 | `diagnosisHeader.documentTime` | `Provenance.recorded` | Tidsstämpel för Provenance |
 | (bryggan självt, `EHDS_BRIDGE_HSA_ID`) | `Provenance.agent[assembler]` | Bryggan som sammansättande aktör |
 
+## EU-profiler i meta.profile
+
+Varje producerad Condition bär **två profiler** i `meta.profile`:
+
+| Profil | URL | Syfte |
+|---|---|---|
+| SEEHDSCondition | `https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition` | Bryggornas nationella RIVTA-mappningsprofil |
+| condition-obl-eu-eps | `http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps` | EU EPS obligations-profil (hl7.fhir.eu.eps) |
+
+EU EPS-profilen (`condition-obl-eu-eps`) är en *obligations*-profil på toppen av IPS Condition
+som specificerar EU EHDS-krav för klinisk status, verifieringsstatus och kod.
+Bryggan sätter båda profilerna ovillkorligt på varje Condition den producerar.
+
 ## OID till URI-mappningar
 
 RIVTA använder OID-identifierare (Object Identifiers) för kodsystem och personidentifierare.
-FHIR föredrar URI:er. EHDS-bryggan utför följande konverteringar enligt
-[HL7 Sweden basprofiler-r4](https://github.com/HL7Sweden/basprofiler-r4):
+FHIR föredrar URI:er. EHDS-bryggan utför följande konverteringar via `NamingSystemRegistry`.
+Se [OID-till-URI-mappningar](naming-systems.html) för den kompletta tabellen med alla 12 registrerade OID:er.
+
+De OID:er som förekommer i GetDiagnosis:2-svar:
 
 | OID | URI | Beskrivning |
 |---|---|---|
@@ -43,9 +58,15 @@ FHIR föredrar URI:er. EHDS-bryggan utför följande konverteringar enligt
 | `1.2.752.129.2.1.3.3` | `http://electronichealth.se/identifier/samordningsnummer` | Samordningsnummer |
 | `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id (Inera NTjP) |
 | `1.2.752.29.4.19` | `urn:oid:1.2.752.29.4.19` | HSA-id (HL7 Sweden basprofiler) |
-| `1.2.752.116.1.1.1.1.3` | `https://www.icd10.se/` | ICD-10-SE |
+| `1.2.752.116.1.1.1.1.3` | `https://www.icd10.se/` | ICD-10-SE (primärt diagnoskodsystem) |
+| `2.16.840.1.113883.6.3` | `http://hl7.org/fhir/sid/icd-10` | ICD-10 (internationell, WHO) |
+| `2.16.840.1.113883.6.96` | `http://snomed.info/sct` | SNOMED CT |
 
 OID:er som inte har en känd URI-mappning bevaras som `urn:oid:{oid}`.
+
+Profilen deklarerar ett namngivet snitt `code.coding[ICD10SE]` för ICD-10-SE-koder
+(`system = https://www.icd10.se/`). Övriga kodsystem (ICD-10 international, SNOMED CT) placeras
+i ej namngivna snitt (`code.coding` utan slice-begränsning) — profilen är öppen (`rules = #open`).
 
 Provenance-resurser inkluderas i sökbundlen med `searchMode = include` och refererar till sitt Condition via `Provenance.target`.
 
@@ -79,6 +100,11 @@ för den fullständiga mappningen.
 |---|---|---|---|
 | `HD` – Huvuddiagnos | `encounter-diagnosis` | `http://terminology.hl7.org/CodeSystem/condition-category` | Standard FHIR-kod |
 | `BY` – Bidiagnos | `bi-diagnos` | `https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType` | Svensk tilläggskod |
+| *(okänd kod)* | `problem-list-item` | `http://terminology.hl7.org/CodeSystem/condition-category` | Fallback-kod |
+
+**Fallback:** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` sätts
+`category` till `problem-list-item` (standard FHIR) och ett varningssvar loggas.
+En okänd kod kastas aldrig bort — Condition inkluderas alltid i svaret.
 
 ## Datumsformat
 

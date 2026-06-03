@@ -12,13 +12,16 @@ och säkerställer att:
 - Dokumenttyp (LOINC) är angiven
 - Patient är identifierad med personnummer eller samordningsnummer
 - Källsystem kan spåras via extension ext-source-system
+- Ansvarig vårdgivare (organisationsnivå) bärs av extension ext-care-provider för Sparrkontrollen
 - Vårdenhet och vårdgivare är angivna
 """
 
 * ^url = "https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-document-reference"
 
 * extension contains ExtSourceSystem named sourceSystem 0..1 MS
+* extension contains ExtCareProvider named careProvider 0..1 MS
 * extension[sourceSystem] ^short = "HSA-id för källsystemet som registrerade dokumentet"
+* extension[careProvider] ^short = "HSA-id för ansvarig vårdgivare – används av Sparrtjänsten för spärrkontrollen på organisationsnivå"
 
 * masterIdentifier MS
 * masterIdentifier ^short = "Dokumentets unika identifierare (documentId från RIVTA)"

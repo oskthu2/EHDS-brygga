@@ -32,6 +32,8 @@ pages:
     title: "Mappning: GetDiagnosis → Condition"
   mapping-getdocumentlist.md:
     title: "Mappning: GetDocumentList → DocumentReference"
+  naming-systems.md:
+    title: "OID-till-URI-mappningar"
   architecture.md:
     title: Arkitektur
 
@@ -40,5 +42,6 @@ menu:
   Mappningar:
     "GetDiagnosis → Condition": mapping-getdiagnosis.html
     "GetDocumentList → DocumentReference": mapping-getdocumentlist.html
+  "OID-mappningar": naming-systems.html
   Arkitektur: architecture.html
   Artefakter: artifacts.html

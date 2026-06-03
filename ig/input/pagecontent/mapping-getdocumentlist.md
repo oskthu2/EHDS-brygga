@@ -18,19 +18,33 @@
 | `documentEntry.sourceSystemHSAId` | `extension:ext-source-system` | Källsystemets HSA-id |
 | `statusCode == "active"` | `status = current` | Annars `superseded` |
 
+## content.attachment – platshållare
+
+`DocumentReference.content.attachment` sätts alltid med `contentType = application/pdf`
+och `title` från dokumentets titel. **Ingen binär dokumentdata bäddas in.**
+
+RIVTA GetDocumentList:1 är ett *registeranrop* — det returnerar metadata om dokument,
+inte dokumentinnehållet. `attachment.data` och `attachment.url` lämnas tomma.
+För att hämta det faktiska dokumentet krävs ett separat anrop till producenten
+(t.ex. via GetDocument-kontraktet).
+
 ## EURIDICE/IPS-alignment
 Profilen `SEEHDSDocumentReference` alignar med EU EHDS dokumentspecifikationer
 och IHE-dokumentkategorier (LOINC c80-doc-typecodes).
 
 ## OID-URI-mappningar
 
-Personnummer och samordningsnummer konverteras till kanoniska URI:er enligt
-[HL7 Sweden basprofiler-r4](https://github.com/HL7Sweden/basprofiler-r4):
+Personnummer, samordningsnummer och HSA-id konverteras till kanoniska URI:er via `NamingSystemRegistry`.
+Se [OID-till-URI-mappningar](naming-systems.html) för den kompletta tabellen.
 
-| OID | URI |
-|---|---|
-| `1.2.752.129.2.1.3.1` | `http://electronichealth.se/identifier/personnummer` |
-| `1.2.752.129.2.1.3.3` | `http://electronichealth.se/identifier/samordningsnummer` |
+De OID:er som förekommer i GetDocumentList:1-svar:
+
+| OID | URI | Beskrivning |
+|---|---|---|
+| `1.2.752.129.2.1.3.1` | `http://electronichealth.se/identifier/personnummer` | Personnummer |
+| `1.2.752.129.2.1.3.3` | `http://electronichealth.se/identifier/samordningsnummer` | Samordningsnummer |
+| `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id (Inera NTjP) — author, custodian, ext-care-provider |
+| `1.2.752.29.4.19` | `urn:oid:1.2.752.29.4.19` | HSA-id (HL7 Sweden basprofiler) |
 
 ## Spärr (Sparr)
 

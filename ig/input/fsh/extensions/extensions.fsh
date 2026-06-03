@@ -34,6 +34,8 @@ Används av Sparrtjänsten för spärrkontrollen på organisationsnivå.
 * ^experimental = true
 * ^context[+].type = #element
 * ^context[=].expression = "Condition"
+* ^context[+].type = #element
+* ^context[=].expression = "DocumentReference"
 
 * value[x] only Identifier
 * valueIdentifier.system ^short = "urn:oid:1.2.752.129.2.1.4.1 (HSA-id Inera) eller urn:oid:1.2.752.29.4.19 (basprofil)"

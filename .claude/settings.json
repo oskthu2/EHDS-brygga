@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // .tool_response.filePath' | xargs -I{} sh -c 'grep -qE \"ext-care-provider|ext-care-unit|ext-source-system|fail-open\" \"{}\" 2>/dev/null && printf \"{\\\"hookSpecificOutput\\\":{\\\"hookEventName\\\":\\\"PostToolUse\\\",\\\"additionalContext\\\":\\\"VARNING: Inaktuella dokumentationsmönster hittades i {}. Kontrollera: (1) ext-care-provider/ext-care-unit/ext-source-system ska inte användas – använd Provenance och meta.source istället. (2) fail-open ska vara fail-closed. (3) Provenance-roller: custodian=careProviderHSAId (yttre sparr), author=careUnitHSAId (inre sparr).\\\"}}\" || true' 2>/dev/null || true",
+            "statusMessage": "Kontrollerar dokumentation för inaktuella mönster..."
+          }
+        ]
+      }
+    ]
+  }
+}

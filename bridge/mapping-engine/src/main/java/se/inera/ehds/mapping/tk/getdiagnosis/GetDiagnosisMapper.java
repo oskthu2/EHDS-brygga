@@ -21,9 +21,6 @@ public class GetDiagnosisMapper {
     private static final String CLIN_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-clinical";
     private static final String VER_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-ver-status";
     private static final String PROV_PARTICIPANT_SYS = "http://terminology.hl7.org/CodeSystem/provenance-participant-type";
-    private static final String EXT_SOURCE_SYSTEM = CANONICAL_BASE + "/StructureDefinition/ext-source-system";
-    private static final String EXT_CARE_PROVIDER  = CANONICAL_BASE + "/StructureDefinition/ext-care-provider";
-    private static final String EXT_CARE_UNIT      = CANONICAL_BASE + "/StructureDefinition/ext-care-unit";
     private static final String EXT_ASSERTED_DATE  = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-condition";
     private static final String PROFILE_URL_EU_EPS =
@@ -116,30 +113,10 @@ public class GetDiagnosisMapper {
 
         String hsaSystem = namingSystem.oidToUri(HSA_OID_INERA);
 
-        // recorder + ext-source-system: sourceSystemHSAId
+        // meta.source: sourceSystemHSAId as URI (urn:oid:{HSA_OID}#{hsaId})
         String sourceHsaId = header.getSourceSystemHSAId();
         if (sourceHsaId != null) {
-            c.setRecorder(new Reference().setIdentifier(
-                    new Identifier().setSystem(hsaSystem).setValue(sourceHsaId)));
-            Extension extSrc = new Extension(EXT_SOURCE_SYSTEM);
-            extSrc.setValue(new Identifier().setSystem(hsaSystem).setValue(sourceHsaId));
-            c.addExtension(extSrc);
-        }
-
-        // ext-care-provider: careProviderHSAId (accountable healthcare provider – used for Sparr)
-        String careProviderHsaId = header.getCareProviderHSAId();
-        if (careProviderHsaId != null) {
-            Extension extCp = new Extension(EXT_CARE_PROVIDER);
-            extCp.setValue(new Identifier().setSystem(hsaSystem).setValue(careProviderHsaId));
-            c.addExtension(extCp);
-        }
-
-        // ext-care-unit: careUnitHSAId
-        String careUnitHsaId = header.getCareUnitHSAId();
-        if (careUnitHsaId != null) {
-            Extension extCu = new Extension(EXT_CARE_UNIT);
-            extCu.setValue(new Identifier().setSystem(hsaSystem).setValue(careUnitHsaId));
-            c.addExtension(extCu);
+            c.getMeta().setSource(hsaSystem + "#" + sourceHsaId);
         }
 
         // ext-asserted-date: EPS extension – administrative assertion date (author-time)
@@ -172,19 +149,18 @@ public class GetDiagnosisMapper {
             p.setRecorded(new Date());
         }
 
-        // agent[0]: author = accountable healthcare provider (careProviderHSAId)
-        // This is what Sparrtjänsten uses for organisational-level blocking
+        // agent[0]: custodian = juridiskt ansvarig vårdgivare (careProviderHSAId)
         if (header.getCareProviderHSAId() != null) {
             p.addAgent()
-                .setType(codeable(PROV_PARTICIPANT_SYS, "author"))
+                .setType(codeable(PROV_PARTICIPANT_SYS, "custodian"))
                 .setWho(new Reference().setIdentifier(
                     new Identifier().setSystem(hsaSystem).setValue(header.getCareProviderHSAId())));
         }
 
-        // agent[1]: custodian = care unit (careUnitHSAId)
+        // agent[1]: author = informationsägare vårdenhet (careUnitHSAId)
         if (header.getCareUnitHSAId() != null) {
             p.addAgent()
-                .setType(codeable(PROV_PARTICIPANT_SYS, "custodian"))
+                .setType(codeable(PROV_PARTICIPANT_SYS, "author"))
                 .setWho(new Reference().setIdentifier(
                     new Identifier().setSystem(hsaSystem).setValue(header.getCareUnitHSAId())));
         }

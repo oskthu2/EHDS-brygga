@@ -104,13 +104,15 @@ SOAP-klienten skickar VG:ns HSA-id som logisk adress; NTjP resolver den fysiska 
 ### Säkerhetstjänsten (Spärr)
 
 Post-query-filtrering: körs efter att SOAP-svaret mappats till FHIR-resurser, på fhir-server-sidan.
-Sparrtjänsten arbetar på **organisationsnivå** — kontrollen sker mot `careProviderHSAId`
-(ansvarig vårdgivare), inte mot källsystemet. `careProviderHSAId` bärs av `ext-care-provider`-
-extensionen på varje Condition-resurs och sätts i Provenance som `agent[author]`.
+Sparrtjänsten kontrollerar yttre spärr (`careProviderHSAId`, organisationsnivå) och inre spärr
+(`careUnitHSAId`, avdelningsnivå). Identifierarna läses från `Provenance.agent`:
+`careProviderHSAId` som `agent[role=custodian]` (juridiskt ansvarig) och
+`careUnitHSAId` som `agent[role=author]` (informationsägare). Varken
+`careProviderHSAId` eller `careUnitHSAId` placeras som extension inne i FHIR-resursen.
 
-Spärrkontrollen är synkron och sker per unikt `careProviderHSAId` i svaret (cachelagrat
-per request). Vid fel mot Säkerhetstjänsten gäller *fail-open* — bryggan döljer aldrig
-data på grund av infrastrukturfel.
+Spärrkontrollen är synkron och sker per unikt `(careProviderHSAId, careUnitHSAId)`-par i svaret
+(cachelagrat per request). Fail-closed gäller: saknas giltig Provenance eller misslyckas
+anropet till spärrtjänsten filtreras posten bort.
 
 **PoC-begränsning:** En vårdgivare från en spärrad enhet som ändå har rätt att ta del av
 informationen (t.ex. nödsituationer, break-the-glass) hanteras inte. Se [Kända begränsningar](#kanda-begransningar).
@@ -175,8 +177,8 @@ tre agentroller:
 
 | Agent-roll | Källa | Syfte |
 |---|---|---|
-| `author` | `careProviderHSAId` | Ansvarig vårdgivare (organisationsnivå, används av Sparrtjänsten) |
-| `custodian` | `careUnitHSAId` | Vårdenhet som förvaltar journalposten |
+| `custodian` | `careProviderHSAId` | Juridiskt ansvarig vårdgivare (organisationsnivå, används av Sparrtjänsten) |
+| `author` | `careUnitHSAId` | Informationsägare vårdenhet som förvaltar journalposten |
 | `assembler` | `EHDS_BRIDGE_HSA_ID` (env-variabel) | EHDS-bryggan som sammansatte FHIR-bundlen |
 
 `Provenance.target` pekar på `urn:uuid:{Condition.id}`. `MappedDiagnosisEntry` håller
@@ -232,10 +234,9 @@ Ingen ändring i Gateway, fhir-server-orkestrerare eller HAPI-konfiguration beh�
 ### Åtkomstkontroll
 
 - Post-query: spärrtjänsten filtrerar svar *efter* SOAP-anrop och mappning
-- Filtrering sker alltid oavsett om spärrkontroll lyckas (fail-open innebär att data
-  visas vid infrastrukturfel — inte att spärrar ignoreras)
-- Kontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med
-  Ineras spärrtjänst
+- Fail-closed: saknas giltig Provenance, ogiltigt HSA-id eller infrastrukturfel filtreras posten bort
+- Yttre spärr: `careProviderHSAId` (organisationsnivå) från `Provenance.agent[role=custodian]`
+- Inre spärr: `careUnitHSAId` (avdelningsnivå) från `Provenance.agent[role=author]`
 
 ### Loggning (PDL / ATNA/BALP)
 

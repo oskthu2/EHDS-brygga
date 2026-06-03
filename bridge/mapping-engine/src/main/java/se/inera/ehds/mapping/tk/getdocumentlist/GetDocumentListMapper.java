@@ -9,19 +9,20 @@ import se.inera.ehds.mapping.rivta.doclist.PersonIdType;
 import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
 import se.inera.ehds.mapping.rivta.doclist.ResultType;
 import se.inera.ehds.mapping.tk.MapperContext;
+import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import se.inera.ehds.mapping.tk.TkMapper;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
-public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, DocumentReference> {
+public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, MappedDocumentEntry> {
 
     private static final String CANONICAL_BASE = "https://ehds-brygga.inera.se/fhir";
     private static final String HSA_OID = "1.2.752.129.2.1.4.1";
-    private static final String EXT_SOURCE_SYSTEM = CANONICAL_BASE + "/StructureDefinition/ext-source-system";
-    private static final String EXT_CARE_PROVIDER  = CANONICAL_BASE + "/StructureDefinition/ext-care-provider";
+    private static final String PROV_PARTICIPANT_SYS = "http://terminology.hl7.org/CodeSystem/provenance-participant-type";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-document-reference";
 
     private final NamingSystemRegistry namingSystem;
@@ -33,7 +34,7 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
     }
 
     @Override
-    public List<DocumentReference> map(GetDocumentListResponse response, MapperContext ctx) {
+    public List<MappedDocumentEntry> map(GetDocumentListResponse response, MapperContext ctx) {
         if (response == null || response.getDocumentEntry() == null) return List.of();
         ResultType result = response.getResult();
         if (result != null && !"OK".equals(result.getResultCode())) return List.of();
@@ -44,7 +45,7 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
                 .collect(Collectors.toList());
     }
 
-    private DocumentReference mapDocumentEntry(DocumentEntry entry, MapperContext ctx) {
+    private MappedDocumentEntry mapDocumentEntry(DocumentEntry entry, MapperContext ctx) {
         if (entry == null) return null;
 
         DocumentReference dr = new DocumentReference();
@@ -89,33 +90,18 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
             dr.setDescription(entry.getTitle());
         }
 
-        // author: careUnit HSA-id
+        // author: careUnitHSAId – informationsägare vårdenhet (standard FHIR author field)
         String careUnitHsaId = entry.getCareUnitHSAId();
+        String hsaSystem = namingSystem.oidToUri(HSA_OID);
         if (careUnitHsaId != null) {
-            String hsaSystem = namingSystem.oidToUri(HSA_OID);
             dr.addAuthor(new Reference().setIdentifier(
                     new Identifier().setSystem(hsaSystem).setValue(careUnitHsaId)));
         }
 
-        // custodian: careProvider HSA-id
-        String careProviderHsaId = entry.getCareProviderHSAId();
-        if (careProviderHsaId != null) {
-            String hsaSystem = namingSystem.oidToUri(HSA_OID);
-            dr.setCustodian(new Reference().setIdentifier(
-                    new Identifier().setSystem(hsaSystem).setValue(careProviderHsaId)));
-            // ext-care-provider: organisationsnivå-identifierare för Sparr (samma mönster som Condition)
-            Extension extCp = new Extension(EXT_CARE_PROVIDER);
-            extCp.setValue(new Identifier().setSystem(hsaSystem).setValue(careProviderHsaId));
-            dr.addExtension(extCp);
-        }
-
-        // extension: ext-source-system (used by SparrFilterService)
+        // meta.source: sourceSystemHSAId as URI (urn:oid:{HSA_OID}#{hsaId})
         String sourceHsaId = entry.getSourceSystemHSAId();
         if (sourceHsaId != null) {
-            String hsaSystem = namingSystem.oidToUri(HSA_OID);
-            Extension ext = new Extension(EXT_SOURCE_SYSTEM);
-            ext.setValue(new Identifier().setSystem(hsaSystem).setValue(sourceHsaId));
-            dr.addExtension(ext);
+            dr.getMeta().setSource(hsaSystem + "#" + sourceHsaId);
         }
 
         // content: default PDF attachment
@@ -129,14 +115,56 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
         content.setAttachment(attachment);
         dr.addContent(content);
 
-        return dr;
+        Provenance prov = buildProvenance(dr.getId(), entry, ctx, hsaSystem);
+
+        return new MappedDocumentEntry(dr, prov);
     }
 
-    /**
-     * Convert RIVTA date string to ISO 8601.
-     * YYYYMMDD → YYYY-MM-DD
-     * YYYYMMDDHHmmss → YYYY-MM-DDTHH:mm:ss
-     */
+    private Provenance buildProvenance(String docRefId, DocumentEntry entry,
+                                        MapperContext ctx, String hsaSystem) {
+        Provenance p = new Provenance();
+        p.setId(UUID.randomUUID().toString());
+        p.addTarget(new Reference("urn:uuid:" + docRefId));
+
+        if (entry.getDocumentTime() != null) {
+            String isoDate = parseRivDate(entry.getDocumentTime());
+            p.setRecordedElement(new InstantType(isoDate.length() == 10
+                    ? isoDate + "T00:00:00Z" : isoDate + "Z"));
+        } else {
+            p.setRecorded(new Date());
+        }
+
+        // custodian: juridiskt ansvarig vårdgivare (careProviderHSAId)
+        if (entry.getCareProviderHSAId() != null) {
+            p.addAgent()
+                    .setType(codeable(PROV_PARTICIPANT_SYS, "custodian"))
+                    .setWho(new Reference().setIdentifier(
+                            new Identifier().setSystem(hsaSystem).setValue(entry.getCareProviderHSAId())));
+        }
+
+        // author: informationsägare vårdenhet (careUnitHSAId)
+        if (entry.getCareUnitHSAId() != null) {
+            p.addAgent()
+                    .setType(codeable(PROV_PARTICIPANT_SYS, "author"))
+                    .setWho(new Reference().setIdentifier(
+                            new Identifier().setSystem(hsaSystem).setValue(entry.getCareUnitHSAId())));
+        }
+
+        // assembler: bryggan
+        if (ctx.getBridgeHsaId() != null) {
+            p.addAgent()
+                    .setType(codeable(PROV_PARTICIPANT_SYS, "assembler"))
+                    .setWho(new Reference().setIdentifier(
+                            new Identifier().setSystem(hsaSystem).setValue(ctx.getBridgeHsaId())));
+        }
+
+        return p;
+    }
+
+    private CodeableConcept codeable(String system, String code) {
+        return new CodeableConcept().addCoding(new Coding().setSystem(system).setCode(code));
+    }
+
     private String parseRivDate(String d) {
         if (d == null || d.isBlank()) return null;
         String s = d.trim();

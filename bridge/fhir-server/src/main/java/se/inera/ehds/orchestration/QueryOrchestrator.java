@@ -73,8 +73,8 @@ public class QueryOrchestrator {
                 .flatMap(f -> f.join().stream())
                 .collect(Collectors.toList());
 
-        // Post-query Sparr (organisationsnivå)
-        all = sparr.filter(all, patientSystem, patientValue);
+        // Post-query Sparr (yttre + inre spärr)
+        all = sparr.filterConditions(all, patientSystem, patientValue);
 
         // Logg (fire-and-forget)
         logg.logAccess(requestId, patientValue, patientSystem,

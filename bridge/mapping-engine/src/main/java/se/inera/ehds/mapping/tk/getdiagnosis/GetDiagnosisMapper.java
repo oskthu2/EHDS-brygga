@@ -80,12 +80,13 @@ public class GetDiagnosisMapper {
         CVType dc = body.getDiagnosisCode();
         if (dc != null) {
             String codeSystem = namingSystem.oidToUri(dc.getCodeSystem());
+            String codeText = dc.getOriginalText() != null ? dc.getOriginalText() : dc.getDisplayName();
             c.setCode(new CodeableConcept()
                     .addCoding(new Coding()
                             .setSystem(codeSystem)
                             .setCode(dc.getCode())
                             .setDisplay(dc.getDisplayName()))
-                    .setText(dc.getDisplayName()));
+                    .setText(codeText));
         }
 
         // subject: patient identifier

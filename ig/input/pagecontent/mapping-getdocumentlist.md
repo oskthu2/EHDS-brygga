@@ -11,7 +11,10 @@
 | `documentEntry.documentId` | `DocumentReference.masterIdentifier.value` | Unik dokumentidentifierare |
 | `documentEntry.title` | `DocumentReference.description` | Dokumenttitel i klartext |
 | `documentEntry.documentTime` | `DocumentReference.date` | ISO 8601 via parseRivDate |
-| `documentEntry.typeCode` (CVType) | `DocumentReference.type` | OID→URI via NamingSystemRegistry |
+| `documentEntry.typeCode.code` | `DocumentReference.type.coding.code` | Dokumenttypskod |
+| `documentEntry.typeCode.codeSystem` | `DocumentReference.type.coding.system` | OID→URI via NamingSystemRegistry |
+| `documentEntry.typeCode.displayName` | `DocumentReference.type.coding.display` | Kodverkets officiella benämning |
+| `documentEntry.typeCode.originalText` | `DocumentReference.type.text` | Fritext från källsystemet; om saknad används `displayName` som fallback |
 | `documentEntry.patientId` | `DocumentReference.subject.identifier` | Personnummer/samordningsnummer |
 | `documentEntry.careUnitHSAId` | `DocumentReference.author[0].identifier` | HSA-id vårdenhet |
 | `documentEntry.careProviderHSAId` | `DocumentReference.custodian.identifier` | HSA-id vårdgivare |

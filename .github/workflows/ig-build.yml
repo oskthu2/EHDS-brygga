@@ -16,6 +16,9 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   # Runs on every branch: validates that FSH compiles cleanly.
   validate:
@@ -66,6 +69,9 @@ jobs:
           mkdir -p ig/input-cache
           curl -L -o ig/input-cache/publisher.jar \
             "https://github.com/HL7/fhir-ig-publisher/releases/latest/download/publisher.jar"
+
+      - name: Install Jekyll
+        run: sudo gem install jekyll bundler
 
       - name: Run IG Publisher
         working-directory: ig

@@ -48,7 +48,9 @@ konfigurationsdrivna och nya tjänstekontrakt kan läggas till utan kodändringa
 - [Mappning: GetDiagnosis → Condition](mapping-getdiagnosis.html) – Detaljerad mappningstabell och exempel
 - [Mappning: GetDocumentList → DocumentReference](mapping-getdocumentlist.html) – Fältmappning och OID-konverteringar
 - [Arkitektur](architecture.html) – Systembeskrivning och flödesdiagram
+- [OID-till-URI-mappningar](naming-systems.html) – Alla 12 OID↔URI-konverteringar som NamingSystem-resurser
 - [Artefakter](artifacts.html) – Alla FHIR-profiler, kodsystem och valuemängder
+- [Nedladdningar](downloads.html) – FHIR NPM-paket (`package.tgz`)
 
 ## Teknisk information
 

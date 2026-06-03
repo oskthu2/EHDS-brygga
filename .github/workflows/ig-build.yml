@@ -7,21 +7,40 @@ on:
     branches: ["**"]
   workflow_dispatch:
 
-# Pages deployment requires these token permissions
 permissions:
   contents: read
   pages: write
   id-token: write
 
-# Only one Pages deployment at a time; don't cancel in-progress to avoid
-# leaving a half-deployed site.
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build-ig:
+  # Runs on every branch: validates that FSH compiles cleanly.
+  sushi:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install SUSHI
+        run: npm install -g fsh-sushi
+
+      - name: Compile FSH
+        working-directory: ig
+        run: sushi .
+
+  # Runs on main only: full IG Publisher build + Pages deployment.
+  build-and-deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,32 +71,11 @@ jobs:
         working-directory: ig
         run: java -jar input-cache/publisher.jar -ig ig.ini
 
-      # Always upload the raw output as a regular artifact so every branch
-      # build is inspectable (14-day retention).
-      - name: Upload build artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ig-output
-          path: ig/output/
-          retention-days: 14
-
-      # On main only: package the output for GitHub Pages deployment.
-      # upload-pages-artifact creates the special "github-pages" artifact
-      # that deploy-pages expects.
       - name: Upload Pages artifact
-        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: ig/output/
 
-  deploy-pages:
-    needs: build-ig
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4

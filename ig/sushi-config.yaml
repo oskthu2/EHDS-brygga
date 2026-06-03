@@ -36,6 +36,8 @@ pages:
     title: "OID-till-URI-mappningar"
   architecture.md:
     title: Arkitektur
+  downloads.md:
+    title: Nedladdningar
 
 menu:
   Hem: index.html
@@ -45,3 +47,4 @@ menu:
   "OID-mappningar": naming-systems.html
   Arkitektur: architecture.html
   Artefakter: artifacts.html
+  Nedladdningar: downloads.html

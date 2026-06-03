@@ -73,8 +73,8 @@ Provenance-resurser inkluderas i sökbundlen med `searchMode = include` och refe
 | FHIR-resurs | Koppling | Beskrivning |
 |---|---|---|
 | `Provenance.target` | `urn:uuid:{Condition.id}` | Provenance beskriver denna Condition |
-| `Provenance.agent[author]` | `careProviderHSAId` | Ansvarig vårdgivare (organisationsnivå, Sparr) |
-| `Provenance.agent[custodian]` | `careUnitHSAId` | Vårdenhet som förvaltar posten |
+| `Provenance.agent[custodian]` | `careProviderHSAId` | Juridiskt ansvarig vårdgivare (organisationsnivå, yttre Sparr) |
+| `Provenance.agent[author]` | `careUnitHSAId` | Informationsägare vårdenhet (inre Sparr) |
 | `Provenance.agent[assembler]` | `EHDS_BRIDGE_HSA_ID` | Bryggan som sammansatte FHIR-svaret |
 
 ## Härledning av clinicalStatus

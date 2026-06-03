@@ -50,19 +50,20 @@ vet inte om bakomliggande system är en proxy, ett nativt FHIR-API eller något 
 **Varför:** Proxyn kan driftsättas centralt (defaultläge) eller nära VG:ns datacenter (lägre latens,
 lokal nätverkspolicies). Bryggan påverkas inte — bara `fhirEndpointUrl` i `vg-config.yaml` ändras.
 
-### Post-query spärr på organisationsnivå
+### Post-query spärr på organisations- och avdelningsnivå
 
-Spärrkontrollen körs **efter** att svar mappats till FHIR-resurser. Ineras spärrtjänst spärrar
-på **organisationsnivå** — kontrollen sker mot `careProviderHSAId` (ansvarig vårdgivare) via
-`ext-care-provider`-extensionen på varje Condition.
+Spärrkontrollen körs **efter** att svar mappats till FHIR-resurser. Identifierarna läses
+från `Provenance.agent` — inte från extensions inne i resursen:
+- Yttre spärr: `careProviderHSAId` (organisationsnivå) från `Provenance.agent[role=custodian]`
+- Inre spärr: `careUnitHSAId` (avdelningsnivå) från `Provenance.agent[role=author]`
 
 Varje svar innehåller en `Provenance`-resurs per Condition med tre agenter:
-- `author` = ansvarig vårdgivare (`careProviderHSAId`) — Sparr-nyckeln
-- `custodian` = vårdenhet (`careUnitHSAId`)
+- `custodian` = juridiskt ansvarig vårdgivare (`careProviderHSAId`) — yttre Sparr-nyckel
+- `author` = informationsägare vårdenhet (`careUnitHSAId`) — inre Sparr-nyckel
 - `assembler` = bryggan (`EHDS_BRIDGE_HSA_ID`)
 
-Vid fel mot Säkerhetstjänsten gäller *fail-open* — bryggan döljer aldrig data på grund av
-infrastrukturfel.
+Fail-closed gäller: saknas giltig Provenance, ogiltigt HSA-id eller infrastrukturfel
+filtreras posten bort. `careProviderHSAId` placeras **inte** som extension inne i FHIR-resursen.
 
 ### `fhirEndpointUrl` styr driftsättningsgränsen
 
@@ -184,9 +185,9 @@ Konsument       Gateway        fhir-server             ntjp-proxy          Inera
     │               │               │◄──Bundle (Condition   │                   │
     │               │               │   + Provenance)────────                   │
     │               │               │                       │                   │
-    │               │         [Post-query Sparr:             │                   │
-    │               │          kontroll mot careProviderHSAId│                   │
-    │               │          via ext-care-provider]        │                   │
+    │               │         [Post-query Sparr (fail-closed):│                   │
+    │               │          yttre: careProviderHSAId      │                   │
+    │               │          inre:  careUnitHSAId]         │                   │
     │               │               │                       │                   │
     │               │         [Åtkomstlogg ATNA/BALP]        │                   │
     │               │               │                       │                   │
@@ -354,7 +355,7 @@ En konkret klass per tjänstekontrakt:
 | Klass | Intyp | Uttyp | TK |
 |---|---|---|---|
 | `GetDiagnosisMapper` | `GetDiagnosisResponse` | `List<MappedDiagnosisEntry>` | GetDiagnosis:2 |
-| `GetDocumentListMapper` | `GetDocumentListResponse` | `List<DocumentReference>` | GetDocumentList:1 |
+| `GetDocumentListMapper` | `GetDocumentListResponse` | `List<MappedDocumentEntry>` | GetDocumentList:1 |
 
 `MapperContext` skickas med vid varje mappning och innehåller:
 - `patientSystem` — FHIR-URI för patientidentifierarsystemet
@@ -366,9 +367,9 @@ En konkret klass per tjänstekontrakt:
 | RIVTA-element | FHIR-element | Logik |
 |---|---|---|
 | `diagnosisHeader.patientId.root/extension` | `subject.identifier.system/value` | OID→URI via lager 2a |
-| `diagnosisHeader.sourceSystemHSAId` | `recorder.identifier` + `ext-source-system` | HSA-id på båda ställena |
-| `diagnosisHeader.careProviderHSAId` | `ext-care-provider` + `Provenance.agent[author]` | Ansvarig vårdgivare — Sparr-nyckel |
-| `diagnosisHeader.careUnitHSAId` | `ext-care-unit` + `Provenance.agent[custodian]` | Vårdenhet |
+| `diagnosisHeader.sourceSystemHSAId` | `Condition.meta.source` | `urn:oid:{HSA_OID}#{hsaId}` — spårbarhet |
+| `diagnosisHeader.careProviderHSAId` | `Provenance.agent[custodian]` | Juridiskt ansvarig — yttre Sparr-nyckel |
+| `diagnosisHeader.careUnitHSAId` | `Provenance.agent[author]` | Informationsägare vårdenhet — inre Sparr-nyckel |
 | `diagnosisHeader.documentTime` | `recordedDate` + `Provenance.recorded` | Datumkonvertering |
 | `diagnosisBody.diagnosisCode` | `code.coding` | OID→URI via lager 2a |
 | `diagnosisBody.diagnosisType` | `category` | Kod→kod via lager 2b (DiagnosisType-karta) |
@@ -379,10 +380,10 @@ En konkret klass per tjänstekontrakt:
 | *(konstant)* | `verificationStatus` | Alltid `confirmed` |
 | `bridgeHsaId` från `MapperContext` | `Provenance.agent[assembler]` | Bryggan som sammansättande aktör |
 
-**Sparr-integrationen:** `ext-care-provider`-extensionen på varje Condition bär
-`careProviderHSAId`. `SparrFilterService` i `fhir-server` läser denna extension för att
-utföra spärrkontrollen på rätt organisationsnivå. Utan extensionen passerar resursen
-alltid (fail-open).
+**Sparr-integrationen (fail-closed):** `SparrFilterService` i `fhir-server` läser
+`careProviderHSAId` från `Provenance.agent[role=custodian]` och `careUnitHSAId` från
+`Provenance.agent[role=author]`. Saknas giltig Provenance eller giltigt HSA-id, eller
+misslyckas anropet till spärrtjänsten, filtreras posten bort.
 
 ---
 
@@ -414,8 +415,8 @@ public class GetMedicationMapper
     public List<MedicationStatement> map(GetMedicationHistoryResponse response, MapperContext ctx) {
         // 1. Nollkontroll och resultatkodkontroll
         // 2. Iterera svar-element
-        // 3. Sätt ext-care-provider (careProviderHSAId) — krävs för Sparr-kontroll
-        // 4. Sätt ext-source-system (sourceSystemHSAId) — spårbarhet
+        // 3. Sätt meta.source = urn:oid:{HSA_OID}#{sourceSystemHSAId} — spårbarhet
+        // 4. Bygg Provenance: custodian=careProviderHSAId, author=careUnitHSAId — Sparr-nyckel
         // 5. Använd namingSystem.oidToUri() för alla OID-värden
         // 6. Använd conceptMaps.translate...() för kodmappningar
     }
@@ -467,25 +468,21 @@ Implementation Guide finns under `ig/`. Byggs med SUSHI (FSH-kompilator).
 | `SEEHDSCondition` | Condition | IPS `Condition-uv-ips` | GetDiagnosis:2 |
 | `SEEHDSDocumentReference` | DocumentReference | FHIR R4 base | GetDocumentList:1 |
 
-### Extensions på Condition
+### Extensions och meta på Condition
 
-| Extension | URL | Källfält | Användning |
-|---|---|---|---|
-| `ext-source-system` | `...ext-source-system` | `sourceSystemHSAId` | Källsystemets HSA-id; spårbarhet |
-| `ext-care-provider` | `...ext-care-provider` | `careProviderHSAId` | Ansvarig vårdgivare; **Sparr-nyckel** |
-| `ext-care-unit` | `...ext-care-unit` | `careUnitHSAId` | Vårdenhet |
-| `ext-asserted-date` | `...ext-asserted-date` | EPS `assertedDate` | Administrativt diagnosdatum |
+| Fält | Källa | Användning |
+|---|---|---|
+| `Condition.meta.source` | `sourceSystemHSAId` | Källsystemets HSA-id som URI (`urn:oid:{HSA_OID}#{hsaId}`); spårbarhet |
+| `ext-asserted-date` | EPS `assertedDate` | Administrativt diagnosdatum; enda kvarvarande extension |
 
-Alla URL:er har prefix `https://ehds-brygga.inera.se/fhir/StructureDefinition/`.
+Extension-URL-prefix: `https://ehds-brygga.inera.se/fhir/StructureDefinition/`.
 
-Exempel på `ext-care-provider`:
+Exempel på `meta.source`:
 
 ```json
 {
-  "url": "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-care-provider",
-  "valueIdentifier": {
-    "system": "urn:oid:1.2.752.129.2.1.4.1",
-    "value": "SE2321000016-4HK5"
+  "meta": {
+    "source": "urn:oid:1.2.752.129.2.1.4.1#SE2321000016-4HK5"
   }
 }
 ```
@@ -501,15 +498,15 @@ Varje Condition-resurs åtföljs av en `Provenance` (inkluderad som `searchMode=
   "recorded": "2023-06-01T12:00:00Z",
   "agent": [
     {
-      "type": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type", "code": "author" }]},
+      "type": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type", "code": "custodian" }]},
       "who": { "identifier": { "system": "urn:oid:1.2.752.129.2.1.4.1", "value": "SE2321000016-4HK5" }}
     },
     {
-      "type": { "coding": [{ "system": "...", "code": "custodian" }]},
+      "type": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type", "code": "author" }]},
       "who": { "identifier": { "system": "urn:oid:1.2.752.129.2.1.4.1", "value": "SE2321000016-E000000001" }}
     },
     {
-      "type": { "coding": [{ "system": "...", "code": "assembler" }]},
+      "type": { "coding": [{ "system": "http://terminology.hl7.org/CodeSystem/provenance-participant-type", "code": "assembler" }]},
       "who": { "identifier": { "system": "urn:oid:1.2.752.129.2.1.4.1", "value": "SE2321000999-EHDS" }}
     }
   ]
@@ -534,8 +531,6 @@ Dessa delar är medvetet ej implementerade i PoC:n och måste adresseras inför 
 | **EI-kontraktsversion** | EI-mock använder förenklat HTTP-API. Ska använda RIVTA `GetEngagements:1`. | `EiService.java` |
 | **Lokal tidzon** | `parseRivDate()` returnerar datum utan tidszon. Kräver explicit hantering av `Europe/Stockholm` → UTC. | `GetDiagnosisMapper.java`, `GetDocumentListMapper.java` |
 | **Sparr: break-the-glass** | En konsument från en spärrad enhet som ändå har rätt till informationen (nödsituation) hanteras inte. Kräver kontextinfo om inloggad användares behörighet. | `SparrFilterService.java` |
-| **Sparr: DocumentReference** | `SparrFilterService` filtrerar Condition via `ext-care-provider`. Motsvarande för DocumentReference saknas. | `DocumentQueryOrchestrator.java` |
-| **Provenance: DocumentReference** | `GetDocumentListMapper` producerar inte Provenance. Samma mönster som GetDiagnosisMapper bör tillämpas. | `GetDocumentListMapper.java` |
 
 ---
 
@@ -570,7 +565,7 @@ EHDS-brygga/
 ├── ig/                            # FHIR Implementation Guide (SUSHI/FSH)
 │   └── input/
 │       ├── fsh/profiles/          # SEEHDSCondition, SEEHDSDocumentReference
-│       ├── fsh/extensions/        # ext-source-system, ext-care-provider, ext-care-unit, ext-asserted-date
+│       ├── fsh/extensions/        # ext-asserted-date
 │       ├── fsh/conceptmaps/       # DiagnosisTypeToCategoryMap
 │       └── pagecontent/           # architecture.md, mapping-*.md
 │
@@ -594,10 +589,11 @@ EHDS-brygga/
 | `QueryOrchestrator` | `fhir-server` | EI → parallella FHIR-anrop → Sparr → Logg för Condition |
 | `DocumentQueryOrchestrator` | `fhir-server` | Samma pipeline för DocumentReference |
 | `FhirProxyClient` | `fhir-server` | HAPI FHIR-klient mot VG-endpoint; parsar Condition+Provenance ur Bundle |
-| `SparrFilterService` | `fhir-server` | Post-query Sparr på org-nivå — läser `ext-care-provider` (careProviderHSAId) |
+| `SparrFilterService` | `fhir-server` | Post-query Sparr (fail-closed) — läser HSA-id från Provenance.agent (custodian/author) |
 | `ConditionProxyController` | `ntjp-proxy` | TAK → SOAP → Mapping → Bundle (Condition+Provenance) |
 | `NamingSystemRegistry` | `mapping-engine` | Lager 2a: OID↔URI, `oidToUri()` och `uriToOid()` |
 | `ConceptMapRegistry` | `mapping-engine` | Lager 2b: kod→kod, läses från `concept-maps/*.yaml` |
 | `GetDiagnosisMapper` | `mapping-engine` | Lager 3: `GetDiagnosisResponse` → `List<MappedDiagnosisEntry>` |
-| `GetDocumentListMapper` | `mapping-engine` | Lager 3: `GetDocumentListResponse` → `List<DocumentReference>` |
+| `GetDocumentListMapper` | `mapping-engine` | Lager 3: `GetDocumentListResponse` → `List<MappedDocumentEntry>` |
 | `MappedDiagnosisEntry` | `mapping-engine` | Record: `(Condition condition, Provenance provenance)` |
+| `MappedDocumentEntry` | `mapping-engine` | Record: `(DocumentReference documentReference, Provenance provenance)` |

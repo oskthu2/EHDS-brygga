@@ -177,8 +177,8 @@ tre agentroller:
 
 | Agent-roll | Källa | Syfte |
 |---|---|---|
-| `author` | `careProviderHSAId` | Ansvarig vårdgivare (organisationsnivå, används av Sparrtjänsten) |
-| `custodian` | `careUnitHSAId` | Vårdenhet som förvaltar journalposten |
+| `custodian` | `careProviderHSAId` | Juridiskt ansvarig vårdgivare (organisationsnivå, används av Sparrtjänsten) |
+| `author` | `careUnitHSAId` | Informationsägare vårdenhet som förvaltar journalposten |
 | `assembler` | `EHDS_BRIDGE_HSA_ID` (env-variabel) | EHDS-bryggan som sammansatte FHIR-bundlen |
 
 `Provenance.target` pekar på `urn:uuid:{Condition.id}`. `MappedDiagnosisEntry` håller
@@ -234,10 +234,9 @@ Ingen ändring i Gateway, fhir-server-orkestrerare eller HAPI-konfiguration beh�
 ### Åtkomstkontroll
 
 - Post-query: spärrtjänsten filtrerar svar *efter* SOAP-anrop och mappning
-- Filtrering sker alltid oavsett om spärrkontroll lyckas (fail-open innebär att data
-  visas vid infrastrukturfel — inte att spärrar ignoreras)
-- Kontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med
-  Ineras spärrtjänst
+- Fail-closed: saknas giltig Provenance, ogiltigt HSA-id eller infrastrukturfel filtreras posten bort
+- Yttre spärr: `careProviderHSAId` (organisationsnivå) från `Provenance.agent[role=custodian]`
+- Inre spärr: `careUnitHSAId` (avdelningsnivå) från `Provenance.agent[role=author]`
 
 ### Loggning (PDL / ATNA/BALP)
 

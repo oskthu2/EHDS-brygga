@@ -65,7 +65,7 @@ Profilen säkerställer att:
 * code.coding[ICD10SE].display ^short = "Klartext för diagnosen, t.ex. Pneumoni, ospecificerad"
 
 * subject 1..1 MS
-* subject only Reference(Patient)
+* subject only Reference($ipsPatient)
 * subject ^short = "Patient som diagnosen gäller – identifieras med personnummer eller samordningsnummer"
 * subject.identifier 1..1 MS
 * subject.identifier ^short = "Patientidentifierare (personnummer eller samordningsnummer)"
@@ -86,7 +86,7 @@ Profilen säkerställer att:
 * recordedDate ^short = "Registreringsdatum, mappat från diagnosisHeader.documentTime (YYYYMMDDHHMMSS → ISO 8601)"
 
 * recorder MS
-* recorder only Reference(Practitioner or PractitionerRole or Patient or RelatedPerson or Organization)
+* recorder only Reference(Practitioner or PractitionerRole or Patient or RelatedPerson)
 * recorder ^short = "Registrerande enhet eller system"
 * recorder.identifier MS
 * recorder.identifier ^short = "HSA-id för registrerande system eller enhet"

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import se.inera.ehds.mapping.naming.NamingSystemRegistry;
 import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
 import se.inera.ehds.mapping.tk.MapperContext;
+import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import se.inera.ehds.mapping.tk.getdocumentlist.GetDocumentListMapper;
 import se.inera.ehds.proxy.service.ProxyTakService;
 import se.inera.ehds.soap.client.GetDocumentListClient;
@@ -62,31 +63,34 @@ public class DocumentReferenceProxyController {
         }
 
         String root = namingRegistry.uriToOid(patientSystem);
-        List<DocumentReference> docs;
+        List<MappedDocumentEntry> entries;
         try {
             GetDocumentListResponse response = soapClient.call(physUrl, vgHsaId, root, patientValue);
-            docs = mapper.map(response, new MapperContext(patientSystem, patientValue, null));
-            log.debug("GetDocumentList för {} returnerade {} DocumentReference(s)", vgHsaId, docs.size());
+            entries = mapper.map(response, new MapperContext(patientSystem, patientValue, null));
+            log.debug("GetDocumentList för {} returnerade {} DocumentReference(s)", vgHsaId, entries.size());
         } catch (Exception e) {
             log.error("SOAP-fel mot {}: {}", vgHsaId, e.getMessage());
             return ResponseEntity.ok(emptyBundle());
         }
 
-        Bundle bundle = buildBundle(docs);
+        Bundle bundle = buildBundle(entries);
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType("application/fhir+json"))
                 .body(fhirParser.encodeResourceToString(bundle));
     }
 
-    private Bundle buildBundle(List<DocumentReference> docs) {
+    private Bundle buildBundle(List<MappedDocumentEntry> entries) {
         Bundle b = new Bundle();
         b.setId(UUID.randomUUID().toString());
         b.getMeta().setLastUpdated(new Date());
         b.setType(Bundle.BundleType.SEARCHSET);
-        b.setTotal(docs.size());
-        for (DocumentReference dr : docs) {
+        b.setTotal(entries.size());
+        for (MappedDocumentEntry entry : entries) {
+            DocumentReference dr = entry.documentReference();
             b.addEntry().setFullUrl("urn:uuid:" + dr.getId()).setResource(dr)
              .getSearch().setMode(Bundle.SearchEntryMode.MATCH);
+            b.addEntry().setFullUrl("urn:uuid:" + entry.provenance().getId()).setResource(entry.provenance())
+             .getSearch().setMode(Bundle.SearchEntryMode.INCLUDE);
         }
         return b;
     }

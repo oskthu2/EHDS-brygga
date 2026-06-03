@@ -34,9 +34,8 @@ jobs:
         working-directory: ig
         run: sushi .
 
-  # Runs on main only: full IG Publisher build + Pages deployment.
+  # Runs on every push touching ig/: full IG Publisher build + Pages deployment.
   publish:
-    if: github.ref == 'refs/heads/main'
     needs: validate
     runs-on: ubuntu-latest
     environment:

@@ -16,12 +16,9 @@ concurrency:
   group: pages
   cancel-in-progress: false
 
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
   # Runs on every branch: validates that FSH compiles cleanly.
-  sushi:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -38,8 +35,9 @@ jobs:
         run: sushi .
 
   # Runs on main only: full IG Publisher build + Pages deployment.
-  build-and-deploy:
+  publish:
     if: github.ref == 'refs/heads/main'
+    needs: validate
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -58,8 +56,7 @@ jobs:
         working-directory: ig
         run: sushi .
 
-      - name: Set up Java (for IG Publisher)
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
@@ -74,8 +71,7 @@ jobs:
         working-directory: ig
         run: java -jar input-cache/publisher.jar -ig ig.ini
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: ig/output/
 

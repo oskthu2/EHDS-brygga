@@ -15,6 +15,29 @@ Systemet är utformat för att vara:
 - **Spårbart** – alla anrop loggas (ATNA/BALP) i Ineras loggtjänst
 - **Säkert** – JWT-validering, mTLS mot NTjP, post-query spärrfiltrering
 
+## Containers och moduler
+
+EHDS-bryggan består av **två huvud-containers**: en gateway och en bryggtjänst.
+Bryggtjänsten i sin tur är uppbyggd av **tre interna moduler**.
+I testmiljö tillkommer fem mock-containers som simulerar externa Inera-tjänster.
+
+| Container / modul | Teknisk karaktär | Syfte |
+|---|---|---|
+| **Gateway** | nginx (PoC), KONG + WSO2 APIM (prod) | TLS-terminering, URL-routing, extraherar `{vg-hsa-id}` → `X-VG-HSA-ID`-header. Serverar SMART `/.well-known/`-endpoints (statisk JSON). |
+| **fhir-server** *(bryggtjänst, modul 1)* | Spring Boot + HAPI FHIR | FHIR Resource Providers. Orkestrering: EI → parallella FHIR-anrop → Spärr → Logg. Talar enbart FHIR mot VG-endpoints via `fhirEndpointUrl`. |
+| **ntjp-proxy** *(bryggtjänst, modul 2)* | Spring Boot + Apache CXF | All SOAP/RIVTA-logik. Innehåller mapping-engine och soap-client. Exponerar FHIR-API per VG. Deployerbar centralt eller nära VG. |
+| **mapping-engine** *(bryggtjänst, modul 3)* | Maven-bibliotek (JAR) | RIVTA JAXB-typer, NamingSystemRegistry (OID↔URI), ConceptMapRegistry (RIVTA-kod → FHIR-kod), TK-specifika mappningsklasser (GetDiagnosisMapper, GetDocumentListMapper). |
+
+### Mock-containers (testmiljö)
+
+| Mock | Port | Simulerar |
+|---|---|---|
+| `mock-tak` | 4001 | TAK / adresseringskatalog |
+| `mock-ei` | 4002 | Engagemangsindex |
+| `mock-sparr` | 4003 | Säkerhetstjänsten (spärr) |
+| `mock-logg` | 4004 | ATNA/BALP-loggtjänst |
+| `mock-backend` | 4005 | Producerande journalsystem (SOAP) |
+
 ## Systemkomponenter
 
 ### API Gateway (NGINX)
@@ -221,11 +244,13 @@ Loggposter skickas till Ineras loggtjänst i ATNA/BALP-format.
 
 ## Driftsättning
 
-Bryggan driftsätts som tre containers i Kubernetes:
+Bryggan driftsätts som **två huvud-containers** i Kubernetes:
 
-- `gateway` — NGINX, TLS-terminering, multi-tenant routing
-- `fhir-server` — Spring Boot, FHIR-lager, EI + Sparr + Logg
-- `ntjp-proxy` — Spring Boot, SOAP-lager, CXF + mappning
+- `gateway` — NGINX (PoC), TLS-terminering, multi-tenant URL-routing
+- `bryggtjänst` — innehåller fhir-server och ntjp-proxy med delad mapping-engine
+
+De tre interna modulerna (`fhir-server`, `ntjp-proxy`, `mapping-engine`) kan vid behov
+deployeras som separata pods, t.ex. för att köra ntjp-proxy nära en specifik VG.
 
 I lokal utveckling tillkommer fem mock-containers (TAK, EI, Spärr, Logg, Backend-SOAP)
 via `docker-compose.yml` i projektets rot.

@@ -81,6 +81,26 @@ jobs:
         working-directory: ig
         run: java -jar input-cache/publisher.jar -ig ig.ini
 
+      - name: Translate IG output to Swedish
+        run: |
+          find ig/output -name "*.html" -print0 | xargs -0 sed -i \
+            -e 's|Artifact Index|Artefakter|g' \
+            -e 's|<title>Artifact Index|<title>Artefakter|g' \
+            -e 's|>Structures: |>Strukturer: |g' \
+            -e 's|>Terminology: |>Terminologi: |g' \
+            -e 's|>Behavior: |>Beteende: |g' \
+            -e 's|>Profiles<|>Profiler<|g' \
+            -e 's|>Extensions<|>Extensions<|g' \
+            -e 's|>Logical Models<|>Logiska modeller<|g' \
+            -e 's|>Code Systems<|>Kodsystem<|g' \
+            -e 's|>Value Sets<|>Värdemängder<|g' \
+            -e 's|>Concept Maps<|>Begreppsmappningar<|g' \
+            -e 's|>Naming Systems<|>Namngivningssystem<|g' \
+            -e 's|>Examples<|>Exempel<|g' \
+            -e 's|>Downloads<|>Nedladdningar<|g' \
+            -e 's|>Architecture<|>Arkitektur<|g' \
+            -e 's|>Home<|>Hem<|g'
+
       - uses: actions/upload-pages-artifact@v3
         with:
           path: ig/output/

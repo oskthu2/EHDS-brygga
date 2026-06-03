@@ -1,4 +1,4 @@
-name: Build IG
+name: Build and Publish IG
 
 on:
   push:
@@ -7,9 +7,40 @@ on:
     branches: ["**"]
   workflow_dispatch:
 
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
 jobs:
-  build-ig:
+  # Runs on every branch: validates that FSH compiles cleanly.
+  sushi:
     runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install SUSHI
+        run: npm install -g fsh-sushi
+
+      - name: Compile FSH
+        working-directory: ig
+        run: sushi .
+
+  # Runs on main only: full IG Publisher build + Pages deployment.
+  build-and-deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -40,9 +71,11 @@ jobs:
         working-directory: ig
         run: java -jar input-cache/publisher.jar -ig ig.ini
 
-      - name: Upload IG output
-        uses: actions/upload-artifact@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: ig-output
           path: ig/output/
-          retention-days: 14
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

@@ -20,7 +20,8 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 | `diagnosisHeader.documentTime` | `Condition.recordedDate` | Format YYYYMMDDHHMMSS → ISO 8601 |
 | `diagnosisBody.diagnosisCode.code` | `Condition.code.coding.code` | ICD-10-SE kod, t.ex. `J18.9` |
 | `diagnosisBody.diagnosisCode.codeSystem` | `Condition.code.coding.system` | OID `1.2.752.116.1.1.1.1.3` → `https://www.icd10.se/` |
-| `diagnosisBody.diagnosisCode.displayName` | `Condition.code.coding.display` | Diagnosbenämning på svenska |
+| `diagnosisBody.diagnosisCode.displayName` | `Condition.code.coding.display` | Kodverkets officiella benämning |
+| `diagnosisBody.diagnosisCode.originalText` | `Condition.code.text` | Fritext från källsystemet; om saknad används `displayName` som fallback |
 | `diagnosisBody.diagnosisType` (HD) | `Condition.category` = `encounter-diagnosis` | Huvuddiagnos → FHIR standard-kod |
 | `diagnosisBody.diagnosisType` (BY) | `Condition.category` = `bi-diagnos` | Bidiagnos → svensk tilläggskod |
 | `diagnosisBody.diagnosisTimePeriod.start` | `Condition.onsetDateTime` | Format YYYYMMDD → YYYY-MM-DD |

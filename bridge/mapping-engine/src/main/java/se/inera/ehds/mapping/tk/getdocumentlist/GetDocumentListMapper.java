@@ -61,12 +61,13 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
         CVType typeCode = entry.getTypeCode();
         if (typeCode != null) {
             String codeSystem = namingSystem.oidToUri(typeCode.getCodeSystem());
+            String typeText = typeCode.getOriginalText() != null ? typeCode.getOriginalText() : typeCode.getDisplayName();
             dr.setType(new CodeableConcept()
                     .addCoding(new Coding()
                             .setSystem(codeSystem)
                             .setCode(typeCode.getCode())
                             .setDisplay(typeCode.getDisplayName()))
-                    .setText(typeCode.getDisplayName()));
+                    .setText(typeText));
         }
 
         // subject: patient identifier

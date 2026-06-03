@@ -64,14 +64,18 @@ jobs:
           distribution: temurin
           java-version: "17"
 
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Install Jekyll
+        run: gem install jekyll bundler
+
       - name: Download IG Publisher
         run: |
           mkdir -p ig/input-cache
           curl -L -o ig/input-cache/publisher.jar \
             "https://github.com/HL7/fhir-ig-publisher/releases/latest/download/publisher.jar"
-
-      - name: Install Jekyll
-        run: sudo gem install jekyll bundler
 
       - name: Run IG Publisher
         working-directory: ig

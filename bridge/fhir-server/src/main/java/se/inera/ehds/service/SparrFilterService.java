@@ -1,15 +1,13 @@
 package se.inera.ehds.service;
 
-import org.hl7.fhir.r4.model.DocumentReference;
-import org.hl7.fhir.r4.model.DomainResource;
-import org.hl7.fhir.r4.model.Extension;
-import org.hl7.fhir.r4.model.Identifier;
+import org.hl7.fhir.r4.model.Provenance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 import se.inera.ehds.config.AppProperties;
 import se.inera.ehds.mapping.tk.MappedDiagnosisEntry;
+import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 
 import java.util.HashMap;
 import java.util.List;
@@ -20,8 +18,11 @@ import java.util.stream.Collectors;
 /**
  * Post-query Sparr-filter: yttre spärr (careProviderHSAId) och inre spärr (careUnitHSAId).
  *
- * Fail-closed: om careProviderHSAId saknas, är ogiltigt HSA-id, eller om spärrtjänsten
- * inte kan nås filtreras posten bort — det går inte att avgöra om den är spärrad.
+ * Läser careProviderHSAId från Provenance.agent[role=custodian] och
+ * careUnitHSAId från Provenance.agent[role=author].
+ *
+ * Fail-closed: om careProviderHSAId saknas i Provenance, är ogiltigt HSA-id,
+ * eller om spärrtjänsten inte kan nås, filtreras posten bort.
  *
  * PoC-begränsning: break-the-glass hanteras inte. Se architecture.md § Kända begränsningar.
  */
@@ -29,11 +30,6 @@ import java.util.stream.Collectors;
 public class SparrFilterService {
 
     private static final Logger log = LoggerFactory.getLogger(SparrFilterService.class);
-
-    private static final String EXT_CARE_PROVIDER =
-            "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-care-provider";
-    private static final String EXT_CARE_UNIT =
-            "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-care-unit";
 
     // HSA-id: SE + digits + hyphen + alphanumeric, e.g. SE2321000016-4HK5
     private static final Pattern HSA_ID_PATTERN = Pattern.compile("^SE[0-9]+-[A-Za-z0-9]+$");
@@ -51,31 +47,31 @@ public class SparrFilterService {
         if (entries.isEmpty()) return entries;
         Map<String, Boolean> cache = new HashMap<>();
         return entries.stream()
-                .filter(e -> !isBlocked(e.condition(), patientSystem, patientId, cache, "Condition"))
+                .filter(e -> !isBlocked(e.provenance(), patientSystem, patientId, cache, "Condition"))
                 .collect(Collectors.toList());
     }
 
-    public List<DocumentReference> filterDocumentReferences(List<DocumentReference> docs,
-                                                             String patientSystem, String patientId) {
-        if (docs.isEmpty()) return docs;
+    public List<MappedDocumentEntry> filterDocumentReferences(List<MappedDocumentEntry> entries,
+                                                               String patientSystem, String patientId) {
+        if (entries.isEmpty()) return entries;
         Map<String, Boolean> cache = new HashMap<>();
-        return docs.stream()
-                .filter(dr -> !isBlocked(dr, patientSystem, patientId, cache, "DocumentReference"))
+        return entries.stream()
+                .filter(e -> !isBlocked(e.provenance(), patientSystem, patientId, cache, "DocumentReference"))
                 .collect(Collectors.toList());
     }
 
-    private boolean isBlocked(DomainResource resource, String patientSystem, String patientId,
+    private boolean isBlocked(Provenance provenance, String patientSystem, String patientId,
                                Map<String, Boolean> cache, String resourceType) {
-        String careProviderHsaId = extractHsaId(resource, EXT_CARE_PROVIDER);
+        String careProviderHsaId = extractHsaId(provenance, "custodian");
 
         if (!isValidHsaId(careProviderHsaId)) {
-            log.warn("Sparr: filtrerar bort {} utan giltigt careProviderHSAId (patient {})",
+            log.warn("Sparr: filtrerar bort {} utan giltigt careProviderHSAId i Provenance (patient {})",
                     resourceType, patientId);
             return true;
         }
 
-        // Inre spärr: careUnitHSAId is available on Condition; null on DocumentReference
-        String careUnitHsaId = extractHsaId(resource, EXT_CARE_UNIT);
+        // Inre spärr: careUnitHSAId carried as Provenance.agent[author]
+        String careUnitHsaId = extractHsaId(provenance, "author");
         String cacheKey = careProviderHsaId + "|" + (careUnitHsaId != null ? careUnitHsaId : "");
 
         boolean blocked = cache.computeIfAbsent(cacheKey,
@@ -88,10 +84,14 @@ public class SparrFilterService {
         return blocked;
     }
 
-    private String extractHsaId(DomainResource resource, String extensionUrl) {
-        Extension ext = resource.getExtensionByUrl(extensionUrl);
-        if (ext == null || !(ext.getValue() instanceof Identifier id)) return null;
-        return id.getValue();
+    private String extractHsaId(Provenance prov, String roleCode) {
+        if (prov == null) return null;
+        return prov.getAgent().stream()
+                .filter(a -> a.hasType() && a.getType().getCoding().stream()
+                        .anyMatch(c -> roleCode.equals(c.getCode())))
+                .findFirst()
+                .map(a -> a.getWho().hasIdentifier() ? a.getWho().getIdentifier().getValue() : null)
+                .orElse(null);
     }
 
     static boolean isValidHsaId(String hsaId) {

@@ -104,13 +104,15 @@ SOAP-klienten skickar VG:ns HSA-id som logisk adress; NTjP resolver den fysiska 
 ### Säkerhetstjänsten (Spärr)
 
 Post-query-filtrering: körs efter att SOAP-svaret mappats till FHIR-resurser, på fhir-server-sidan.
-Sparrtjänsten arbetar på **organisationsnivå** — kontrollen sker mot `careProviderHSAId`
-(ansvarig vårdgivare), inte mot källsystemet. `careProviderHSAId` bärs av `ext-care-provider`-
-extensionen på varje Condition-resurs och sätts i Provenance som `agent[author]`.
+Sparrtjänsten kontrollerar yttre spärr (`careProviderHSAId`, organisationsnivå) och inre spärr
+(`careUnitHSAId`, avdelningsnivå). Identifierarna läses från `Provenance.agent`:
+`careProviderHSAId` som `agent[role=custodian]` (juridiskt ansvarig) och
+`careUnitHSAId` som `agent[role=author]` (informationsägare). Varken
+`careProviderHSAId` eller `careUnitHSAId` placeras som extension inne i FHIR-resursen.
 
-Spärrkontrollen är synkron och sker per unikt `careProviderHSAId` i svaret (cachelagrat
-per request). Vid fel mot Säkerhetstjänsten gäller *fail-open* — bryggan döljer aldrig
-data på grund av infrastrukturfel.
+Spärrkontrollen är synkron och sker per unikt `(careProviderHSAId, careUnitHSAId)`-par i svaret
+(cachelagrat per request). Fail-closed gäller: saknas giltig Provenance eller misslyckas
+anropet till spärrtjänsten filtreras posten bort.
 
 **PoC-begränsning:** En vårdgivare från en spärrad enhet som ändå har rätt att ta del av
 informationen (t.ex. nödsituationer, break-the-glass) hanteras inte. Se [Kända begränsningar](#kanda-begransningar).

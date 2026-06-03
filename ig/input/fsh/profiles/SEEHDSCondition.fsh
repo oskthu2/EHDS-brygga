@@ -12,7 +12,8 @@ Profilen säkerställer att:
 - Diagnoskod (ICD-10-SE) är angiven
 - Patient är identifierad med personnummer eller samordningsnummer
 - Diagnostyp (huvud-/bidiagnos) är angiven
-- Källsystem kan spåras via extension och recorder
+- Källsystem kan spåras via ext-source-system och recorder
+- Ansvarig vårdgivare bärs av Provenance.agent[role=custodian] (inte inne i resursen)
 """
 
 * ^url = "https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition"
@@ -25,12 +26,8 @@ Profilen säkerställer att:
 * note MS
 
 * extension contains ExtSourceSystem named sourceSystem 0..1 MS
-* extension contains ExtCareProvider named careProvider 0..1 MS
-* extension contains ExtCareUnit named careUnit 0..1 MS
 * extension contains ExtAssertedDate named assertedDate 0..1 MS
 * extension[sourceSystem] ^short = "HSA-id för källsystemet som registrerade diagnosen"
-* extension[careProvider] ^short = "HSA-id för ansvarig vårdgivare – används av Sparrtjänsten"
-* extension[careUnit] ^short = "HSA-id för vårdenhet"
 * extension[assertedDate] ^short = "Administrativt datum (EPS extension:assertedDate)"
 
 * clinicalStatus 1..1 MS

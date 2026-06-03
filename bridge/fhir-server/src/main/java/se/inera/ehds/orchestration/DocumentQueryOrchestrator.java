@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import se.inera.ehds.config.AppProperties;
 import se.inera.ehds.config.VgConfig;
 import se.inera.ehds.config.VgConfigLoader;
+import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import se.inera.ehds.model.EiEngagement;
 import se.inera.ehds.service.EiService;
 import se.inera.ehds.service.FhirProxyClient;
@@ -51,17 +52,17 @@ public class DocumentQueryOrchestrator {
 
         List<VgConfig> targets = resolveTargets(vgHsaId, patientSystem, patientValue);
 
-        List<CompletableFuture<List<DocumentReference>>> futures = targets.stream()
+        List<CompletableFuture<List<MappedDocumentEntry>>> futures = targets.stream()
                 .map(vg -> CompletableFuture.supplyAsync(
                         () -> fhirClient.fetchDocumentReferences(vg, patientSystem, patientValue)))
                 .toList();
 
         CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        List<DocumentReference> all = futures.stream()
+        List<MappedDocumentEntry> all = futures.stream()
                 .flatMap(f -> f.join().stream())
                 .collect(Collectors.toList());
 
-        // Post-query Sparr (yttre spärr; inre spärr ej tillämplig på DocumentReference)
+        // Post-query Sparr (yttre + inre spärr via Provenance)
         all = sparr.filterDocumentReferences(all, patientSystem, patientValue);
 
         logg.logAccess(requestId, patientValue, patientSystem,
@@ -83,15 +84,21 @@ public class DocumentQueryOrchestrator {
         return vgConfigs.stream().filter(v -> withData.contains(v.getVgHsaId())).toList();
     }
 
-    private Bundle buildBundle(String requestId, List<DocumentReference> docs) {
+    private Bundle buildBundle(String requestId, List<MappedDocumentEntry> entries) {
         Bundle b = new Bundle();
         b.setId(requestId);
         b.getMeta().setLastUpdated(new Date());
         b.setType(Bundle.BundleType.SEARCHSET);
-        b.setTotal(docs.size());
-        for (DocumentReference dr : docs) {
+        b.setTotal(entries.size());
+        for (MappedDocumentEntry entry : entries) {
+            DocumentReference dr = entry.documentReference();
             b.addEntry().setFullUrl("urn:uuid:" + dr.getId()).setResource(dr)
              .getSearch().setMode(Bundle.SearchEntryMode.MATCH);
+            if (entry.provenance() != null) {
+                Provenance prov = entry.provenance();
+                b.addEntry().setFullUrl("urn:uuid:" + prov.getId()).setResource(prov)
+                 .getSearch().setMode(Bundle.SearchEntryMode.INCLUDE);
+            }
         }
         return b;
     }

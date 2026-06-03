@@ -9,6 +9,7 @@ import org.springframework.web.client.RestTemplate;
 import org.springframework.web.util.UriComponentsBuilder;
 import se.inera.ehds.config.VgConfig;
 import se.inera.ehds.mapping.tk.MappedDiagnosisEntry;
+import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 
 import java.net.URI;
 import java.util.HashMap;
@@ -47,14 +48,12 @@ public class FhirProxyClient {
     }
 
     private List<MappedDiagnosisEntry> pairConditionsWithProvenances(Bundle bundle) {
-        // Index provenances by the condition id they target
         Map<String, Provenance> provByConditionId = new HashMap<>();
         for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
             if (entry.getResource() instanceof Provenance prov) {
                 for (Reference target : prov.getTarget()) {
                     String ref = target.getReference();
                     if (ref != null) {
-                        // ref is "urn:uuid:{conditionId}" — strip prefix
                         String id = ref.startsWith("urn:uuid:") ? ref.substring(9) : ref;
                         provByConditionId.put(id, prov);
                     }
@@ -65,7 +64,6 @@ public class FhirProxyClient {
                 .filter(e -> e.getResource() instanceof Condition)
                 .map(e -> {
                     Condition c = (Condition) e.getResource();
-                    // With direct JSON parsing, id comes from the resource.id JSON field (plain UUID)
                     String condId = c.getIdElement().getIdPart();
                     if (condId != null && condId.startsWith("urn:uuid:")) {
                         condId = condId.substring(9);
@@ -75,7 +73,7 @@ public class FhirProxyClient {
                 .toList();
     }
 
-    public List<DocumentReference> fetchDocumentReferences(VgConfig vg, String patientSystem, String patientValue) {
+    public List<MappedDocumentEntry> fetchDocumentReferences(VgConfig vg, String patientSystem, String patientValue) {
         try {
             URI uri = UriComponentsBuilder.fromHttpUrl(vg.getFhirEndpointUrl())
                     .path("/DocumentReference")
@@ -83,13 +81,36 @@ public class FhirProxyClient {
                     .build().encode().toUri();
             String body = restTemplate.getForObject(uri, String.class);
             Bundle bundle = (Bundle) ctx.newJsonParser().parseResource(body);
-            return bundle.getEntry().stream()
-                    .filter(e -> e.getResource() instanceof DocumentReference)
-                    .map(e -> (DocumentReference) e.getResource())
-                    .toList();
+            return pairDocumentReferencesWithProvenances(bundle);
         } catch (Exception e) {
             log.error("FHIR-anrop mot {} misslyckades: {}", vg.getVgHsaId(), e.getMessage());
             return List.of();
         }
+    }
+
+    private List<MappedDocumentEntry> pairDocumentReferencesWithProvenances(Bundle bundle) {
+        Map<String, Provenance> provByDocRefId = new HashMap<>();
+        for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+            if (entry.getResource() instanceof Provenance prov) {
+                for (Reference target : prov.getTarget()) {
+                    String ref = target.getReference();
+                    if (ref != null) {
+                        String id = ref.startsWith("urn:uuid:") ? ref.substring(9) : ref;
+                        provByDocRefId.put(id, prov);
+                    }
+                }
+            }
+        }
+        return bundle.getEntry().stream()
+                .filter(e -> e.getResource() instanceof DocumentReference)
+                .map(e -> {
+                    DocumentReference dr = (DocumentReference) e.getResource();
+                    String drId = dr.getIdElement().getIdPart();
+                    if (drId != null && drId.startsWith("urn:uuid:")) {
+                        drId = drId.substring(9);
+                    }
+                    return new MappedDocumentEntry(dr, provByDocRefId.get(drId));
+                })
+                .toList();
     }
 }

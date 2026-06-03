@@ -20,7 +20,7 @@ fhir install se.ehds.brygga --here
 | Resurstyp | Antal | Beskrivning |
 |---|---|---|
 | StructureDefinition (profiler) | 2 | SEEHDSCondition, SEEHDSDocumentReference |
-| StructureDefinition (extensions) | 2 | ext-source-system, ext-asserted-date |
+| StructureDefinition (extensions) | 1 | ext-asserted-date |
 | NamingSystem | 12 | OID↔URI-mappningar, se [OID-till-URI-mappningar](naming-systems.html) |
 | CodeSystem | 1 | DiagnosisType (HD/BY) |
 | ValueSet | 1 | SEDiagnosisType |

@@ -22,7 +22,6 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
 
     private static final String CANONICAL_BASE = "https://ehds-brygga.inera.se/fhir";
     private static final String HSA_OID = "1.2.752.129.2.1.4.1";
-    private static final String EXT_SOURCE_SYSTEM = CANONICAL_BASE + "/StructureDefinition/ext-source-system";
     private static final String PROV_PARTICIPANT_SYS = "http://terminology.hl7.org/CodeSystem/provenance-participant-type";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-document-reference";
 
@@ -99,12 +98,10 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
                     new Identifier().setSystem(hsaSystem).setValue(careUnitHsaId)));
         }
 
-        // ext-source-system: sourceSystemHSAId (for traceability)
+        // meta.source: sourceSystemHSAId as URI (urn:oid:{HSA_OID}#{hsaId})
         String sourceHsaId = entry.getSourceSystemHSAId();
         if (sourceHsaId != null) {
-            Extension ext = new Extension(EXT_SOURCE_SYSTEM);
-            ext.setValue(new Identifier().setSystem(hsaSystem).setValue(sourceHsaId));
-            dr.addExtension(ext);
+            dr.getMeta().setSource(hsaSystem + "#" + sourceHsaId);
         }
 
         // content: default PDF attachment

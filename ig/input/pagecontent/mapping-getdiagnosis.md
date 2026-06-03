@@ -15,8 +15,7 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 |---|---|---|
 | `diagnosisHeader.patientId.extension` | `Condition.subject.identifier.value` | Personnummer eller samordningsnummer |
 | `diagnosisHeader.patientId.root` | `Condition.subject.identifier.system` | OID konverteras till URN, se tabell nedan |
-| `diagnosisHeader.sourceSystemHSAId` | `Condition.recorder.identifier.value` | HSA-id för källsystem |
-| `diagnosisHeader.sourceSystemHSAId` | `Condition.extension[sourceSystem]` | Källsystemets HSA-id som extension |
+| `diagnosisHeader.sourceSystemHSAId` | `Condition.meta.source` | Källsystemets HSA-id som URI (urn:oid:{OID}#{hsaId}) |
 | `diagnosisHeader.documentTime` | `Condition.recordedDate` | Format YYYYMMDDHHMMSS → ISO 8601 |
 | `diagnosisBody.diagnosisCode.code` | `Condition.code.coding.code` | ICD-10-SE kod, t.ex. `J18.9` |
 | `diagnosisBody.diagnosisCode.codeSystem` | `Condition.code.coding.system` | OID `1.2.752.116.1.1.1.1.3` → `https://www.icd10.se/` |
@@ -26,8 +25,8 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 | `diagnosisBody.diagnosisType` (BY) | `Condition.category` = `bi-diagnos` | Bidiagnos → svensk tilläggskod |
 | `diagnosisBody.diagnosisTimePeriod.start` | `Condition.onsetDateTime` | Format YYYYMMDD → YYYY-MM-DD |
 | `diagnosisBody.diagnosisTimePeriod.end` | `Condition.abatementDateTime` | Om satt: resolved, annars active |
-| `diagnosisHeader.careProviderHSAId` | `Condition.extension[careProvider]` + `Provenance.agent[author]` | Ansvarig vårdgivare – används för Sparr |
-| `diagnosisHeader.careUnitHSAId` | `Condition.extension[careUnit]` + `Provenance.agent[custodian]` | Vårdenhet |
+| `diagnosisHeader.careProviderHSAId` | `Provenance.agent[custodian]` | Juridiskt ansvarig vårdgivare – används för Sparr |
+| `diagnosisHeader.careUnitHSAId` | `Provenance.agent[author]` | Informationsägare vårdenhet |
 | EPS `extension:assertedDate` | `Condition.extension[assertedDate]` | Administrativt datum (om tillämpligt) |
 | `diagnosisHeader.documentTime` | `Provenance.recorded` | Tidsstämpel för Provenance |
 | (bryggan självt, `EHDS_BRIDGE_HSA_ID`) | `Provenance.agent[assembler]` | Bryggan som sammansättande aktör |
@@ -154,19 +153,11 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
   "resourceType": "Condition",
   "id": "example-pneumoni",
   "meta": {
+    "source": "urn:oid:1.2.752.129.2.1.4.1#SE2321000016-4HK5",
     "profile": [
       "https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition"
     ]
   },
-  "extension": [
-    {
-      "url": "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-source-system",
-      "valueIdentifier": {
-        "system": "urn:oid:1.2.752.129.2.1.4.1",
-        "value": "SE2321000016-4HK5"
-      }
-    }
-  ],
   "clinicalStatus": {
     "coding": [
       {
@@ -213,12 +204,6 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
   },
   "onsetDateTime": "2023-06-01",
   "recordedDate": "2023-06-01T12:00:00",
-  "recorder": {
-    "identifier": {
-      "system": "urn:oid:1.2.752.129.2.1.4.1",
-      "value": "SE2321000016-4HK5"
-    }
-  }
 }
 ```
 
@@ -230,7 +215,7 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
 - `subject.identifier.system = http://electronichealth.se/identifier/personnummer` – OID `1.2.752.129.2.1.3.1` konverteras till kanonisk URI (HL7 Sweden basprofiler)
 - `recordedDate` – `20230601120000` konverteras till `2023-06-01T12:00:00`
 - `onsetDateTime` – `20230601` konverteras till `2023-06-01`
-- `extension[sourceSystem]` och `recorder` – båda pekar på `SE2321000016-4HK5` (källsystemets HSA-id)
+- `meta.source = urn:oid:1.2.752.129.2.1.4.1#SE2321000016-4HK5` – källsystemets HSA-id som URI
 
 ## Fältvalidering
 
@@ -250,8 +235,8 @@ För varje Condition skapas en Provenance-resurs som inkluderas i sökbundlen me
 
 | Agent-roll | Källa | Syfte |
 |---|---|---|
-| `author` | `diagnosisHeader.careProviderHSAId` | Ansvarig vårdgivare – organisationsnivå, används av Sparrtjänsten |
-| `custodian` | `diagnosisHeader.careUnitHSAId` | Förvaltar journalposten |
+| `custodian` | `diagnosisHeader.careProviderHSAId` | Juridiskt ansvarig vårdgivare – används av Sparrtjänsten |
+| `author` | `diagnosisHeader.careUnitHSAId` | Informationsägare vårdenhet |
 | `assembler` | `EHDS_BRIDGE_HSA_ID` (env-variabel) | EHDS-bryggan som sammansatte FHIR-bundlen |
 
 `Provenance.recorded` sätts till `diagnosisHeader.documentTime` (konverterad till ISO 8601 + UTC).

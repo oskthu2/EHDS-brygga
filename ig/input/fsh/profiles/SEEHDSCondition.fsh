@@ -12,7 +12,7 @@ Profilen säkerställer att:
 - Diagnoskod (ICD-10-SE) är angiven
 - Patient är identifierad med personnummer eller samordningsnummer
 - Diagnostyp (huvud-/bidiagnos) är angiven
-- Källsystem kan spåras via ext-source-system och recorder
+- Källsystem identifieras via meta.source (urn:oid:{HSA_OID}#{hsaId})
 - Ansvarig vårdgivare bärs av Provenance.agent[role=custodian] (inte inne i resursen)
 """
 
@@ -25,9 +25,10 @@ Profilen säkerställer att:
 * bodySite MS
 * note MS
 
-* extension contains ExtSourceSystem named sourceSystem 0..1 MS
+* meta.source MS
+* meta.source ^short = "HSA-id för källsystemet, format: urn:oid:1.2.752.129.2.1.4.1#{hsaId}"
+
 * extension contains ExtAssertedDate named assertedDate 0..1 MS
-* extension[sourceSystem] ^short = "HSA-id för källsystemet som registrerade diagnosen"
 * extension[assertedDate] ^short = "Administrativt datum (EPS extension:assertedDate)"
 
 * clinicalStatus 1..1 MS
@@ -82,12 +83,3 @@ Profilen säkerställer att:
 * recordedDate MS
 * recordedDate ^short = "Registreringsdatum, mappat från diagnosisHeader.documentTime (YYYYMMDDHHMMSS → ISO 8601)"
 
-* recorder MS
-* recorder only Reference(Practitioner or PractitionerRole or Patient or RelatedPerson)
-* recorder ^short = "Registrerande enhet eller system"
-* recorder.identifier MS
-* recorder.identifier ^short = "HSA-id för registrerande system eller enhet"
-* recorder.identifier.system MS
-* recorder.identifier.system ^short = "urn:oid:1.2.752.129.2.1.4.1 (HSA-id, Inera NTjP) eller urn:oid:1.2.752.29.4.19 (HSA-id, basprofil)"
-* recorder.identifier.value MS
-* recorder.identifier.value ^short = "HSA-id, t.ex. SE2321000016-4HK5"

@@ -21,7 +21,6 @@ public class GetDiagnosisMapper {
     private static final String CLIN_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-clinical";
     private static final String VER_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-ver-status";
     private static final String PROV_PARTICIPANT_SYS = "http://terminology.hl7.org/CodeSystem/provenance-participant-type";
-    private static final String EXT_SOURCE_SYSTEM = CANONICAL_BASE + "/StructureDefinition/ext-source-system";
     private static final String EXT_ASSERTED_DATE  = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-condition";
     private static final String PROFILE_URL_EU_EPS =
@@ -114,14 +113,10 @@ public class GetDiagnosisMapper {
 
         String hsaSystem = namingSystem.oidToUri(HSA_OID_INERA);
 
-        // recorder + ext-source-system: sourceSystemHSAId
+        // meta.source: sourceSystemHSAId as URI (urn:oid:{HSA_OID}#{hsaId})
         String sourceHsaId = header.getSourceSystemHSAId();
         if (sourceHsaId != null) {
-            c.setRecorder(new Reference().setIdentifier(
-                    new Identifier().setSystem(hsaSystem).setValue(sourceHsaId)));
-            Extension extSrc = new Extension(EXT_SOURCE_SYSTEM);
-            extSrc.setValue(new Identifier().setSystem(hsaSystem).setValue(sourceHsaId));
-            c.addExtension(extSrc);
+            c.getMeta().setSource(hsaSystem + "#" + sourceHsaId);
         }
 
         // ext-asserted-date: EPS extension – administrative assertion date (author-time)

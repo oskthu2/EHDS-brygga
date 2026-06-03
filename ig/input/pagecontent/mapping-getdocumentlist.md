@@ -19,7 +19,7 @@
 | `documentEntry.careUnitHSAId` | `DocumentReference.author[0].identifier` | Vårdenhet (informationsägare) |
 | `documentEntry.careProviderHSAId` | `Provenance.agent[role=custodian].who.identifier` | Juridiskt ansvarig vårdgivare – bärs **enbart** i Provenance |
 | `documentEntry.careUnitHSAId` | `Provenance.agent[role=author].who.identifier` | Vårdenhet i Provenance |
-| `documentEntry.sourceSystemHSAId` | `extension:ext-source-system` | Källsystemets HSA-id |
+| `documentEntry.sourceSystemHSAId` | `DocumentReference.meta.source` | Källsystemets HSA-id som URI (urn:oid:{OID}#{hsaId}) |
 | `statusCode == "active"` | `status = current` | Annars `superseded` |
 
 ## content.attachment – platshållare
@@ -47,7 +47,7 @@ De OID:er som förekommer i GetDocumentList:1-svar:
 |---|---|---|
 | `1.2.752.129.2.1.3.1` | `http://electronichealth.se/identifier/personnummer` | Personnummer |
 | `1.2.752.129.2.1.3.3` | `http://electronichealth.se/identifier/samordningsnummer` | Samordningsnummer |
-| `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id (Inera NTjP) — author, Provenance |
+| `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id (Inera NTjP) — author, meta.source, Provenance |
 | `1.2.752.29.4.19` | `urn:oid:1.2.752.29.4.19` | HSA-id (HL7 Sweden basprofiler) |
 
 ## Provenance

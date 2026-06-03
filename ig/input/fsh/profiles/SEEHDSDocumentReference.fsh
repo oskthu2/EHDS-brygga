@@ -11,15 +11,15 @@ Profilen alignar med EURIDICE/EHDS EU-specifikationer för kliniska dokument
 och säkerställer att:
 - Dokumenttyp (LOINC) är angiven
 - Patient är identifierad med personnummer eller samordningsnummer
-- Källsystem kan spåras via extension ext-source-system
+- Källsystem identifieras via meta.source (urn:oid:{HSA_OID}#{hsaId})
 - Vårdenhet är angiven som author
 - Ansvarig vårdgivare bärs av Provenance.agent[role=custodian] (inte inne i resursen)
 """
 
 * ^url = "https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-document-reference"
 
-* extension contains ExtSourceSystem named sourceSystem 0..1 MS
-* extension[sourceSystem] ^short = "HSA-id för källsystemet som registrerade dokumentet"
+* meta.source MS
+* meta.source ^short = "HSA-id för källsystemet, format: urn:oid:1.2.752.129.2.1.4.1#{hsaId}"
 
 * masterIdentifier MS
 * masterIdentifier ^short = "Dokumentets unika identifierare (documentId från RIVTA)"

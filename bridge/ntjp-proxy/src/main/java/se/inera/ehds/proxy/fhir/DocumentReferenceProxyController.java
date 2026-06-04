@@ -14,6 +14,7 @@ import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
 import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import se.inera.ehds.mapping.tk.getdocumentlist.GetDocumentListMapper;
+import se.inera.ehds.proxy.config.ProxyProperties;
 import se.inera.ehds.proxy.service.ProxyTakService;
 import se.inera.ehds.soap.client.GetDocumentListClient;
 
@@ -34,17 +35,20 @@ public class DocumentReferenceProxyController {
     private final GetDocumentListMapper mapper;
     private final NamingSystemRegistry namingRegistry;
     private final IParser fhirParser;
+    private final ProxyProperties proxyProps;
 
     public DocumentReferenceProxyController(ProxyTakService tak,
                                              GetDocumentListClient soapClient,
                                              GetDocumentListMapper mapper,
                                              NamingSystemRegistry namingRegistry,
-                                             FhirContext fhirContext) {
+                                             FhirContext fhirContext,
+                                             ProxyProperties proxyProps) {
         this.tak = tak;
         this.soapClient = soapClient;
         this.mapper = mapper;
         this.namingRegistry = namingRegistry;
         this.fhirParser = fhirContext.newJsonParser().setPrettyPrint(true);
+        this.proxyProps = proxyProps;
     }
 
     @GetMapping(value = "/DocumentReference", produces = "application/fhir+json")
@@ -66,7 +70,7 @@ public class DocumentReferenceProxyController {
         List<MappedDocumentEntry> entries;
         try {
             GetDocumentListResponse response = soapClient.call(physUrl, vgHsaId, root, patientValue);
-            entries = mapper.map(response, new MapperContext(patientSystem, patientValue, null));
+            entries = mapper.map(response, new MapperContext(patientSystem, patientValue, proxyProps.getBridgeHsaId()));
             log.debug("GetDocumentList för {} returnerade {} DocumentReference(s)", vgHsaId, entries.size());
         } catch (Exception e) {
             log.error("SOAP-fel mot {}: {}", vgHsaId, e.getMessage());

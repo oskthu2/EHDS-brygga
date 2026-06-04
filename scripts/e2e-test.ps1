@@ -257,6 +257,107 @@ CheckJson   "$patient195 total = 12 (6 diagnoser x 2 VGs)"      $cond195Url { pa
 CheckJson   "$patient195 VGR total = 6"                         $condVgr195 { param($j) $j.total } "6"
 
 Write-Host ""
+Write-Host "--- 8. meta.source och borttagna extensions ---"
+$BridgeHsa = "SE2321000999-EHDS"
+$HsaSystem = "urn:oid:1.2.752.129.2.1.4.1"
+
+CheckJsonContains "Condition meta.source innehåller VGR HSA-id" $condVgrUrl {
+    param($j)
+    ($j.entry | Where-Object { $_.resource.resourceType -eq "Condition" } | Select-Object -First 1).resource.meta.source
+} $VgrHsa
+
+CheckJsonContains "Condition meta.source har korrekt HSA-OID-prefix" $condVgrUrl {
+    param($j)
+    ($j.entry | Where-Object { $_.resource.resourceType -eq "Condition" } | Select-Object -First 1).resource.meta.source
+} "urn:oid:1.2.752.129.2.1.4.1#"
+
+CheckJson "Condition saknar ext-source-system extension" $condUrl {
+    param($j)
+    ($j.entry | Where-Object { $_.resource.resourceType -eq "Condition" } |
+     ForEach-Object { $_.resource.extension } |
+     Where-Object { $_.url -like "*source-system*" }).Count -eq 0
+} "True"
+
+CheckJson "Condition saknar ext-care-provider extension" $condUrl {
+    param($j)
+    ($j.entry | Where-Object { $_.resource.resourceType -eq "Condition" } |
+     ForEach-Object { $_.resource.extension } |
+     Where-Object { $_.url -like "*care-provider*" }).Count -eq 0
+} "True"
+
+CheckJson "Condition saknar ext-care-unit extension" $condUrl {
+    param($j)
+    ($j.entry | Where-Object { $_.resource.resourceType -eq "Condition" } |
+     ForEach-Object { $_.resource.extension } |
+     Where-Object { $_.url -like "*care-unit*" }).Count -eq 0
+} "True"
+
+Write-Host ""
+Write-Host "--- 9. Provenance agenter (custodian/author/assembler) ---"
+
+CheckJson "Provenance har custodian-agent (vårdgivare)" $condVgrUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    @($prov.agent | Where-Object { $_.type.coding[0].code -eq "custodian" }).Count -ge 1
+} "True"
+
+CheckJson "Provenance custodian HSA-id = VGR" $condVgrUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    ($prov.agent | Where-Object { $_.type.coding[0].code -eq "custodian" } | Select-Object -First 1).who.identifier.value
+} $VgrHsa
+
+CheckJson "Provenance har author-agent (vårdenhet)" $condVgrUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    @($prov.agent | Where-Object { $_.type.coding[0].code -eq "author" }).Count -ge 1
+} "True"
+
+CheckJson "Provenance har assembler-agent (bryggan)" $condUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    @($prov.agent | Where-Object { $_.type.coding[0].code -eq "assembler" }).Count -ge 1
+} "True"
+
+CheckJson "Provenance assembler = bridge HSA-id" $condUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    ($prov.agent | Where-Object { $_.type.coding[0].code -eq "assembler" } | Select-Object -First 1).who.identifier.value
+} $BridgeHsa
+
+CheckJson "Provenance agent-system = HSA OID URI" $condVgrUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    ($prov.agent | Select-Object -First 1).who.identifier.system
+} $HsaSystem
+
+Write-Host ""
+Write-Host "--- 10. DocumentReference inkluderar Provenance ---"
+
+CheckJson "DocumentReference-bundle innehåller Provenance-entries" $docRefUrl {
+    param($j)
+    ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" }).Count -ge 1
+} "True"
+
+CheckJson "DocRef Provenance har custodian-agent" $docRefVgrUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    @($prov.agent | Where-Object { $_.type.coding[0].code -eq "custodian" }).Count -ge 1
+} "True"
+
+CheckJson "DocRef Provenance custodian HSA-id = VGR" $docRefVgrUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    ($prov.agent | Where-Object { $_.type.coding[0].code -eq "custodian" } | Select-Object -First 1).who.identifier.value
+} $VgrHsa
+
+CheckJson "DocRef Provenance assembler = bridge HSA-id" $docRefUrl {
+    param($j)
+    $prov = ($j.entry | Where-Object { $_.resource.resourceType -eq "Provenance" } | Select-Object -First 1).resource
+    ($prov.agent | Where-Object { $_.type.coding[0].code -eq "assembler" } | Select-Object -First 1).who.identifier.value
+} $BridgeHsa
+
+Write-Host ""
 Write-Host "==========================================================" -ForegroundColor Cyan
 $total = $Pass + $Fail
 if ($Fail -eq 0) {

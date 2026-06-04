@@ -7,8 +7,9 @@ import se.inera.ehds.mapping.naming.NamingSystemRegistry;
 import se.inera.ehds.mapping.rivta.*;
 import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.MappedDiagnosisEntry;
+import se.inera.ehds.mapping.tk.ProvenanceBuilder;
+import se.inera.ehds.mapping.tk.RivDateParser;
 
-import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -20,7 +21,6 @@ public class GetDiagnosisMapper {
     private static final String HSA_OID_INERA = "1.2.752.129.2.1.4.1";
     private static final String CLIN_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-clinical";
     private static final String VER_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-ver-status";
-    private static final String PROV_PARTICIPANT_SYS = "http://terminology.hl7.org/CodeSystem/provenance-participant-type";
     private static final String EXT_ASSERTED_DATE  = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-condition";
     private static final String PROFILE_URL_EU_EPS =
@@ -99,16 +99,16 @@ public class GetDiagnosisMapper {
         DatePeriodType period = body.getDiagnosisTimePeriod();
         if (period != null) {
             if (period.getStart() != null) {
-                c.setOnset(new DateTimeType(parseRivDate(period.getStart())));
+                c.setOnset(new DateTimeType(RivDateParser.parse(period.getStart())));
             }
             if (period.getEnd() != null) {
-                c.setAbatement(new DateTimeType(parseRivDate(period.getEnd())));
+                c.setAbatement(new DateTimeType(RivDateParser.parse(period.getEnd())));
             }
         }
 
         // recordedDate from documentTime
         if (header.getDocumentTime() != null) {
-            c.setRecordedDateElement(new DateTimeType(parseRivDate(header.getDocumentTime())));
+            c.setRecordedDateElement(new DateTimeType(RivDateParser.parse(header.getDocumentTime())));
         }
 
         String hsaSystem = namingSystem.oidToUri(HSA_OID_INERA);
@@ -122,72 +122,19 @@ public class GetDiagnosisMapper {
         // ext-asserted-date: EPS extension – administrative assertion date (author-time)
         if (body.getAssertedDate() != null) {
             Extension extAd = new Extension(EXT_ASSERTED_DATE);
-            extAd.setValue(new DateTimeType(parseRivDate(body.getAssertedDate())));
+            extAd.setValue(new DateTimeType(RivDateParser.parse(body.getAssertedDate())));
             c.addExtension(extAd);
         }
 
-        // Provenance: carries organisational provenance for the Condition
-        Provenance prov = buildProvenance(c.getId(), header, ctx, hsaSystem);
+        Provenance prov = ProvenanceBuilder.build(
+                c.getId(),
+                header.getCareProviderHSAId(),
+                header.getCareUnitHSAId(),
+                header.getDocumentTime(),
+                hsaSystem,
+                ctx);
 
         return new MappedDiagnosisEntry(c, prov);
-    }
-
-    private Provenance buildProvenance(String conditionId, DiagnosisHeader header,
-                                        MapperContext ctx, String hsaSystem) {
-        Provenance p = new Provenance();
-        p.setId(UUID.randomUUID().toString());
-
-        // target: the Condition this provenance describes
-        p.addTarget(new Reference("urn:uuid:" + conditionId));
-
-        // recorded: use documentTime, fall back to now
-        if (header.getDocumentTime() != null) {
-            String isoDate = parseRivDate(header.getDocumentTime());
-            p.setRecordedElement(new InstantType(isoDate.length() == 10
-                    ? isoDate + "T00:00:00Z" : isoDate + "Z"));
-        } else {
-            p.setRecorded(new Date());
-        }
-
-        // agent[0]: custodian = juridiskt ansvarig vårdgivare (careProviderHSAId)
-        if (header.getCareProviderHSAId() != null) {
-            p.addAgent()
-                .setType(codeable(PROV_PARTICIPANT_SYS, "custodian"))
-                .setWho(new Reference().setIdentifier(
-                    new Identifier().setSystem(hsaSystem).setValue(header.getCareProviderHSAId())));
-        }
-
-        // agent[1]: author = informationsägare vårdenhet (careUnitHSAId)
-        if (header.getCareUnitHSAId() != null) {
-            p.addAgent()
-                .setType(codeable(PROV_PARTICIPANT_SYS, "author"))
-                .setWho(new Reference().setIdentifier(
-                    new Identifier().setSystem(hsaSystem).setValue(header.getCareUnitHSAId())));
-        }
-
-        // agent[2]: assembler = the bridge (EHDS-bryggan)
-        if (ctx.getBridgeHsaId() != null) {
-            p.addAgent()
-                .setType(codeable(PROV_PARTICIPANT_SYS, "assembler"))
-                .setWho(new Reference().setIdentifier(
-                    new Identifier().setSystem(hsaSystem).setValue(ctx.getBridgeHsaId())));
-        }
-
-        return p;
-    }
-
-    /** Convert RIVTA date string to ISO 8601. */
-    private String parseRivDate(String d) {
-        if (d == null || d.isBlank()) return null;
-        String s = d.trim();
-        if (s.length() == 8) {
-            return s.substring(0, 4) + "-" + s.substring(4, 6) + "-" + s.substring(6, 8);
-        }
-        if (s.length() >= 14) {
-            return s.substring(0, 4) + "-" + s.substring(4, 6) + "-" + s.substring(6, 8)
-                    + "T" + s.substring(8, 10) + ":" + s.substring(10, 12) + ":" + s.substring(12, 14);
-        }
-        return s;
     }
 
     private CodeableConcept codeable(String system, String code) {

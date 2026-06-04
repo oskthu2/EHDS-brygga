@@ -254,6 +254,24 @@ class DocBookToNarrativeTransformerTest {
         }
 
         @Test
+        void link_med_type_blank_ger_target_blank() {
+            String result = t.transform(
+                    "<article><para>"
+                    + "<link url=\"https://www.1177.se/\" type=\"_blank\">1177.se</link>"
+                    + "</para></article>");
+            assertTrue(result.contains("<a href=\"https://www.1177.se/\" target=\"_blank\">1177.se</a>"));
+        }
+
+        @Test
+        void link_utan_type_blank_ger_ingen_target() {
+            String result = t.transform(
+                    "<article><para>"
+                    + "<link url=\"https://www.1177.se/\">1177.se</link>"
+                    + "</para></article>");
+            assertFalse(result.contains("target="));
+        }
+
+        @Test
         void link_med_linkend_ger_intern_ankar() {
             String result = t.transform(
                     "<article><para>"
@@ -261,64 +279,140 @@ class DocBookToNarrativeTransformerTest {
                     + "</para></article>");
             assertTrue(result.contains("<a href=\"#avsnitt1\">Gå till avsnitt 1</a>"));
         }
+
+        @Test
+        void link_inuti_listitem_renderas_korrekt() {
+            String result = t.transform(
+                    "<article><itemizedlist mark=\"bullet\">"
+                    + "<listitem>Läs mer: <link url=\"https://www.skanetrafiken.se/\" type=\"_blank\">länstrafiken.se</link></listitem>"
+                    + "</itemizedlist></article>");
+            assertTrue(result.contains("<li>Läs mer: <a href=\"https://www.skanetrafiken.se/\" target=\"_blank\">länstrafiken.se</a></li>"));
+        }
     }
 
-    // ── Iteration 7: fullständigt kallelsebrev ────────────────────────────────
+    // ── Iteration 7: bindestreckslista och tom ruta ───────────────────────────
+
+    @Nested
+    class AvanceradaElement {
+
+        @Test
+        void itemizedlist_mark_hyphen_ger_ul_med_css_klass() {
+            String result = t.transform(
+                    "<article><itemizedlist mark=\"hyphen\">"
+                    + "<listitem>Ta med legitimation</listitem>"
+                    + "</itemizedlist></article>");
+            assertTrue(result.contains("<ul class=\"hyphen\">"));
+            assertTrue(result.contains("<li>Ta med legitimation</li>"));
+        }
+
+        @Test
+        void itemizedlist_mark_bullet_ger_ul_utan_klass() {
+            String result = t.transform(
+                    "<article><itemizedlist mark=\"bullet\">"
+                    + "<listitem>Punkt</listitem>"
+                    + "</itemizedlist></article>");
+            assertTrue(result.contains("<ul>"));
+            assertFalse(result.contains("class="));
+        }
+
+        @Test
+        void tom_emphasis_i_title_ger_box_utan_rubrik() {
+            String result = t.transform(
+                    "<article><section>"
+                    + "<title><emphasis role=\"frame\"/></title>"
+                    + "<para>Hör av dig om du inte kan komma.</para>"
+                    + "</section></article>");
+            assertTrue(result.contains("<div class=\"framed-box\">"));
+            assertFalse(result.contains("<h"), "tom ruta ska inte ha heading");
+            assertTrue(result.contains("<p>Hör av dig om du inte kan komma.</p>"));
+        }
+
+        @Test
+        void tom_information_emphasis_ger_info_box_utan_rubrik() {
+            String result = t.transform(
+                    "<article><section>"
+                    + "<title><emphasis role=\"information\"/></title>"
+                    + "<para>Viktig info.</para>"
+                    + "</section></article>");
+            assertTrue(result.contains("<div class=\"info-box\">"));
+            assertTrue(result.contains("<p>Viktig info.</p>"));
+        }
+    }
+
+    // ── Integrationsscenarion: verkliga exempel ur 1177 Inkorg-dokumentationen ──
 
     @Nested
     class Integrationsscenarion {
 
-        static final String KALLELSE_XML = """
+        // "Bokad tid med textrutor" – exakt ur Ineras DocBook-exempel PDF
+        static final String BOKAD_TID_XML = """
                 <?xml version="1.0"?>
                 <article>
                   <section>
-                    <title>Kallelse till cellprovtagning</title>
-                    <para>Du kallas nu till cellprovtagning.</para>
+                    <title>Välkommen till Söderby Vårdcentral</title>
+                    <para>Vi har bokat tid till dig hos Anton Andersson, läkare, för undersökning.</para>
                   </section>
                   <section>
                     <variablelist>
-                      <varlistentry>
-                        <term>Datum:</term>
-                        <listitem>Tisdag 15 april 2025</listitem>
-                      </varlistentry>
-                      <varlistentry>
-                        <term>Tid:</term>
-                        <listitem>Kl. 10:00</listitem>
-                      </varlistentry>
+                      <varlistentry><term>Datum:</term><listitem>Tisdag 10 mars 2022</listitem></varlistentry>
+                      <varlistentry><term>Klockan:</term><listitem>11.00</listitem></varlistentry>
+                      <varlistentry><term>Plats:</term><listitem>Sandstigen 15, Söderby Våningsplan 5</listitem></varlistentry>
                     </variablelist>
                   </section>
                   <section>
-                    <title><emphasis role="information">Viktig information</emphasis></title>
+                    <title><emphasis role="information">Viktigt inför ditt besök.</emphasis></title>
                     <itemizedlist mark="bullet">
-                      <listitem>Ta inte cellprov om du har mens.</listitem>
-                      <listitem>Du behöver inte förbereda dig.</listitem>
+                      <listitem>Covid-19: stannar hemma vid förkylning.</listitem>
+                      <listitem>Utför inte kraftig fysisk aktivitet.</listitem>
+                      <listitem><link url="https://www.dn.se/" type="_blank">Läs mer om undersökningen</link></listitem>
                     </itemizedlist>
                   </section>
                   <section>
-                    <title><emphasis role="observe">Om du inte kan komma</emphasis></title>
-                    <para>Kontakta mottagningen senast 24 timmar innan. Ring
-                      <ulink url="tel:08-123456">08-123 456</ulink>.
-                    </para>
+                    <title><emphasis role="observe">Tänk på.</emphasis></title>
+                    <itemizedlist mark="hyphen">
+                      <listitem>Ta med legitimation.</listitem>
+                      <listitem>Läs om resor: <link url="https://www.skanetrafiken.se/sjukresor" type="_blank">länstrafiken.se/sjukresor</link></listitem>
+                      <listitem>Avboka senast 24 timmar före besöket.</listitem>
+                    </itemizedlist>
                   </section>
+                  <para><link url="https://www.dn.se/" type="_blank">Kontakta Söderby Vårdcentral</link></para>
                 </article>
                 """;
 
         @Test
-        void kallelsebrev_producerar_validt_xhtml_fragment() {
-            String result = t.transform(KALLELSE_XML);
+        void bokad_tid_producerar_validt_xhtml_fragment() {
+            String result = t.transform(BOKAD_TID_XML);
             assertTrue(result.startsWith("<div xmlns=\"http://www.w3.org/1999/xhtml\">"));
             assertTrue(result.endsWith("</div>"));
         }
 
         @Test
-        void kallelsebrev_innehaller_alla_nyckelelement() {
-            String result = t.transform(KALLELSE_XML);
-            assertTrue(result.contains("<h2>Kallelse till cellprovtagning</h2>"));
+        void bokad_tid_innehaller_alla_nyckelelement() {
+            String result = t.transform(BOKAD_TID_XML);
+            assertTrue(result.contains("<h2>Välkommen till Söderby Vårdcentral</h2>"));
             assertTrue(result.contains("<dt>Datum:</dt>"));
-            assertTrue(result.contains("<dd>Tisdag 15 april 2025</dd>"));
+            assertTrue(result.contains("<dd>Tisdag 10 mars 2022</dd>"));
             assertTrue(result.contains("<div class=\"info-box\">"));
+            assertTrue(result.contains("<h2>Viktigt inför ditt besök.</h2>"));
             assertTrue(result.contains("<div class=\"warning-box\">"));
-            assertTrue(result.contains("<a href=\"tel:08-123456\">08-123 456</a>"));
+            assertTrue(result.contains("<h2>Tänk på.</h2>"));
+            assertTrue(result.contains("<ul class=\"hyphen\">"));
+            assertTrue(result.contains("<a href=\"https://www.dn.se/\" target=\"_blank\">Läs mer om undersökningen</a>"));
+            assertTrue(result.contains("<a href=\"https://www.dn.se/\" target=\"_blank\">Kontakta Söderby Vårdcentral</a>"));
+        }
+
+        // Ruta utan rubrik – "Vit informationsruta utan rubrik" ur PDF
+        @Test
+        void ruta_utan_rubrik_renderas_utan_heading() {
+            String result = t.transform("""
+                    <?xml version="1.0"?>
+                    <article><section>
+                      <title><emphasis role="frame"/></title>
+                      <para>Hör alltid av dig om du inte kan komma på utsatt tid.</para>
+                    </section></article>""");
+            assertTrue(result.contains("<div class=\"framed-box\">"));
+            assertFalse(result.contains("<h"), "tom ruta ska inte ha heading");
+            assertTrue(result.contains("<p>Hör alltid av dig"));
         }
 
         @Test

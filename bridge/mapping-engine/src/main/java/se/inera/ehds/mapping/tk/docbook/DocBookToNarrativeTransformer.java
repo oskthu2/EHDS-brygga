@@ -114,7 +114,13 @@ public class DocBookToNarrativeTransformer {
     }
 
     private void handleItemizedList(Element el, StringBuilder sb, int depth) {
-        sb.append("<ul>");
+        // mark="hyphen" → CSS-klass för bindestreck istället för bullet
+        String mark = el.getAttribute("mark");
+        if ("hyphen".equals(mark)) {
+            sb.append("<ul class=\"hyphen\">");
+        } else {
+            sb.append("<ul>");
+        }
         transformChildren(el, sb, depth);
         sb.append("</ul>");
     }
@@ -158,7 +164,10 @@ public class DocBookToNarrativeTransformer {
     private void handleLink(Element el, StringBuilder sb, int depth) {
         String href = el.getAttribute("url");
         if (href.isEmpty()) href = "#" + el.getAttribute("linkend");
-        sb.append("<a href=\"").append(escape(href)).append("\">");
+        String type = el.getAttribute("type");
+        sb.append("<a href=\"").append(escape(href)).append("\"");
+        if ("_blank".equals(type)) sb.append(" target=\"_blank\"");
+        sb.append(">");
         transformChildren(el, sb, depth);
         sb.append("</a>");
     }
@@ -180,14 +189,17 @@ public class DocBookToNarrativeTransformer {
         };
     }
 
-    /** Renders the title of a styled section as a heading, stripping the emphasis wrapper. */
+    /** Renders the title of a styled section as a heading, stripping the emphasis wrapper.
+     *  Om emphasis-elementet är tomt (ruta utan rubrik) renderas ingen heading. */
     private void renderStyledSectionTitle(Element sectionEl, StringBuilder sb, int depth) {
         Element title = firstChild(sectionEl, "title");
         if (title == null) return;
+        StringBuilder titleText = new StringBuilder();
+        appendTextContent(title, titleText);
+        String text = titleText.toString().trim();
+        if (text.isEmpty()) return; // tom ruta utan rubrik
         String tag = headingTag(depth + 1);
-        sb.append("<").append(tag).append(">");
-        appendTextContent(title, sb);
-        sb.append("</").append(tag).append(">");
+        sb.append("<").append(tag).append(">").append(text).append("</").append(tag).append(">");
     }
 
     // ── Low-level helpers ─────────────────────────────────────────────────────

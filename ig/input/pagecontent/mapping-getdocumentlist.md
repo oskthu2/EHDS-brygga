@@ -32,6 +32,40 @@ inte dokumentinnehållet. `attachment.data` och `attachment.url` lämnas tomma.
 För att hämta det faktiska dokumentet krävs ett separat anrop till producenten
 (t.ex. via GetDocument-kontraktet).
 
+## Dokumenttypsmappning mot LOINC
+
+`DocumentReference.type` ska enligt `SEEHDSDocumentReference`-profilen populeras med
+en LOINC-kod från värdemängden c80-doc-typecodes (bindning: extensible).
+RIVTA:s `typeCode` är en CVType vars kodsystem varierar per region och källsystem —
+det krävs kartläggning av vilka koder som faktiskt förekommer i produktionsmiljö och
+sedan en ConceptMap analogt med `DiagnosisTypeToCategoryMap`.
+
+Tabellen nedan är ett preliminärt försök baserat på IHE XDS-praxis och svenska
+journalsystems dokumentkategorier. **Den behöver valideras mot verkliga GetDocumentList-svar
+innan den används i produktion.**
+
+| Svensk anteckningstyp | LOINC-kod | LOINC-benämning |
+|---|---|---|
+| Epikris / Utskrivningsanteckning | 18842-5 | Discharge summary |
+| Inskrivningsanteckning | 47039-3 | Inpatient admission history and physical note |
+| Läkarbesöksanteckning (öppenvård) | 34108-1 | Outpatient note |
+| Akutanteckning | 34878-9 | Emergency medicine note |
+| Konsultationsvar / Remissvar | 11488-4 | Consult note |
+| Remiss | 57133-1 | Referral note |
+| Operationsberättelse | 11504-8 | Surgical operation note |
+| Anestesijournal | 59775-7 | Procedure anesthesia note |
+| Omvårdnadsanteckning | 28617-9 | Nursing note |
+| Röntgenutlåtande / Radiologirapport | 18748-4 | Diagnostic imaging study |
+| Patologisvar | 11526-1 | Pathology study |
+| Psykiatrijournal | 11521-2 | Psychiatry note |
+| Rehabiliteringsanteckning / Övrig anteckning | 11506-3 | Progress note |
+| Läkemedelsberättelse | 56445-0 | Medication summary document |
+
+Fram till dess att en verifierad ConceptMap finns passerar bryggan `typeCode` som
+den anländer från RIVTA (OID konverteras till URI via NamingSystemRegistry) utan
+LOINC-översättning. FHIR-klienter som kräver LOINC-koder behöver hantera detta
+som en PoC-begränsning.
+
 ## EURIDICE/IPS-alignment
 Profilen `SEEHDSDocumentReference` alignar med EU EHDS dokumentspecifikationer
 och IHE-dokumentkategorier (LOINC c80-doc-typecodes).

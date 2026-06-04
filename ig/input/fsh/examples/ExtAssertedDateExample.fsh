@@ -15,6 +15,7 @@ Usage: #example
 * code.coding[0].code = #I10
 * code.coding[0].display = "Essentiell (primär) hypertoni"
 
+* subject.reference = "Patient/example"
 * subject.identifier.system = "http://electronichealth.se/identifier/personnummer"
 * subject.identifier.value = "195001011234"
 

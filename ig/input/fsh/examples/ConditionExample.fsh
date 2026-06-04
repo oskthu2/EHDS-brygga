@@ -15,6 +15,7 @@ Usage: #example
 * code.coding[0].code = #J18.9
 * code.coding[0].display = "Pneumoni, ospecificerad"
 
+* subject.reference = "Patient/example"
 * subject.identifier.system = "http://electronichealth.se/identifier/personnummer"
 * subject.identifier.value = "191212121212"
 

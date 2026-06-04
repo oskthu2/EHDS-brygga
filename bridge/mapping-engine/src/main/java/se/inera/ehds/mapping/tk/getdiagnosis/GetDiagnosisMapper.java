@@ -61,9 +61,6 @@ public class GetDiagnosisMapper {
                 && body.getDiagnosisTimePeriod().getEnd() != null;
         c.setClinicalStatus(codeable(CLIN_STATUS_SYS, resolved ? "resolved" : "active"));
 
-        // verificationStatus: always confirmed for RIVTA diagnoses
-        c.setVerificationStatus(codeable(VER_STATUS_SYS, "confirmed"));
-
         // category: HD → encounter-diagnosis, BY → bi-diagnos via ConceptMap
         ConceptMapEntry cat = conceptMaps.translateDiagnosisType(body.getDiagnosisType())
                 .orElseGet(() -> new ConceptMapEntry(

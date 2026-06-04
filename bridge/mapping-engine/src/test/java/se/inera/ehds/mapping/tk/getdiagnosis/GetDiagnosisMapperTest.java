@@ -104,10 +104,10 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void verificationStatus_ar_alltid_confirmed() {
+        void verificationStatus_sätts_inte_automatiskt() {
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(minimalDiagnosis()), ctx);
             Condition c = result.get(0).condition();
-            assertEquals("confirmed", c.getVerificationStatus().getCodingFirstRep().getCode());
+            assertTrue(c.getVerificationStatus().isEmpty());
         }
     }
 

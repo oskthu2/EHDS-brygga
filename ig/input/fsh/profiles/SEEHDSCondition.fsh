@@ -11,7 +11,7 @@ Mappas från Ineras RIVTA-tjänstekontrakt GetDiagnosis
 Profilen säkerställer att:
 - Diagnoskod (ICD-10-SE) är angiven
 - Patient är identifierad med personnummer eller samordningsnummer
-- Diagnostyp (huvud-/bidiagnos) är angiven
+- Diagnostyp (huvud-/bidiagnos) anges när den är känd (HD/BY via ConceptMap)
 - Källsystem identifieras via meta.source (urn:oid:{HSA_OID}#{hsaId})
 - Ansvarig vårdgivare bärs av Provenance.agent[role=custodian] (inte inne i resursen)
 """
@@ -36,12 +36,12 @@ Profilen säkerställer att:
 * clinicalStatus ^short = "Klinisk status: active om ingen slutdatum, resolved om slutdatum finns"
 * clinicalStatus from $conditionClinical (required)
 
-* verificationStatus 1..1 MS
-* verificationStatus ^short = "Verifieringsstatus – sätts normalt till confirmed vid mappning från RIVTA"
+* verificationStatus 0..1 MS
+* verificationStatus ^short = "Verifieringsstatus – sätts om känd; RIVTA saknar eget verifieringsfält"
 * verificationStatus from $conditionVerStatus (required)
 
-* category 1..* MS
-* category ^short = "Diagnostyp (HD=Huvuddiagnos → encounter-diagnosis, BY=Bidiagnos → bi-diagnos)"
+* category 0..* MS
+* category ^short = "Diagnostyp (HD=Huvuddiagnos → encounter-diagnosis, BY=Bidiagnos → bi-diagnos), om angiven"
 * category from https://ehds-brygga.inera.se/fhir/ValueSet/SEDiagnosisType (extensible)
 
 * code 1..1 MS

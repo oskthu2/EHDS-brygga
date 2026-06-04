@@ -110,6 +110,39 @@ samma mönster som Condition-flödet via `SparrFilterService`.
 | `Provenance.agent[author].who` | `careUnitHSAId` | Inre spärr (avdelningsnivå) |
 | `author[0].identifier` | `careUnitHSAId` | Synlig vårdenhet i resursen |
 
+## DocBook-innehåll → FHIR Narrative
+
+Kliniska anteckningar i svenska journalsystem är ofta formaterade som DocBook XML
+(en delmängd av standarden som används av 1177 Inkorg och liknande tjänster).
+När dokumentinnehåll hämtas via ett kompletterande GetDocument-anrop omvandlas
+DocBook till FHIR Narrative XHTML och placeras i `DocumentReference.content.attachment`
+med `contentType = text/html`.
+
+**Mappningsalgoritm** (implementerad i `DocBookToNarrativeTransformer`):
+
+| DocBook-element | FHIR Narrative XHTML |
+|---|---|
+| `article` | Root `<div xmlns="…">` |
+| `section` (utan styld titel) | Passthrough – rubriken styr heading-nivå |
+| `title` | `<h2>`, `<h3>` … (djup avgör nivå) |
+| `para` | `<p>` |
+| `emphasis[@role='bold']` | `<strong>` |
+| `emphasis[@role='italics']` | `<em>` |
+| `emphasis[@role='underline']` | `<u>` |
+| `title/emphasis[@role='information']` | `<div class="info-box"><hN>titel</hN>…` |
+| `title/emphasis[@role='observe']` | `<div class="warning-box"><hN>titel</hN>…` |
+| `title/emphasis[@role='frame']` | `<div class="framed-box"><hN>titel</hN>…` |
+| `title/emphasis[@role='collapsible']` | `<div class="collapsible">` (statiskt expanderat) |
+| `itemizedlist` / `orderedlist` | `<ul>` / `<ol>` med `<li>` |
+| `variablelist` | `<dl>` med `<dt>` / `<dd>` |
+| `ulink`, `link` | `<a href="…">` |
+
+Okända element passeras igenom (text renderas, elementtag tappas).
+Felaktigt XML ger ett tomt `<div>` utan undantag.
+
+Implementationen är avsiktligt inkrementell — nya DocBook-element läggs till
+allteftersom de observeras i produktionsdata.
+
 ## PoC-begränsningar
 
 ### Binary document data

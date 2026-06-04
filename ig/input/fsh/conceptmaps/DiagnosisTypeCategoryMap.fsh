@@ -9,8 +9,8 @@ Usage: #definition
 * name = "DiagnosisTypeToCategoryMap"
 * status = #draft
 * experimental = true
-* sourceUri = "https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType"
-* targetUri = "http://terminology.hl7.org/CodeSystem/condition-category"
+* sourceUri = "https://ehds-brygga.inera.se/fhir/ValueSet/RIVTADiagnosisType"
+* targetUri = "https://ehds-brygga.inera.se/fhir/ValueSet/SEDiagnosisType"
 
 * group[0].source = "https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType"
 * group[0].target = "http://terminology.hl7.org/CodeSystem/condition-category"

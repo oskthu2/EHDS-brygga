@@ -13,5 +13,7 @@ och Ineras RIVTA-tjänstekontrakt.
 * ^caseSensitive = true
 * ^content = #complete
 
-* #bi-diagnos "Bidiagnos" "Bidiagnos (BY) – sekundär diagnos satt vid ett vårdtillfälle, motsvarar RIVTA-diagnosType BY"
-* #huvud-diagnos "Huvuddiagnos" "Huvuddiagnos (HD) – primär diagnos satt vid ett vårdtillfälle, motsvarar RIVTA-diagnosType HD"
+* #HD "Huvuddiagnos" "Huvuddiagnos (HD) – primär diagnos satt vid ett vårdtillfälle (RIVTA diagnosType HD)"
+* #BY "Bidiagnos" "Bidiagnos (BY) – sekundär diagnos satt vid ett vårdtillfälle (RIVTA diagnosType BY)"
+* #huvud-diagnos "Huvuddiagnos (FHIR)" "FHIR-alias för RIVTA Huvuddiagnos, mappas till encounter-diagnosis"
+* #bi-diagnos "Bidiagnos (FHIR)" "FHIR-alias för RIVTA Bidiagnos"

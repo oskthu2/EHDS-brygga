@@ -256,7 +256,7 @@ deployeras som separata pods, t.ex. för att köra ntjp-proxy nära en specifik 
 I lokal utveckling tillkommer fem mock-containers (TAK, EI, Spärr, Logg, Backend-SOAP)
 via `docker-compose.yml` i projektets rot.
 
-## Kända begränsningar
+## Kända begränsningar {#kanda-begransningar}
 
 ### Break-the-glass
 

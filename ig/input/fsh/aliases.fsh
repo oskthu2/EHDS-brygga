@@ -1,6 +1,6 @@
-// IPS profiles (basis för EURIDICE/EHDS)
-Alias: $ipsCondition = http://hl7.org/fhir/uv/ips/StructureDefinition/Condition-uv-ips
-Alias: $ipsPatient = http://hl7.org/fhir/uv/ips/StructureDefinition/Patient-uv-ips
+// IPS profiles (basis för EURIDICE/EHDS) – pinnade till 2.0.1
+Alias: $ipsCondition = http://hl7.org/fhir/uv/ips/StructureDefinition/Condition-uv-ips|2.0.1
+Alias: $ipsPatient = http://hl7.org/fhir/uv/ips/StructureDefinition/Patient-uv-ips|2.0.1
 
 // EURIDICE/EHDS canonical base (EU EHDS IG)
 Alias: $euCondition = https://hl7.eu/fhir/ehds/StructureDefinition/Condition-eu-ehds
@@ -13,8 +13,8 @@ Alias: $epsConditionObl = http://hl7.eu/fhir/eps/StructureDefinition/condition-o
 Alias: $iheDocType = http://ihe.net/connectathon/classCodes
 
 // External code system aliases
-Alias: $conditionClinical = http://terminology.hl7.org/CodeSystem/condition-clinical
-Alias: $conditionVerStatus = http://terminology.hl7.org/CodeSystem/condition-ver-status
+Alias: $conditionClinical = http://hl7.org/fhir/ValueSet/condition-clinical
+Alias: $conditionVerStatus = http://hl7.org/fhir/ValueSet/condition-ver-status
 Alias: $conditionCategory = http://terminology.hl7.org/CodeSystem/condition-category
 Alias: $loinc = http://loinc.org
 Alias: $sct = http://snomed.info/sct

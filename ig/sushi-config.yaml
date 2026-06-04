@@ -20,7 +20,7 @@ jurisdiction: urn:iso:std:iso:3166#SE "Sweden"
 language: sv
 
 dependencies:
-  hl7.fhir.uv.ips: current        # International Patient Summary – basis för EURIDICE
+  hl7.fhir.uv.ips: 2.0.1          # International Patient Summary – basis för EURIDICE
   hl7.fhir.eu.eps: current        # HL7 Europe Patient Summary (EPS) – condition-obl-eu-eps
   hl7.fhir.eu.health-data-api: current  # EU Health Data API – Resource Access Provider capability
 

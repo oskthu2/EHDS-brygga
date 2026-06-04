@@ -17,6 +17,7 @@ Profilen säkerställer att:
 """
 
 * ^url = "https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition"
+* ^experimental = true
 
 // EURIDICE/EHDS alignment: markera att denna profil implementerar EU EHDS Condition
 * ^baseDefinition = "http://hl7.org/fhir/uv/ips/StructureDefinition/Condition-uv-ips"

@@ -14,7 +14,7 @@ releaseLabel: ci-build
 publisher:
   name: Inera AB
   url: https://www.inera.se
-  email: ehds@inera.se
+  email: oskar.thunman@inera.se
 
 jurisdiction: urn:iso:std:iso:3166#SE "Sweden"
 language: sv

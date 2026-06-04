@@ -80,9 +80,12 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
                             .setValue(pid.getExtension())));
         }
 
-        // date from documentTime
+        // date from documentTime — InstantType requires full timestamp (no day-precision)
         if (entry.getDocumentTime() != null) {
-            dr.setDateElement(new InstantType(RivDateParser.parse(entry.getDocumentTime())));
+            String iso = RivDateParser.parse(entry.getDocumentTime());
+            if (iso != null) {
+                dr.setDateElement(new InstantType(iso.length() == 10 ? iso + "T00:00:00Z" : iso + "Z"));
+            }
         }
 
         // description (title)

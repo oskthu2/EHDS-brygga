@@ -42,20 +42,20 @@ public class GetDiagnosisClient {
     }
 
     /**
-     * Calls GetDiagnosis at the given physical endpoint for the given logical address.
+     * Calls GetDiagnosis via NTjP at the given endpoint URL.
+     * NTjP routes the call to the correct producer based on the logicalAddress header.
      *
-     * @param physicalUrl    Physical URL from TAK (e.g. http://mock-backend:4005/soap)
-     * @param logicalAddress Logical HSA-id of target VG (for RIVTA LogicalAddress header)
+     * @param ntjpUrl        NTjP endpoint URL (same for all calls, e.g. http://ntjp:80/vp/...)
+     * @param logicalAddress HSA-id of target VG — NTjP uses this for routing
      * @param patientRoot    OID for patient ID type (e.g. 1.2.752.129.2.1.3.1)
      * @param patientValue   Patient ID value (personnummer/samordningsnummer)
      */
-    public GetDiagnosisResponse call(String physicalUrl, String logicalAddress,
+    public GetDiagnosisResponse call(String ntjpUrl, String logicalAddress,
                                       String patientRoot, String patientValue) {
         GetDiagnosisResponderInterface port = (GetDiagnosisResponderInterface) factory.create();
 
-        // Override endpoint URL per call (different VG → different physical URL from TAK)
         BindingProvider bp = (BindingProvider) port;
-        bp.getRequestContext().put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, physicalUrl);
+        bp.getRequestContext().put(BindingProvider.ENDPOINT_ADDRESS_PROPERTY, ntjpUrl);
         bp.getRequestContext().put("jakarta.xml.ws.client.receiveTimeout", 10000L);
         bp.getRequestContext().put("jakarta.xml.ws.client.connectionTimeout", 5000L);
 
@@ -73,7 +73,7 @@ public class GetDiagnosisClient {
         GetDiagnosis request = new GetDiagnosis();
         request.setPatientId(patientId);
 
-        log.debug("GetDiagnosis → {} (logicalAddress={})", physicalUrl, logicalAddress);
+        log.debug("GetDiagnosis → {} (logicalAddress={})", ntjpUrl, logicalAddress);
         return port.getDiagnosis(logicalAddress, request);
     }
 }

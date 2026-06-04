@@ -15,7 +15,7 @@ import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import se.inera.ehds.mapping.tk.getdocumentlist.GetDocumentListMapper;
 import se.inera.ehds.proxy.config.ProxyProperties;
-import se.inera.ehds.proxy.service.ProxyTakService;
+
 import se.inera.ehds.soap.client.GetDocumentListClient;
 
 import java.util.Date;
@@ -30,20 +30,17 @@ public class DocumentReferenceProxyController {
     private static final String NAMESPACE =
             "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1";
 
-    private final ProxyTakService tak;
     private final GetDocumentListClient soapClient;
     private final GetDocumentListMapper mapper;
     private final NamingSystemRegistry namingRegistry;
     private final IParser fhirParser;
     private final ProxyProperties proxyProps;
 
-    public DocumentReferenceProxyController(ProxyTakService tak,
-                                             GetDocumentListClient soapClient,
+    public DocumentReferenceProxyController(GetDocumentListClient soapClient,
                                              GetDocumentListMapper mapper,
                                              NamingSystemRegistry namingRegistry,
                                              FhirContext fhirContext,
                                              ProxyProperties proxyProps) {
-        this.tak = tak;
         this.soapClient = soapClient;
         this.mapper = mapper;
         this.namingRegistry = namingRegistry;
@@ -60,16 +57,10 @@ public class DocumentReferenceProxyController {
         String patientSystem = parts.length == 2 ? parts[0] : "http://electronichealth.se/identifier/personnummer";
         String patientValue  = parts.length == 2 ? parts[1] : parts[0];
 
-        String physUrl = tak.getPhysicalAddress(NAMESPACE, vgHsaId);
-        if (physUrl == null) {
-            log.warn("Ingen fysisk adress i TAK för {} / {}", NAMESPACE, vgHsaId);
-            return ResponseEntity.ok(emptyBundle());
-        }
-
         String root = namingRegistry.uriToOid(patientSystem);
         List<MappedDocumentEntry> entries;
         try {
-            GetDocumentListResponse response = soapClient.call(physUrl, vgHsaId, root, patientValue);
+            GetDocumentListResponse response = soapClient.call(proxyProps.getNtjpUrl(), vgHsaId, root, patientValue);
             entries = mapper.map(response, new MapperContext(patientSystem, patientValue, proxyProps.getBridgeHsaId()));
             log.debug("GetDocumentList för {} returnerade {} DocumentReference(s)", vgHsaId, entries.size());
         } catch (Exception e) {

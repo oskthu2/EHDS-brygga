@@ -14,7 +14,7 @@ import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.MappedDiagnosisEntry;
 import se.inera.ehds.mapping.tk.getdiagnosis.GetDiagnosisMapper;
 import se.inera.ehds.proxy.config.ProxyProperties;
-import se.inera.ehds.proxy.service.ProxyTakService;
+
 import se.inera.ehds.soap.client.GetDiagnosisClient;
 
 import java.util.Date;
@@ -29,20 +29,17 @@ public class ConditionProxyController {
     private static final String NAMESPACE =
             "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2";
 
-    private final ProxyTakService tak;
     private final GetDiagnosisClient soapClient;
     private final GetDiagnosisMapper mapper;
     private final NamingSystemRegistry namingRegistry;
     private final IParser fhirParser;
     private final ProxyProperties proxyProps;
 
-    public ConditionProxyController(ProxyTakService tak,
-                                     GetDiagnosisClient soapClient,
+    public ConditionProxyController(GetDiagnosisClient soapClient,
                                      GetDiagnosisMapper mapper,
                                      NamingSystemRegistry namingRegistry,
                                      FhirContext fhirContext,
                                      ProxyProperties proxyProps) {
-        this.tak = tak;
         this.soapClient = soapClient;
         this.mapper = mapper;
         this.namingRegistry = namingRegistry;
@@ -59,16 +56,10 @@ public class ConditionProxyController {
         String patientSystem = parts.length == 2 ? parts[0] : "http://electronichealth.se/identifier/personnummer";
         String patientValue  = parts.length == 2 ? parts[1] : parts[0];
 
-        String physUrl = tak.getPhysicalAddress(NAMESPACE, vgHsaId);
-        if (physUrl == null) {
-            log.warn("Ingen fysisk adress i TAK för {} / {}", NAMESPACE, vgHsaId);
-            return ResponseEntity.ok(emptyBundle());
-        }
-
         String root = namingRegistry.uriToOid(patientSystem);
         List<MappedDiagnosisEntry> entries;
         try {
-            GetDiagnosisResponse response = soapClient.call(physUrl, vgHsaId, root, patientValue);
+            GetDiagnosisResponse response = soapClient.call(proxyProps.getNtjpUrl(), vgHsaId, root, patientValue);
             MapperContext ctx = new MapperContext(patientSystem, patientValue, proxyProps.getBridgeHsaId());
             entries = mapper.map(response, ctx);
             log.debug("GetDiagnosis för {} returnerade {} Condition(s)", vgHsaId, entries.size());

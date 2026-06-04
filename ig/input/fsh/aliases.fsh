@@ -1,6 +1,6 @@
-// IPS profiles (basis för EURIDICE/EHDS) – pinnade till 2.0.1
-Alias: $ipsCondition = http://hl7.org/fhir/uv/ips/StructureDefinition/Condition-uv-ips|2.0.1
-Alias: $ipsPatient = http://hl7.org/fhir/uv/ips/StructureDefinition/Patient-uv-ips|2.0.1
+// IPS profiles (basis för EURIDICE/EHDS)
+Alias: $ipsCondition = http://hl7.org/fhir/uv/ips/StructureDefinition/Condition-uv-ips
+Alias: $ipsPatient = http://hl7.org/fhir/uv/ips/StructureDefinition/Patient-uv-ips
 
 // EURIDICE/EHDS canonical base (EU EHDS IG)
 Alias: $euCondition = https://hl7.eu/fhir/ehds/StructureDefinition/Condition-eu-ehds

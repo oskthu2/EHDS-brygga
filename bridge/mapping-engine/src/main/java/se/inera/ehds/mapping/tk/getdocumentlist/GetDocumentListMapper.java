@@ -10,9 +10,10 @@ import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
 import se.inera.ehds.mapping.rivta.doclist.ResultType;
 import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.MappedDocumentEntry;
+import se.inera.ehds.mapping.tk.ProvenanceBuilder;
+import se.inera.ehds.mapping.tk.RivDateParser;
 import se.inera.ehds.mapping.tk.TkMapper;
 
-import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -22,7 +23,6 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
 
     private static final String CANONICAL_BASE = "https://ehds-brygga.inera.se/fhir";
     private static final String HSA_OID = "1.2.752.129.2.1.4.1";
-    private static final String PROV_PARTICIPANT_SYS = "http://terminology.hl7.org/CodeSystem/provenance-participant-type";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-document-reference";
 
     private final NamingSystemRegistry namingSystem;
@@ -82,7 +82,7 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
 
         // date from documentTime
         if (entry.getDocumentTime() != null) {
-            dr.setDateElement(new InstantType(parseRivDate(entry.getDocumentTime())));
+            dr.setDateElement(new InstantType(RivDateParser.parse(entry.getDocumentTime())));
         }
 
         // description (title)
@@ -115,66 +115,14 @@ public class GetDocumentListMapper implements TkMapper<GetDocumentListResponse, 
         content.setAttachment(attachment);
         dr.addContent(content);
 
-        Provenance prov = buildProvenance(dr.getId(), entry, ctx, hsaSystem);
+        Provenance prov = ProvenanceBuilder.build(
+                dr.getId(),
+                entry.getCareProviderHSAId(),
+                entry.getCareUnitHSAId(),
+                entry.getDocumentTime(),
+                hsaSystem,
+                ctx);
 
         return new MappedDocumentEntry(dr, prov);
-    }
-
-    private Provenance buildProvenance(String docRefId, DocumentEntry entry,
-                                        MapperContext ctx, String hsaSystem) {
-        Provenance p = new Provenance();
-        p.setId(UUID.randomUUID().toString());
-        p.addTarget(new Reference("urn:uuid:" + docRefId));
-
-        if (entry.getDocumentTime() != null) {
-            String isoDate = parseRivDate(entry.getDocumentTime());
-            p.setRecordedElement(new InstantType(isoDate.length() == 10
-                    ? isoDate + "T00:00:00Z" : isoDate + "Z"));
-        } else {
-            p.setRecorded(new Date());
-        }
-
-        // custodian: juridiskt ansvarig vårdgivare (careProviderHSAId)
-        if (entry.getCareProviderHSAId() != null) {
-            p.addAgent()
-                    .setType(codeable(PROV_PARTICIPANT_SYS, "custodian"))
-                    .setWho(new Reference().setIdentifier(
-                            new Identifier().setSystem(hsaSystem).setValue(entry.getCareProviderHSAId())));
-        }
-
-        // author: informationsägare vårdenhet (careUnitHSAId)
-        if (entry.getCareUnitHSAId() != null) {
-            p.addAgent()
-                    .setType(codeable(PROV_PARTICIPANT_SYS, "author"))
-                    .setWho(new Reference().setIdentifier(
-                            new Identifier().setSystem(hsaSystem).setValue(entry.getCareUnitHSAId())));
-        }
-
-        // assembler: bryggan
-        if (ctx.getBridgeHsaId() != null) {
-            p.addAgent()
-                    .setType(codeable(PROV_PARTICIPANT_SYS, "assembler"))
-                    .setWho(new Reference().setIdentifier(
-                            new Identifier().setSystem(hsaSystem).setValue(ctx.getBridgeHsaId())));
-        }
-
-        return p;
-    }
-
-    private CodeableConcept codeable(String system, String code) {
-        return new CodeableConcept().addCoding(new Coding().setSystem(system).setCode(code));
-    }
-
-    private String parseRivDate(String d) {
-        if (d == null || d.isBlank()) return null;
-        String s = d.trim();
-        if (s.length() == 8) {
-            return s.substring(0, 4) + "-" + s.substring(4, 6) + "-" + s.substring(6, 8);
-        }
-        if (s.length() >= 14) {
-            return s.substring(0, 4) + "-" + s.substring(4, 6) + "-" + s.substring(6, 8)
-                    + "T" + s.substring(8, 10) + ":" + s.substring(10, 12) + ":" + s.substring(12, 14);
-        }
-        return s;
     }
 }

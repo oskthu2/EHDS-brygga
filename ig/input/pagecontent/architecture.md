@@ -33,7 +33,6 @@ I testmiljö tillkommer fem mock-containers som simulerar externa Inera-tjänste
 | Mock | Port | Simulerar |
 |---|---|---|
 | `mock-ntjp` | 4001 | NTjP / Nationell Tjänsteplattform (SOAP-router) |
-| `mock-ei` | 4002 | Engagemangsindex |
 | `mock-sparr` | 4003 | Säkerhetstjänsten (spärr) |
 | `mock-logg` | 4004 | ATNA/BALP-loggtjänst |
 | `mock-backend` | 4005 | Producerande journalsystem (SOAP) |
@@ -61,11 +60,10 @@ Kärnan i FHIR-laget. Tar emot och validerar FHIR-förfrågningar, extraherar VG
 från `X-VG-HSA-ID`-headern och driver anropsflödet:
 
 1. Slår upp konfigurerad FHIR-endpoint för VG:n i `vg-config.yaml`
-2. Frågar EI om patienten har data registrerat hos VG:ns system
-3. Anropar ntjp-proxy via HTTP/FHIR för varje VG-endpoint
-4. Filtrerar svaret mot Säkerhetstjänsten (spärr, organisationsnivå)
-5. Loggar åtkomsten (ATNA/BALP)
-6. Returnerar sammansatt `Bundle` till konsumenten
+2. Anropar ntjp-proxy via HTTP/FHIR för VG-endpointen
+3. Filtrerar svaret mot Säkerhetstjänsten (spärr, organisationsnivå)
+4. Loggar åtkomsten (ATNA/BALP)
+5. Returnerar `Bundle` till konsumenten
 
 ### ntjp-proxy (Spring Boot + Apache CXF)
 
@@ -89,12 +87,6 @@ Delat bibliotek som innehåller:
 - `ConceptMapRegistry` — RIVTA-kod → FHIR-kod (t.ex. diagnostyp → category)
 - `GetDiagnosisMapper` / `GetDocumentListMapper` — TK-specifik mappningslogik
 - `MappedDiagnosisEntry` — record som håller `(Condition, Provenance)` länkade genom pipelinen
-
-### EI (Engagemangsindex)
-
-Ineras index över vilka patienter som har data i vilka system. Används för att bekräfta
-att VG:ns system har information om patienten innan SOAP-anropet görs — sparar onödiga
-anrop till producenten.
 
 ### NTjP / VP (Nationell Tjänsteplattform / Virtuell Producent)
 
@@ -253,7 +245,7 @@ Bryggan driftsätts som **två huvud-containers** i Kubernetes:
 De tre interna modulerna (`fhir-server`, `ntjp-proxy`, `mapping-engine`) kan vid behov
 deployeras som separata pods, t.ex. för att köra ntjp-proxy nära en specifik VG.
 
-I lokal utveckling tillkommer fem mock-containers (NTjP, EI, Spärr, Logg, Backend-SOAP)
+I lokal utveckling tillkommer fyra mock-containers (NTjP, Spärr, Logg, Backend-SOAP)
 via `docker-compose.yml` i projektets rot.
 
 ## Kända begränsningar {#kanda-begransningar}

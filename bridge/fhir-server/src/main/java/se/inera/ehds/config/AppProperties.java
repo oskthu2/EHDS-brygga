@@ -6,14 +6,11 @@ import org.springframework.stereotype.Component;
 @Component
 @ConfigurationProperties(prefix = "ehds")
 public class AppProperties {
-    private String eiUrl = "http://mock-ei:4002";
     private String sparrUrl = "http://mock-sparr:4003";
     private String loggUrl = "http://mock-logg:4004";
     private String bridgeHsaId = "SE2321000999-EHDS";
     private String authBaseUrl = "http://localhost:8080";
 
-    public String getEiUrl() { return eiUrl; }
-    public void setEiUrl(String eiUrl) { this.eiUrl = eiUrl; }
     public String getSparrUrl() { return sparrUrl; }
     public void setSparrUrl(String sparrUrl) { this.sparrUrl = sparrUrl; }
     public String getLoggUrl() { return loggUrl; }

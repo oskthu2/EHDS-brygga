@@ -35,6 +35,8 @@ pages:
     title: "OID-till-URI-mappningar"
   architecture.md:
     title: Arkitektur
+  vg-config.md:
+    title: VG-konfiguration
   downloads.md:
     title: Nedladdningar
   artifacts.html:
@@ -47,5 +49,6 @@ menu:
     "GetDocumentList → DocumentReference": mapping-getdocumentlist.html
   "OID-mappningar": naming-systems.html
   Arkitektur: architecture.html
+  "VG-konfiguration": vg-config.html
   Artefakter: artifacts.html
   Nedladdningar: downloads.html

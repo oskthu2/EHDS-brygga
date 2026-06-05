@@ -24,7 +24,7 @@ I testmiljö tillkommer fem mock-containers som simulerar externa Inera-tjänste
 | Container / modul | Teknisk karaktär | Syfte |
 |---|---|---|
 | **Gateway** | nginx (PoC), KONG + WSO2 APIM (prod) | TLS-terminering, URL-routing, extraherar `{vg-hsa-id}` → `X-VG-HSA-ID`-header. Serverar SMART `/.well-known/`-endpoints (statisk JSON). |
-| **fhir-server** *(bryggtjänst, modul 1)* | Spring Boot + HAPI FHIR | FHIR Resource Providers. Orkestrering: EI → parallella FHIR-anrop → Spärr → Logg. Talar enbart FHIR mot VG-endpoints via `fhirEndpointUrl`. |
+| **fhir-server** *(bryggtjänst, modul 1)* | Spring Boot + HAPI FHIR | FHIR Resource Providers. Orkestrering: parallella FHIR-anrop per VG-resurs → Spärr → Logg. Routing styrs av per-resurs-konfiguration i `vg-config.yaml`. |
 | **ntjp-proxy** *(bryggtjänst, modul 2)* | Spring Boot + Apache CXF | All SOAP/RIVTA-logik. Innehåller mapping-engine och soap-client. Exponerar FHIR-API per VG. Deployerbar centralt eller nära VG. |
 | **mapping-engine** *(bryggtjänst, modul 3)* | Maven-bibliotek (JAR) | RIVTA JAXB-typer, NamingSystemRegistry (OID↔URI), ConceptMapRegistry (RIVTA-kod → FHIR-kod), TK-specifika mappningsklasser (GetDiagnosisMapper, GetDocumentListMapper). |
 
@@ -33,7 +33,6 @@ I testmiljö tillkommer fem mock-containers som simulerar externa Inera-tjänste
 | Mock | Port | Simulerar |
 |---|---|---|
 | `mock-ntjp` | 4001 | NTjP / Nationell Tjänsteplattform (SOAP-router) |
-| `mock-ei` | 4002 | Engagemangsindex |
 | `mock-sparr` | 4003 | Säkerhetstjänsten (spärr) |
 | `mock-logg` | 4004 | ATNA/BALP-loggtjänst |
 | `mock-backend` | 4005 | Producerande journalsystem (SOAP) |
@@ -60,12 +59,11 @@ ur JWT-claims och gör dessa tillgängliga för bryggtjänsten.
 Kärnan i FHIR-laget. Tar emot och validerar FHIR-förfrågningar, extraherar VG-kontexten
 från `X-VG-HSA-ID`-headern och driver anropsflödet:
 
-1. Slår upp konfigurerad FHIR-endpoint för VG:n i `vg-config.yaml`
-2. Frågar EI om patienten har data registrerat hos VG:ns system
-3. Anropar ntjp-proxy via HTTP/FHIR för varje VG-endpoint
-4. Filtrerar svaret mot Säkerhetstjänsten (spärr, organisationsnivå)
-5. Loggar åtkomsten (ATNA/BALP)
-6. Returnerar sammansatt `Bundle` till konsumenten
+1. Slår upp per-resurs-konfiguration för VG:n i `vg-config.yaml` (endpoint-URL + accessmetod)
+2. Anropar VG-endpointen via HTTP/FHIR (ntjp-proxy eller nativt FHIR-API, beroende på `access`)
+3. Filtrerar svaret mot Säkerhetstjänsten (spärr, organisationsnivå)
+4. Loggar åtkomsten (ATNA/BALP)
+5. Returnerar `Bundle` till konsumenten
 
 ### ntjp-proxy (Spring Boot + Apache CXF)
 
@@ -78,7 +76,7 @@ från fhir-server och returnerar FHIR-resurser, men utför internt:
 4. Returnerar en lokal `Bundle` med `searchMode=match` (Condition) och `searchMode=include` (Provenance)
 
 Gränssnittet mot fhir-server är rent FHIR HTTP — fhir-server vet inte om endpointen är
-ntjp-proxy eller ett nativt FHIR-API. Det styrs enbart av `fhirEndpointUrl` i `vg-config.yaml`.
+ntjp-proxy eller ett nativt FHIR-API. Det styrs enbart av `endpointUrl` per resurstyp i `vg-config.yaml`.
 
 ### mapping-engine (Maven-bibliotek)
 
@@ -89,12 +87,6 @@ Delat bibliotek som innehåller:
 - `ConceptMapRegistry` — RIVTA-kod → FHIR-kod (t.ex. diagnostyp → category)
 - `GetDiagnosisMapper` / `GetDocumentListMapper` — TK-specifik mappningslogik
 - `MappedDiagnosisEntry` — record som håller `(Condition, Provenance)` länkade genom pipelinen
-
-### EI (Engagemangsindex)
-
-Ineras index över vilka patienter som har data i vilka system. Används för att bekräfta
-att VG:ns system har information om patienten innan SOAP-anropet görs — sparar onödiga
-anrop till producenten.
 
 ### NTjP / VP (Nationell Tjänsteplattform / Virtuell Producent)
 
@@ -137,9 +129,6 @@ Konsument        Gateway       fhir-server        ntjp-proxy        Inera / VG
     |                |   + routing  →|                  |                |
     |                |               |                  |                |
     |          [JWT-validering, scope: system/Condition.read — planerat]
-    |                |               |                  |                |
-    |                |               |-- EI: finns data?→               |
-    |                |               |←-- ja/nej ------------------------|
     |                |               |                  |                |
     |                |               |-- GET Condition? →               |
     |                |               |   (FHIR HTTP)    |               |
@@ -211,8 +200,9 @@ kanoniska URI:er (HL7 Sweden basprofiler-r4).
 
 ## Lägga till ett nytt tjänstekontrakt
 
-1. **`vg-config.yaml`** — se till att `fhirEndpointUrl` pekar på ntjp-proxy för de VG:er
-   som ska använda det nya kontraktet
+1. **`vg-config.yaml`** — lägg till en ny post under `resources` för varje VG som ska
+   tillhandahålla den nya resurstypen: ange `access: tk` (via ntjp-proxy) eller `access: fhir`
+   (nativt FHIR-API) samt `endpointUrl`
 2. **Java-mappningsklass** — implementera mappningslogiken (lager 3) i `mapping-engine`;
    returnera `List<MappedDiagnosisEntry>` (eller motsvarande record med resurs + Provenance)
 3. **JAXB-typer** — lägg till kontraktets XML-typer i `mapping/rivta/` (lager 1)
@@ -253,7 +243,7 @@ Bryggan driftsätts som **två huvud-containers** i Kubernetes:
 De tre interna modulerna (`fhir-server`, `ntjp-proxy`, `mapping-engine`) kan vid behov
 deployeras som separata pods, t.ex. för att köra ntjp-proxy nära en specifik VG.
 
-I lokal utveckling tillkommer fem mock-containers (NTjP, EI, Spärr, Logg, Backend-SOAP)
+I lokal utveckling tillkommer fyra mock-containers (NTjP, Spärr, Logg, Backend-SOAP)
 via `docker-compose.yml` i projektets rot.
 
 ## Kända begränsningar {#kanda-begransningar}

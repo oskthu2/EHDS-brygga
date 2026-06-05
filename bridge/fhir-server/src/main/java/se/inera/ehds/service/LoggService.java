@@ -55,6 +55,54 @@ public class LoggService {
         }
     }
 
+    @Async
+    public void logSparrFilter(String requestId, String patientId, String patientSystem,
+                               String vgHsaId, String resourceType, int resultCount,
+                               boolean failClosed, String bridgeHsaId) {
+        try {
+            AuditEvent ae = buildSparrFilterEvent(requestId, patientId, patientSystem,
+                    vgHsaId, resourceType, resultCount, failClosed, bridgeHsaId);
+            String json = fhirCtx.newJsonParser().encodeResourceToString(ae);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            rest.postForEntity(auditFhirUrl + "/AuditEvent", new HttpEntity<>(json, headers), Void.class);
+        } catch (Exception e) {
+            log.warn("AuditEvent (sparr-filter) misslyckades: {}", e.getMessage());
+        }
+    }
+
+    private AuditEvent buildSparrFilterEvent(String requestId, String patientId, String patientSystem,
+            String vgHsaId, String resourceType, int resultCount, boolean failClosed, String bridgeHsaId) {
+        AuditEvent ae = new AuditEvent();
+        ae.setId(requestId + "-sparr");
+
+        ae.getType().setSystem(DCM).setCode("110112").setDisplay("Query");
+        ae.addSubtype().setSystem(EHDS_SUBTYPE_CS).setCode("sparr-filter").setDisplay("Spärr Filter Applied");
+        ae.setAction(AuditEvent.AuditEventAction.R);
+        ae.setRecorded(Date.from(Instant.now()));
+        ae.setOutcome(failClosed ? AuditEvent.AuditEventOutcome._4 : AuditEvent.AuditEventOutcome._0);
+
+        AuditEvent.AuditEventAgentComponent bridgeAgent = ae.addAgent();
+        bridgeAgent.setRequestor(false);
+        bridgeAgent.setWho(new Reference().setDisplay(bridgeHsaId));
+        bridgeAgent.getType().addCoding().setSystem(DCM).setCode("110153").setDisplay("Source Role ID");
+
+        ae.getSource().getObserver().setDisplay(bridgeHsaId);
+
+        AuditEvent.AuditEventEntityComponent patientEntity = ae.addEntity();
+        patientEntity.getType().setSystem(AUDIT_ENTITY_TYPE).setCode("1").setDisplay("Person");
+        patientEntity.getRole().setSystem(OBJECT_ROLE).setCode("1").setDisplay("Patient");
+        patientEntity.setWhat(new Reference()
+                .setIdentifier(new Identifier().setSystem(patientSystem).setValue(patientId)));
+
+        AuditEvent.AuditEventEntityComponent resultEntity = ae.addEntity();
+        resultEntity.getType().setSystem(AUDIT_ENTITY_TYPE).setCode("2").setDisplay("System Object");
+        resultEntity.getRole().setSystem(OBJECT_ROLE).setCode("13").setDisplay("Security Granule");
+        resultEntity.addDetail().setType("resultCount").setValue(new StringType(String.valueOf(resultCount)));
+
+        return ae;
+    }
+
     private AuditEvent buildEhmAccessEvent(String requestId, String patientId, String patientSystem,
             String logicalAddress, String resourceType, int resultCount, String bridgeHsaId) {
         AuditEvent ae = new AuditEvent();

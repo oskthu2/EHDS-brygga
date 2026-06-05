@@ -12,6 +12,7 @@ import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -42,26 +43,30 @@ public class SparrFilterService {
         this.sparrUrl = props.getSparrUrl();
     }
 
-    public List<MappedDiagnosisEntry> filterConditions(List<MappedDiagnosisEntry> entries,
-                                                        String patientSystem, String patientId) {
-        if (entries.isEmpty()) return entries;
+    public FilterResult<MappedDiagnosisEntry> filterConditions(List<MappedDiagnosisEntry> entries,
+                                                                String patientSystem, String patientId) {
+        if (entries.isEmpty()) return new FilterResult<>(entries, false);
         Map<String, Boolean> cache = new HashMap<>();
-        return entries.stream()
-                .filter(e -> !isBlocked(e.provenance(), patientSystem, patientId, cache, "Condition"))
+        AtomicBoolean failClosed = new AtomicBoolean(false);
+        List<MappedDiagnosisEntry> result = entries.stream()
+                .filter(e -> !isBlocked(e.provenance(), patientSystem, patientId, cache, "Condition", failClosed))
                 .collect(Collectors.toList());
+        return new FilterResult<>(result, failClosed.get());
     }
 
-    public List<MappedDocumentEntry> filterDocumentReferences(List<MappedDocumentEntry> entries,
-                                                               String patientSystem, String patientId) {
-        if (entries.isEmpty()) return entries;
+    public FilterResult<MappedDocumentEntry> filterDocumentReferences(List<MappedDocumentEntry> entries,
+                                                                       String patientSystem, String patientId) {
+        if (entries.isEmpty()) return new FilterResult<>(entries, false);
         Map<String, Boolean> cache = new HashMap<>();
-        return entries.stream()
-                .filter(e -> !isBlocked(e.provenance(), patientSystem, patientId, cache, "DocumentReference"))
+        AtomicBoolean failClosed = new AtomicBoolean(false);
+        List<MappedDocumentEntry> result = entries.stream()
+                .filter(e -> !isBlocked(e.provenance(), patientSystem, patientId, cache, "DocumentReference", failClosed))
                 .collect(Collectors.toList());
+        return new FilterResult<>(result, failClosed.get());
     }
 
     private boolean isBlocked(Provenance provenance, String patientSystem, String patientId,
-                               Map<String, Boolean> cache, String resourceType) {
+                               Map<String, Boolean> cache, String resourceType, AtomicBoolean failClosed) {
         String careProviderHsaId = extractHsaId(provenance, "custodian");
 
         if (!isValidHsaId(careProviderHsaId)) {
@@ -70,12 +75,11 @@ public class SparrFilterService {
             return true;
         }
 
-        // Inre spärr: careUnitHSAId carried as Provenance.agent[author]
         String careUnitHsaId = extractHsaId(provenance, "author");
         String cacheKey = careProviderHsaId + "|" + (careUnitHsaId != null ? careUnitHsaId : "");
 
         boolean blocked = cache.computeIfAbsent(cacheKey,
-                k -> checkSparr(patientSystem, patientId, careProviderHsaId, careUnitHsaId));
+                k -> checkSparr(patientSystem, patientId, careProviderHsaId, careUnitHsaId, failClosed));
 
         if (blocked) {
             log.info("Sparr: blockerar {} från vårdgivare {} / enhet {} för patient {}",
@@ -100,7 +104,7 @@ public class SparrFilterService {
 
     @SuppressWarnings("unchecked")
     private boolean checkSparr(String patientSystem, String patientId,
-                                String careProviderHsaId, String careUnitHsaId) {
+                                String careProviderHsaId, String careUnitHsaId, AtomicBoolean failClosed) {
         try {
             Map<String, String> req = new HashMap<>();
             req.put("patientSystem", patientSystem);
@@ -112,12 +116,14 @@ public class SparrFilterService {
             Map<String, Object> resp = rest.postForObject(sparrUrl + "/check", req, Map.class);
             if (resp == null) {
                 log.warn("Sparr check returnerade null för vårdgivare {} — filtrerar bort", careProviderHsaId);
+                failClosed.set(true);
                 return true;
             }
             return Boolean.TRUE.equals(resp.get("blocked"));
         } catch (Exception e) {
             log.warn("Sparr check misslyckades för vårdgivare {} / enhet {}: {} — filtrerar bort",
                     careProviderHsaId, careUnitHsaId, e.getMessage());
+            failClosed.set(true);
             return true;
         }
     }

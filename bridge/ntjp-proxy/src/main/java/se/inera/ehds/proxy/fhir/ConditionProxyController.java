@@ -14,7 +14,7 @@ import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.MappedDiagnosisEntry;
 import se.inera.ehds.mapping.tk.getdiagnosis.GetDiagnosisMapper;
 import se.inera.ehds.proxy.config.ProxyProperties;
-
+import se.inera.ehds.proxy.service.ProxyAuditService;
 import se.inera.ehds.soap.client.GetDiagnosisClient;
 
 import java.util.Date;
@@ -26,25 +26,26 @@ import java.util.UUID;
 public class ConditionProxyController {
 
     private static final Logger log = LoggerFactory.getLogger(ConditionProxyController.class);
-    private static final String NAMESPACE =
-            "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2";
 
     private final GetDiagnosisClient soapClient;
     private final GetDiagnosisMapper mapper;
     private final NamingSystemRegistry namingRegistry;
     private final IParser fhirParser;
     private final ProxyProperties proxyProps;
+    private final ProxyAuditService audit;
 
     public ConditionProxyController(GetDiagnosisClient soapClient,
                                      GetDiagnosisMapper mapper,
                                      NamingSystemRegistry namingRegistry,
                                      FhirContext fhirContext,
-                                     ProxyProperties proxyProps) {
+                                     ProxyProperties proxyProps,
+                                     ProxyAuditService audit) {
         this.soapClient = soapClient;
         this.mapper = mapper;
         this.namingRegistry = namingRegistry;
         this.fhirParser = fhirContext.newJsonParser().setPrettyPrint(true);
         this.proxyProps = proxyProps;
+        this.audit = audit;
     }
 
     @GetMapping(value = "/Condition", produces = "application/fhir+json")
@@ -63,8 +64,12 @@ public class ConditionProxyController {
             MapperContext ctx = new MapperContext(patientSystem, patientValue, proxyProps.getBridgeHsaId());
             entries = mapper.map(response, ctx);
             log.debug("GetDiagnosis för {} returnerade {} Condition(s)", vgHsaId, entries.size());
+            audit.logProxyFetch(UUID.randomUUID().toString(), patientValue, patientSystem,
+                    vgHsaId, "Condition", entries.size(), true);
         } catch (Exception e) {
             log.error("SOAP-fel mot {}: {}", vgHsaId, e.getMessage());
+            audit.logProxyFetch(UUID.randomUUID().toString(), patientValue, patientSystem,
+                    vgHsaId, "Condition", 0, false);
             return ResponseEntity.ok(emptyBundle());
         }
 

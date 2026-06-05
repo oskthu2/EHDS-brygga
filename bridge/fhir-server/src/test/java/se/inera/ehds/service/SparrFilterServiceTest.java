@@ -76,15 +76,17 @@ class SparrFilterServiceTest {
     class TomLista {
         @Test
         void tom_lista_condition_returneras_utan_sparr_anrop() {
-            List<MappedDiagnosisEntry> result = service.filterConditions(List.of(), "sys", "id");
-            assertTrue(result.isEmpty());
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(List.of(), "sys", "id");
+            assertTrue(result.entries().isEmpty());
+            assertFalse(result.failClosed());
             verifyNoInteractions(rest);
         }
 
         @Test
         void tom_lista_documentreference_returneras_utan_sparr_anrop() {
-            List<MappedDocumentEntry> result = service.filterDocumentReferences(List.of(), "sys", "id");
-            assertTrue(result.isEmpty());
+            FilterResult<MappedDocumentEntry> result = service.filterDocumentReferences(List.of(), "sys", "id");
+            assertTrue(result.entries().isEmpty());
+            assertFalse(result.failClosed());
             verifyNoInteractions(rest);
         }
     }
@@ -94,40 +96,51 @@ class SparrFilterServiceTest {
         @Test
         void saknat_custodian_hsaid_filtreras_bort() {
             Provenance provenance = provenanceWith(null, "SE2321000016-4HK5");
-            List<MappedDiagnosisEntry> result = service.filterConditions(
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(
                     List.of(diagnosisEntry(provenance)), "sys", "id");
-            assertTrue(result.isEmpty());
+            assertTrue(result.entries().isEmpty());
             verifyNoInteractions(rest);
         }
 
         @Test
         void ogiltigt_custodian_hsaid_filtreras_bort() {
             Provenance provenance = provenanceWith("OGILTIGT-FORMAT", "SE2321000016-4HK5");
-            List<MappedDiagnosisEntry> result = service.filterConditions(
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(
                     List.of(diagnosisEntry(provenance)), "sys", "id");
-            assertTrue(result.isEmpty());
+            assertTrue(result.entries().isEmpty());
             verifyNoInteractions(rest);
         }
 
         @Test
-        void sparr_undantag_filtrerar_bort_posten() {
+        void sparr_undantag_filtrerar_bort_och_satter_failclosed() {
             Provenance provenance = provenanceWith("SE2321000016-PROV", "SE2321000016-4HK5");
             when(rest.postForObject(anyString(), any(), eq(Map.class)))
                     .thenThrow(new RuntimeException("Nätverksfel"));
 
-            List<MappedDiagnosisEntry> result = service.filterConditions(
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(
                     List.of(diagnosisEntry(provenance)), "sys", "id");
-            assertTrue(result.isEmpty());
+            assertTrue(result.entries().isEmpty());
+            assertTrue(result.failClosed());
         }
 
         @Test
-        void sparr_null_svar_filtrerar_bort_posten() {
+        void sparr_null_svar_filtrerar_bort_och_satter_failclosed() {
             Provenance provenance = provenanceWith("SE2321000016-PROV", "SE2321000016-4HK5");
             when(rest.postForObject(anyString(), any(), eq(Map.class))).thenReturn(null);
 
-            List<MappedDiagnosisEntry> result = service.filterConditions(
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(
                     List.of(diagnosisEntry(provenance)), "sys", "id");
-            assertTrue(result.isEmpty());
+            assertTrue(result.entries().isEmpty());
+            assertTrue(result.failClosed());
+        }
+
+        @Test
+        void saknat_custodian_satter_inte_failclosed() {
+            // Ogiltigt HSA-id är ett datakvalitetsproblem, inte ett tjänstefel
+            Provenance provenance = provenanceWith(null, "SE2321000016-4HK5");
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(
+                    List.of(diagnosisEntry(provenance)), "sys", "id");
+            assertFalse(result.failClosed());
         }
     }
 
@@ -139,9 +152,10 @@ class SparrFilterServiceTest {
             when(rest.postForObject(anyString(), any(), eq(Map.class)))
                     .thenReturn(Map.of("blocked", false));
 
-            List<MappedDiagnosisEntry> result = service.filterConditions(
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(
                     List.of(diagnosisEntry(provenance)), "sys", "id");
-            assertEquals(1, result.size());
+            assertEquals(1, result.entries().size());
+            assertFalse(result.failClosed());
         }
 
         @Test
@@ -150,9 +164,10 @@ class SparrFilterServiceTest {
             when(rest.postForObject(anyString(), any(), eq(Map.class)))
                     .thenReturn(Map.of("blocked", true));
 
-            List<MappedDiagnosisEntry> result = service.filterConditions(
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(
                     List.of(diagnosisEntry(provenance)), "sys", "id");
-            assertTrue(result.isEmpty());
+            assertTrue(result.entries().isEmpty());
+            assertFalse(result.failClosed());
         }
 
         @Test
@@ -165,7 +180,6 @@ class SparrFilterServiceTest {
             service.filterConditions(
                     List.of(diagnosisEntry(p1), diagnosisEntry(p2)), "sys", "id");
 
-            // Sparr ska bara anropas en gång p.g.a. cache
             verify(rest, times(1)).postForObject(anyString(), any(), eq(Map.class));
         }
 
@@ -191,9 +205,10 @@ class SparrFilterServiceTest {
             when(rest.postForObject(anyString(), any(), eq(Map.class)))
                     .thenReturn(Map.of("blocked", false));
 
-            List<MappedDocumentEntry> result = service.filterDocumentReferences(
+            FilterResult<MappedDocumentEntry> result = service.filterDocumentReferences(
                     List.of(documentEntry(provenance)), "sys", "id");
-            assertEquals(1, result.size());
+            assertEquals(1, result.entries().size());
+            assertFalse(result.failClosed());
         }
 
         @Test
@@ -202,18 +217,31 @@ class SparrFilterServiceTest {
             when(rest.postForObject(anyString(), any(), eq(Map.class)))
                     .thenReturn(Map.of("blocked", true));
 
-            List<MappedDocumentEntry> result = service.filterDocumentReferences(
+            FilterResult<MappedDocumentEntry> result = service.filterDocumentReferences(
                     List.of(documentEntry(provenance)), "sys", "id");
-            assertTrue(result.isEmpty());
+            assertTrue(result.entries().isEmpty());
+            assertFalse(result.failClosed());
         }
 
         @Test
         void saknat_custodian_documentreference_filtreras_bort() {
             Provenance provenance = provenanceWith(null, "SE2321000016-4HK5");
-            List<MappedDocumentEntry> result = service.filterDocumentReferences(
+            FilterResult<MappedDocumentEntry> result = service.filterDocumentReferences(
                     List.of(documentEntry(provenance)), "sys", "id");
-            assertTrue(result.isEmpty());
+            assertTrue(result.entries().isEmpty());
             verifyNoInteractions(rest);
+        }
+
+        @Test
+        void sparr_undantag_documentreference_satter_failclosed() {
+            Provenance provenance = provenanceWith("SE2321000016-PROV", "SE2321000016-4HK5");
+            when(rest.postForObject(anyString(), any(), eq(Map.class)))
+                    .thenThrow(new RuntimeException("Nätverksfel"));
+
+            FilterResult<MappedDocumentEntry> result = service.filterDocumentReferences(
+                    List.of(documentEntry(provenance)), "sys", "id");
+            assertTrue(result.entries().isEmpty());
+            assertTrue(result.failClosed());
         }
     }
 

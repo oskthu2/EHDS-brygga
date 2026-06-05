@@ -7,7 +7,6 @@ Usage: #example
 * meta.source = "urn:oid:1.2.752.129.2.1.4.1#SE2321000016-ABCD"
 
 * clinicalStatus = http://terminology.hl7.org/CodeSystem/condition-clinical#resolved "Resolved"
-* verificationStatus = http://terminology.hl7.org/CodeSystem/condition-ver-status#confirmed "Confirmed"
 
 * category[0] = https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType#bi-diagnos "Bidiagnos (FHIR)"
 

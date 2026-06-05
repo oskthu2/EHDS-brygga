@@ -32,7 +32,7 @@ I testmiljö tillkommer fem mock-containers som simulerar externa Inera-tjänste
 
 | Mock | Port | Simulerar |
 |---|---|---|
-| `mock-tak` | 4001 | TAK / adresseringskatalog |
+| `mock-ntjp` | 4001 | NTjP / Nationell Tjänsteplattform (SOAP-router) |
 | `mock-ei` | 4002 | Engagemangsindex |
 | `mock-sparr` | 4003 | Säkerhetstjänsten (spärr) |
 | `mock-logg` | 4004 | ATNA/BALP-loggtjänst |
@@ -253,7 +253,7 @@ Bryggan driftsätts som **två huvud-containers** i Kubernetes:
 De tre interna modulerna (`fhir-server`, `ntjp-proxy`, `mapping-engine`) kan vid behov
 deployeras som separata pods, t.ex. för att köra ntjp-proxy nära en specifik VG.
 
-I lokal utveckling tillkommer fem mock-containers (TAK, EI, Spärr, Logg, Backend-SOAP)
+I lokal utveckling tillkommer fem mock-containers (NTjP, EI, Spärr, Logg, Backend-SOAP)
 via `docker-compose.yml` i projektets rot.
 
 ## Kända begränsningar {#kanda-begransningar}

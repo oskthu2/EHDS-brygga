@@ -37,6 +37,8 @@ pages:
     title: Arkitektur
   vg-config.md:
     title: VG-konfiguration
+  audit-events.md:
+    title: Audit-händelser
   downloads.md:
     title: Nedladdningar
   artifacts.html:
@@ -50,5 +52,6 @@ menu:
   "OID-mappningar": naming-systems.html
   Arkitektur: architecture.html
   "VG-konfiguration": vg-config.html
+  "Audit-händelser": audit-events.html
   Artefakter: artifacts.html
   Nedladdningar: downloads.html

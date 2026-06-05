@@ -21,7 +21,11 @@ Alias: $sct = http://snomed.info/sct
 Alias: $sctSE = http://snomed.info/sct|http://snomed.info/sct/45991000052106
 Alias: $icd10se = https://www.icd10.se/
 
-// Svenska identifierarsystem (HL7 Sweden basprofiler-r4)
+// Audit event terminology (DICOM + HL7 terminology.hl7.org)
+Alias: DCM = http://dicom.nema.org/resources/ontology/DCM
+Alias: AuditEntityType = http://terminology.hl7.org/CodeSystem/audit-entity-type
+Alias: ObjectRole = http://terminology.hl7.org/CodeSystem/object-role
+Alias: SEEHDSAuditSubtypeCS = https://ehds-brygga.inera.se/fhir/CodeSystem/audit-event-subtype
 Alias: $personnummerSystem = http://electronichealth.se/identifier/personnummer
 Alias: $samordningsnummerSystem = http://electronichealth.se/identifier/samordningsnummer
 Alias: $lmaNummer = http://electronichealth.se/identifier/LMA-nummer

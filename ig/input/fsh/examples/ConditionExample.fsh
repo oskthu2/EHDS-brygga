@@ -7,7 +7,6 @@ Usage: #example
 * meta.source = "urn:oid:1.2.752.129.2.1.4.1#SE2321000016-39KJ"
 
 * clinicalStatus = http://terminology.hl7.org/CodeSystem/condition-clinical#active "Active"
-* verificationStatus = http://terminology.hl7.org/CodeSystem/condition-ver-status#confirmed "Confirmed"
 
 * category[0] = http://terminology.hl7.org/CodeSystem/condition-category#encounter-diagnosis "Encounter Diagnosis"
 

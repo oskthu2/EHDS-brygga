@@ -87,8 +87,9 @@ baserat på förekomsten av slutdatum i diagnosperiodens tidsintervall:
 | Inte satt (null) | `active` | Diagnosen anses fortfarande aktiv |
 | Satt (datum finns) | `resolved` | Diagnosen har avslutats |
 
-`Condition.verificationStatus` sätts alltid till `confirmed` vid mappning från RIVTA,
-eftersom RIVTA-svar representerar bekräftade journaluppgifter.
+`Condition.verificationStatus` sätts **inte** av mapparen — RIVTA GetDiagnosis:2 saknar
+ett eget verifieringsfält, och bryggan gör inget antagande om verifieringsstatus.
+Fältet är valfritt (0..1) i SEEHDSCondition-profilen.
 
 ## Hantering av diagnosTyp
 
@@ -100,10 +101,11 @@ för den fullständiga mappningen.
 |---|---|---|---|
 | `HD` – Huvuddiagnos | `encounter-diagnosis` | `http://terminology.hl7.org/CodeSystem/condition-category` | Standard FHIR-kod |
 | `BY` – Bidiagnos | `bi-diagnos` | `https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType` | Svensk tilläggskod |
-| *(okänd kod)* | `problem-list-item` | `http://terminology.hl7.org/CodeSystem/condition-category` | Fallback-kod |
+| *(okänd kod)* | raw `diagnosisType`-sträng | `https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType` | Passthrough utan översättning |
 
 **Fallback:** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` sätts
-`category` till `problem-list-item` (standard FHIR) och ett varningssvar loggas.
+`category` till den råa koden som den anländer från RIVTA.
+Om `diagnosisType` är null utelämnas `category` (0..* — valfritt).
 En okänd kod kastas aldrig bort — Condition inkluderas alltid i svaret.
 
 ## Datumsformat
@@ -167,15 +169,6 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
       }
     ]
   },
-  "verificationStatus": {
-    "coding": [
-      {
-        "system": "http://terminology.hl7.org/CodeSystem/condition-ver-status",
-        "code": "confirmed",
-        "display": "Confirmed"
-      }
-    ]
-  },
   "category": [
     {
       "coding": [
@@ -219,15 +212,16 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
 
 ## Fältvalidering
 
-Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver följande fält (kardinalitet 1..1 eller 1..*):
+Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver följande fält (kardinalitet 1..1):
 
-- `clinicalStatus` – alltid satt
-- `verificationStatus` – alltid satt till `confirmed`
-- `category` – minst en diagnostyp
+- `clinicalStatus` – alltid satt (active eller resolved baserat på slutdatum)
 - `code` – diagnoskod med minst en coding
 - `subject.identifier` – patientidentifierare med system och value
 
-Bryggan avvisar RIVTA-svar som saknar obligatoriska fält och loggar valideringsfel.
+Valfria fält (0..1 / 0..*) som sätts när källdata finns:
+
+- `verificationStatus` – sätts inte av mapparen (RIVTA saknar eget fält)
+- `category` – sätts om `diagnosisType` är känd (HD → encounter-diagnosis, BY → bi-diagnos)
 
 ## Provenance
 

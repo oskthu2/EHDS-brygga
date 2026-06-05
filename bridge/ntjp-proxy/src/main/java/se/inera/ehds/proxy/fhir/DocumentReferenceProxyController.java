@@ -15,7 +15,7 @@ import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import se.inera.ehds.mapping.tk.getdocumentlist.GetDocumentListMapper;
 import se.inera.ehds.proxy.config.ProxyProperties;
-
+import se.inera.ehds.proxy.service.ProxyAuditService;
 import se.inera.ehds.soap.client.GetDocumentListClient;
 
 import java.util.Date;
@@ -27,25 +27,26 @@ import java.util.UUID;
 public class DocumentReferenceProxyController {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentReferenceProxyController.class);
-    private static final String NAMESPACE =
-            "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1";
 
     private final GetDocumentListClient soapClient;
     private final GetDocumentListMapper mapper;
     private final NamingSystemRegistry namingRegistry;
     private final IParser fhirParser;
     private final ProxyProperties proxyProps;
+    private final ProxyAuditService audit;
 
     public DocumentReferenceProxyController(GetDocumentListClient soapClient,
                                              GetDocumentListMapper mapper,
                                              NamingSystemRegistry namingRegistry,
                                              FhirContext fhirContext,
-                                             ProxyProperties proxyProps) {
+                                             ProxyProperties proxyProps,
+                                             ProxyAuditService audit) {
         this.soapClient = soapClient;
         this.mapper = mapper;
         this.namingRegistry = namingRegistry;
         this.fhirParser = fhirContext.newJsonParser().setPrettyPrint(true);
         this.proxyProps = proxyProps;
+        this.audit = audit;
     }
 
     @GetMapping(value = "/DocumentReference", produces = "application/fhir+json")
@@ -63,8 +64,12 @@ public class DocumentReferenceProxyController {
             GetDocumentListResponse response = soapClient.call(proxyProps.getNtjpUrl(), vgHsaId, root, patientValue);
             entries = mapper.map(response, new MapperContext(patientSystem, patientValue, proxyProps.getBridgeHsaId()));
             log.debug("GetDocumentList för {} returnerade {} DocumentReference(s)", vgHsaId, entries.size());
+            audit.logProxyFetch(UUID.randomUUID().toString(), patientValue, patientSystem,
+                    vgHsaId, "DocumentReference", entries.size(), true);
         } catch (Exception e) {
             log.error("SOAP-fel mot {}: {}", vgHsaId, e.getMessage());
+            audit.logProxyFetch(UUID.randomUUID().toString(), patientValue, patientSystem,
+                    vgHsaId, "DocumentReference", 0, false);
             return ResponseEntity.ok(emptyBundle());
         }
 

@@ -8,8 +8,10 @@ import se.inera.ehds.config.AppProperties;
 import se.inera.ehds.config.VgConfig;
 import se.inera.ehds.config.VgConfigLoader;
 import se.inera.ehds.mapping.tk.MappedDiagnosisEntry;
+import se.inera.ehds.service.FilterResult;
 import se.inera.ehds.service.FhirProxyClient;
 import se.inera.ehds.service.LoggService;
+import se.inera.ehds.service.SmartContext;
 import se.inera.ehds.service.SparrFilterService;
 
 import java.util.*;
@@ -49,7 +51,8 @@ public class QueryOrchestrator {
         this.props = props;
     }
 
-    public Bundle searchConditions(String vgHsaId, String patientSystem, String patientValue) {
+    public Bundle searchConditions(String vgHsaId, String patientSystem, String patientValue,
+                                   SmartContext smartContext) {
         String requestId = UUID.randomUUID().toString();
 
         List<VgConfig> targets = resolveTargets(vgHsaId);
@@ -67,12 +70,14 @@ public class QueryOrchestrator {
                 .flatMap(f -> f.join().stream())
                 .collect(Collectors.toList());
 
-        all = sparr.filterConditions(all, patientSystem, patientValue);
+        FilterResult<MappedDiagnosisEntry> filtered = sparr.filterConditions(all, patientSystem, patientValue);
 
+        logg.logSparrFilter(requestId, patientValue, patientSystem, vgHsaId, "Condition",
+                filtered.entries().size(), filtered.failClosed(), props.getBridgeHsaId(), smartContext);
         logg.logAccess(requestId, patientValue, patientSystem,
-                "FHIR/Condition", vgHsaId, "Condition", all.size(), props.getBridgeHsaId());
+                "FHIR/Condition", vgHsaId, "Condition", filtered.entries().size(), props.getBridgeHsaId(), smartContext);
 
-        return buildBundle(requestId, all);
+        return buildBundle(requestId, filtered.entries());
     }
 
     private List<VgConfig> resolveTargets(String vgHsaId) {

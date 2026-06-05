@@ -31,25 +31,32 @@ Fail-closed: om spärrtjänsten ej nås filtreras posten bort och `outcome = 4` 
 * subtype contains filterSubtype 1..1 MS
 * subtype[filterSubtype] = SEEHDSAuditSubtypeCS#sparr-filter "Spärr Filter Applied"
 
-// Agents
-* agent ^slicing.discriminator[0].type = #value
-* agent ^slicing.discriminator[0].path = "requestor"
+// Agents – samma treenighet som SEEHDSAuditEventEhmAccess (samma request, samma aktörer)
+* agent ^slicing.discriminator[0].type = #pattern
+* agent ^slicing.discriminator[0].path = "type"
 * agent ^slicing.rules = #open
 * agent contains
-    consumer 1..1 MS and
+    system 1..1 MS and
+    user 0..1 MS and
     bridge 1..1 MS
 
-* agent[consumer] ^short = "Konsumentsystemet vars anrop utlöste spärrkontrollen"
-* agent[consumer].requestor = true
-* agent[consumer].who 1..1 MS
-* agent[consumer].type 1..1 MS
-* agent[consumer].type = DCM#110152 "Destination Role ID"
+* agent[system] ^short = "eHM-applikationen vars anrop utlöste spärrkontrollen"
+* agent[system].type 1..1 MS
+* agent[system].type = DCM#110150 "Application"
+* agent[system].who 1..1 MS
+* agent[system].requestor 1..1 MS
+
+* agent[user] ^short = "Inloggad vårdpersonal (när present i JWT)"
+* agent[user].type 1..1 MS
+* agent[user].type = ExtraSecurityRoleType#humanuser "Human User"
+* agent[user].who 1..1 MS
+* agent[user].requestor = true
 
 * agent[bridge] ^short = "fhir-server – den aktör som tillämpade spärrarna"
-* agent[bridge].requestor = false
-* agent[bridge].who 1..1 MS
 * agent[bridge].type 1..1 MS
 * agent[bridge].type = DCM#110153 "Source Role ID"
+* agent[bridge].who 1..1 MS
+* agent[bridge].requestor = false
 
 // Source
 * source.observer 1..1 MS

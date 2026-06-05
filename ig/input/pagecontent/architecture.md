@@ -19,7 +19,7 @@ Systemet är utformat för att vara:
 
 EHDS-bryggan består av **två huvud-containers**: en gateway och en bryggtjänst.
 Bryggtjänsten i sin tur är uppbyggd av **tre interna moduler**.
-I testmiljö tillkommer fem mock-containers som simulerar externa Inera-tjänster.
+I testmiljö tillkommer fyra mock-containers samt en HAPI FHIR audit-databas.
 
 | Container / modul | Teknisk karaktär | Syfte |
 |---|---|---|
@@ -30,11 +30,11 @@ I testmiljö tillkommer fem mock-containers som simulerar externa Inera-tjänste
 
 ### Mock-containers (testmiljö)
 
-| Mock | Port | Simulerar |
+| Container | Port | Syfte |
 |---|---|---|
 | `mock-ntjp` | 4001 | NTjP / Nationell Tjänsteplattform (SOAP-router) |
 | `mock-sparr` | 4003 | Säkerhetstjänsten (spärr) |
-| `mock-logg` | 4004 | ATNA/BALP-loggtjänst |
+| `audit-db` | 4004 | HAPI FHIR R4 – lagrar AuditEvent-resurser (se [Audit-händelser](audit-events.html)) |
 | `mock-backend` | 4005 | Producerande journalsystem (SOAP) |
 
 ## Systemkomponenter
@@ -62,8 +62,7 @@ från `X-VG-HSA-ID`-headern och driver anropsflödet:
 1. Slår upp per-resurs-konfiguration för VG:n i `vg-config.yaml` (endpoint-URL + accessmetod)
 2. Anropar VG-endpointen via HTTP/FHIR (ntjp-proxy eller nativt FHIR-API, beroende på `access`)
 3. Filtrerar svaret mot Säkerhetstjänsten (spärr, organisationsnivå)
-4. Loggar åtkomsten (ATNA/BALP)
-5. Returnerar `Bundle` till konsumenten
+4. Returnerar `Bundle` till konsumenten (AuditEvent POSTas asynkront, se [Audit-händelser](audit-events.html))
 
 ### ntjp-proxy (Spring Boot + Apache CXF)
 
@@ -148,9 +147,8 @@ Konsument        Gateway       fhir-server        ntjp-proxy        Inera / VG
     |                |           [Spärr: careProviderHSAId               |
     |                |            (organisationsnivå)]  |                |
     |                |               |                  |                |
-    |                |           [Åtkomstlogg ATNA/BALP]                 |
-    |                |               |                  |                |
     |←-- 200 OK -----|←-- Bundle ----|                  |                |
+    |                |           (AuditEvent POSTas asynkront → audit-db)|
 ```
 
 **Viktigt:** ett VG-scopat anrop resulterar i exakt ett SOAP-anrop till exakt en
@@ -243,8 +241,8 @@ Bryggan driftsätts som **två huvud-containers** i Kubernetes:
 De tre interna modulerna (`fhir-server`, `ntjp-proxy`, `mapping-engine`) kan vid behov
 deployeras som separata pods, t.ex. för att köra ntjp-proxy nära en specifik VG.
 
-I lokal utveckling tillkommer fyra mock-containers (NTjP, Spärr, Logg, Backend-SOAP)
-via `docker-compose.yml` i projektets rot.
+I lokal utveckling tillkommer fyra mock-containers (NTjP, Spärr, Backend-SOAP) plus
+`audit-db` (HAPI FHIR för AuditEvent-lagring) via `docker-compose.yml` i projektets rot.
 
 ## Kända begränsningar {#kanda-begransningar}
 

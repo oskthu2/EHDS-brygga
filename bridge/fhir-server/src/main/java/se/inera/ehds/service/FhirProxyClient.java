@@ -34,7 +34,7 @@ public class FhirProxyClient {
 
     public List<MappedDiagnosisEntry> fetchConditions(VgConfig vg, String patientSystem, String patientValue) {
         try {
-            URI uri = UriComponentsBuilder.fromHttpUrl(vg.getFhirEndpointUrl())
+            URI uri = UriComponentsBuilder.fromHttpUrl(vg.getResource("Condition").orElseThrow().getEndpointUrl())
                     .path("/Condition")
                     .queryParam("patient.identifier", patientSystem + "|" + patientValue)
                     .build().encode().toUri();
@@ -75,7 +75,7 @@ public class FhirProxyClient {
 
     public List<MappedDocumentEntry> fetchDocumentReferences(VgConfig vg, String patientSystem, String patientValue) {
         try {
-            URI uri = UriComponentsBuilder.fromHttpUrl(vg.getFhirEndpointUrl())
+            URI uri = UriComponentsBuilder.fromHttpUrl(vg.getResource("DocumentReference").orElseThrow().getEndpointUrl())
                     .path("/DocumentReference")
                     .queryParam("patient.identifier", patientSystem + "|" + patientValue)
                     .build().encode().toUri();

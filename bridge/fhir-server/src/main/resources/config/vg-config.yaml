@@ -1,11 +1,22 @@
 vgConfigs:
   - vgHsaId: SE2321000016-4HK5
     description: "VGR – Västra Götalandsregionen"
-    # fhirEndpointUrl pekar på ntjp-proxy i Docker-nätverket.
-    # Flytta proxyn nära VG: byt till https://proxy.vgr.se/fhir
-    # VG med eget FHIR-API: byt till https://fhir.vgr.se/r4
-    fhirEndpointUrl: http://ntjp-proxy:8091/fhir/SE2321000016-4HK5
+    resources:
+      Condition:
+        # access: tk  = RIVTA-anrop via ntjp-proxy
+        # access: fhir = direkt mot VG:ns egna FHIR-server (byt endpointUrl till VG-URL)
+        access: tk
+        endpointUrl: http://ntjp-proxy:8091/fhir/SE2321000016-4HK5
+      DocumentReference:
+        access: tk
+        endpointUrl: http://ntjp-proxy:8091/fhir/SE2321000016-4HK5
 
   - vgHsaId: SE2321000098-7XYZ
     description: "SLL – Stockholms läns landsting"
-    fhirEndpointUrl: http://ntjp-proxy:8091/fhir/SE2321000098-7XYZ
+    resources:
+      Condition:
+        access: tk
+        endpointUrl: http://ntjp-proxy:8091/fhir/SE2321000098-7XYZ
+      DocumentReference:
+        access: tk
+        endpointUrl: http://ntjp-proxy:8091/fhir/SE2321000098-7XYZ

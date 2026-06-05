@@ -78,6 +78,7 @@ public class QueryOrchestrator {
     private List<VgConfig> resolveTargets(String vgHsaId) {
         if (vgHsaId == null) return List.of();
         return vgConfigLoader.findByHsaId(vgConfigs, vgHsaId)
+                .filter(vg -> vg.getResource("Condition").isPresent())
                 .map(List::of).orElse(List.of());
     }
 

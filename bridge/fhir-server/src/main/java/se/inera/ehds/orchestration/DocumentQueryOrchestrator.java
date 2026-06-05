@@ -68,6 +68,7 @@ public class DocumentQueryOrchestrator {
     private List<VgConfig> resolveTargets(String vgHsaId) {
         if (vgHsaId == null) return List.of();
         return vgConfigLoader.findByHsaId(vgConfigs, vgHsaId)
+                .filter(vg -> vg.getResource("DocumentReference").isPresent())
                 .map(List::of).orElse(List.of());
     }
 

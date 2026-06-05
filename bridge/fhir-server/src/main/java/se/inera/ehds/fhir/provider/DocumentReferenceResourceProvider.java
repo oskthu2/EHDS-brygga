@@ -9,6 +9,8 @@ import org.hl7.fhir.r4.model.Bundle;
 import org.hl7.fhir.r4.model.DocumentReference;
 import org.springframework.stereotype.Component;
 import se.inera.ehds.orchestration.DocumentQueryOrchestrator;
+import se.inera.ehds.service.JwtClaimExtractor;
+import se.inera.ehds.service.SmartContext;
 
 @Component
 public class DocumentReferenceResourceProvider implements IResourceProvider {
@@ -39,6 +41,7 @@ public class DocumentReferenceResourceProvider implements IResourceProvider {
         String system = patientIdentifier.getSystem() != null && !patientIdentifier.getSystem().isBlank()
                 ? patientIdentifier.getSystem()
                 : "http://electronichealth.se/identifier/personnummer";
-        return orchestrator.searchDocumentReferences(vgHsaId, system, patientIdentifier.getValue());
+        SmartContext smartContext = JwtClaimExtractor.extract(requestDetails.getHeader("Authorization"));
+        return orchestrator.searchDocumentReferences(vgHsaId, system, patientIdentifier.getValue(), smartContext);
     }
 }

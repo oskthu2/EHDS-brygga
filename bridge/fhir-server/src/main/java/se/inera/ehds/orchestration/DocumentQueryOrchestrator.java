@@ -11,6 +11,7 @@ import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import se.inera.ehds.service.FilterResult;
 import se.inera.ehds.service.FhirProxyClient;
 import se.inera.ehds.service.LoggService;
+import se.inera.ehds.service.SmartContext;
 import se.inera.ehds.service.SparrFilterService;
 
 import java.util.*;
@@ -43,7 +44,8 @@ public class DocumentQueryOrchestrator {
         this.props = props;
     }
 
-    public Bundle searchDocumentReferences(String vgHsaId, String patientSystem, String patientValue) {
+    public Bundle searchDocumentReferences(String vgHsaId, String patientSystem, String patientValue,
+                                           SmartContext smartContext) {
         String requestId = UUID.randomUUID().toString();
 
         List<VgConfig> targets = resolveTargets(vgHsaId);
@@ -61,9 +63,9 @@ public class DocumentQueryOrchestrator {
         FilterResult<MappedDocumentEntry> filtered = sparr.filterDocumentReferences(all, patientSystem, patientValue);
 
         logg.logSparrFilter(requestId, patientValue, patientSystem, vgHsaId, "DocumentReference",
-                filtered.entries().size(), filtered.failClosed(), props.getBridgeHsaId());
+                filtered.entries().size(), filtered.failClosed(), props.getBridgeHsaId(), smartContext);
         logg.logAccess(requestId, patientValue, patientSystem,
-                "FHIR/DocumentReference", vgHsaId, "DocumentReference", filtered.entries().size(), props.getBridgeHsaId());
+                "FHIR/DocumentReference", vgHsaId, "DocumentReference", filtered.entries().size(), props.getBridgeHsaId(), smartContext);
 
         return buildBundle(requestId, filtered.entries());
     }

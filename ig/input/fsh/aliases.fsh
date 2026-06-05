@@ -21,6 +21,9 @@ Alias: $sct = http://snomed.info/sct
 Alias: $sctSE = http://snomed.info/sct|http://snomed.info/sct/45991000052106
 Alias: $icd10se = https://www.icd10.se/
 
+Alias: ExtraSecurityRoleType = http://terminology.hl7.org/CodeSystem/extra-security-role-type
+Alias: PurposeOfUse = http://terminology.hl7.org/CodeSystem/v3-ActReason
+
 // Audit event terminology (DICOM + HL7 terminology.hl7.org)
 Alias: DCM = http://dicom.nema.org/resources/ontology/DCM
 Alias: AuditEntityType = http://terminology.hl7.org/CodeSystem/audit-entity-type

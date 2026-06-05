@@ -48,7 +48,6 @@ enbart i loggningssyfte — tilliten skapas av att gatewayen validerade tokenet.
 * outcome 1..1 MS
 
 * purposeOfEvent 0..* MS
-* purposeOfEvent from http://terminology.hl7.org/ValueSet/v3-PurposeOfUse (preferred)
 * purposeOfEvent ^short = "Ändamål: TREAT (vård och behandling), ETREAT (nödsituation) – från purpose_of_use-claim eller SMART scope"
 
 // Subtype

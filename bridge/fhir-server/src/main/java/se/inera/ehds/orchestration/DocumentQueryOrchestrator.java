@@ -14,10 +14,14 @@ import se.inera.ehds.service.LoggService;
 import se.inera.ehds.service.SmartContext;
 import se.inera.ehds.service.SparrFilterService;
 
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
+import java.util.Date;
+import java.util.List;
+import java.util.UUID;
 
+/**
+ * Orkestrerar FHIR DocumentReference-sökning för ett VG-scopat anrop:
+ *   VG-endpoint → FHIR-anrop → post-query Sparr (organisationsnivå) → Logg
+ */
 @Service
 public class DocumentQueryOrchestrator {
 
@@ -48,19 +52,17 @@ public class DocumentQueryOrchestrator {
                                            SmartContext smartContext) {
         String requestId = UUID.randomUUID().toString();
 
-        List<VgConfig> targets = resolveTargets(vgHsaId);
+        VgConfig vg = vgConfigLoader.findByHsaId(vgConfigs, vgHsaId)
+                .filter(v -> v.getResource("DocumentReference").isPresent())
+                .orElse(null);
 
-        List<CompletableFuture<List<MappedDocumentEntry>>> futures = targets.stream()
-                .map(vg -> CompletableFuture.supplyAsync(
-                        () -> fhirClient.fetchDocumentReferences(vg, patientSystem, patientValue)))
-                .toList();
+        if (vg == null) {
+            log.warn("Ingen DocumentReference-endpoint konfigurerad för vgHsaId={}", vgHsaId);
+            return buildBundle(requestId, List.of());
+        }
 
-        CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
-        List<MappedDocumentEntry> all = futures.stream()
-                .flatMap(f -> f.join().stream())
-                .collect(Collectors.toList());
-
-        FilterResult<MappedDocumentEntry> filtered = sparr.filterDocumentReferences(all, patientSystem, patientValue);
+        List<MappedDocumentEntry> entries = fhirClient.fetchDocumentReferences(vg, patientSystem, patientValue);
+        FilterResult<MappedDocumentEntry> filtered = sparr.filterDocumentReferences(entries, patientSystem, patientValue);
 
         logg.logSparrFilter(requestId, patientValue, patientSystem, vgHsaId, "DocumentReference",
                 filtered.entries().size(), filtered.failClosed(), props.getBridgeHsaId(), smartContext);
@@ -68,13 +70,6 @@ public class DocumentQueryOrchestrator {
                 "FHIR/DocumentReference", vgHsaId, "DocumentReference", filtered.entries().size(), props.getBridgeHsaId(), smartContext);
 
         return buildBundle(requestId, filtered.entries());
-    }
-
-    private List<VgConfig> resolveTargets(String vgHsaId) {
-        if (vgHsaId == null) return List.of();
-        return vgConfigLoader.findByHsaId(vgConfigs, vgHsaId)
-                .filter(vg -> vg.getResource("DocumentReference").isPresent())
-                .map(List::of).orElse(List.of());
     }
 
     private Bundle buildBundle(String requestId, List<MappedDocumentEntry> entries) {

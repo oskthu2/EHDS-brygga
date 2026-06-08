@@ -5,7 +5,8 @@ Filen styr tre saker simultaneously:
 
 | Syfte | Beteende |
 |---|---|
-| **Auktorisering** | Okänt `vgHsaId` i URL:en → tom Bundle utan backend-anrop |
+| **Auktorisering** | Okänt `vgHsaId` i URL:en → 404 på `/metadata`; tom Bundle på resursanrop |
+| **CapabilityStatement** | `/{vgHsaId}/fhir/metadata` returnerar ett VG-specifikt CapabilityStatement med enbart de resurstyper som VG:n stöder |
 | **Routing** | `endpointUrl` avgör om anropet går via ntjp-proxy (TK) eller direkt mot ett nativt FHIR-API |
 | **Tjänstekatalog** | Registret visar vilka VG:er som tillhandahåller vilka resurstyper och hur — underlag för eHM:s tjänstekatalog |
 
@@ -38,7 +39,7 @@ vgConfigs:
 
 | Fält | Obligatorisk | Beskrivning |
 |---|---|---|
-| `vgHsaId` | Ja | VG:ns HSA-id. Används som logisk adress mot NTjP och som URL-segment i `/fhir/{vg-hsa-id}/`. |
+| `vgHsaId` | Ja | VG:ns HSA-id. Används som logisk adress mot NTjP och som URL-segment i `/{vgHsaId}/fhir/`. |
 | `description` | Nej | Fritext, används enbart för läsbarhet. |
 | `resources` | Ja | Map från FHIR-resurstyp (t.ex. `Condition`, `DocumentReference`) till routing-konfiguration. |
 | `resources.<typ>.access` | Ja | `tk` — anrop routas via ntjp-proxy med RIVTA SOAP. `fhir` — anrop går direkt mot VG:ns egna FHIR-API. |
@@ -46,11 +47,20 @@ vgConfigs:
 
 ## Semantik
 
-### Auktorisering
+### Auktorisering och discovery
 
 Bryggan tillåter enbart anrop mot `vgHsaId`-värden som finns i `vg-config.yaml`.
+
+`GET /{vgHsaId}/fhir/metadata` returnerar ett VG-specifikt CapabilityStatement som
+enbart listar de resurstyper vars `resources`-post finns i konfigurationen. Okänt
+`vgHsaId` ger `404 Not Found`. En konsument kan alltså använda `metadata`-endpointen
+för att utforska vad en specifik VG tillhandahåller innan ett patientanrop initieras.
+
+`GET /.well-known/smart-configuration` returnerar gemensam SMART-konfiguration
+(authorization, token, introspection, scopes) för hela bryggan.
+
 En VG som saknar post för en given resurstyp anses inte tillhandahålla den resursen —
-anropet returnerar omedelbart en tom Bundle utan att kontakta någon backend.
+resurstypen syns inte i CapabilityStatement och anrop returnerar en tom Bundle.
 
 ### Routing
 

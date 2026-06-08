@@ -9,7 +9,7 @@ tjänsteplattform (NTjP).
 
 Systemet är utformat för att vara:
 
-- **VG-scopat** – ett URL-segment per VG; ingen aggregering över VG-gränser i ett anrop
+- **VG-scopat** – varje VG har ett eget virtuellt FHIR-endpoint (`/{vgHsaId}/fhir`) med eget CapabilityStatement; ingen aggregering över VG-gränser i ett anrop
 - **Konfigurationsdrivet** – nya tjänstekontrakt aktiveras via `vg-config.yaml` + ny mappningsklass
 - **Stateless** – bryggan cachelagrar ingen patientdata; alla anrop är realtidsgenomströmning
 - **Spårbart** – alla anrop loggas (ATNA/BALP) i Ineras loggtjänst
@@ -23,8 +23,8 @@ I testmiljö tillkommer fyra mock-containers samt en HAPI FHIR audit-databas.
 
 | Container / modul | Teknisk karaktär | Syfte |
 |---|---|---|
-| **Gateway** | nginx (PoC), KONG + WSO2 APIM (prod) | TLS-terminering, URL-routing, extraherar `{vg-hsa-id}` → `X-VG-HSA-ID`-header. Serverar SMART `/.well-known/`-endpoints (statisk JSON). |
-| **fhir-server** *(bryggtjänst, modul 1)* | Spring Boot + HAPI FHIR | FHIR Resource Providers. Orkestrering: parallella FHIR-anrop per VG-resurs → Spärr → Logg. Routing styrs av per-resurs-konfiguration i `vg-config.yaml`. |
+| **Gateway** | nginx (PoC), KONG + WSO2 APIM (prod) | TLS-terminering, URL-routing. Vidarebefordrar hela sökvägen `/{vgHsaId}/fhir/**` till fhir-server oförändrad. |
+| **fhir-server** *(bryggtjänst, modul 1)* | Spring Boot + HAPI FHIR | FHIR Resource Providers. Extraherar `{vgHsaId}` ur URL-sökvägen. Virtualiserar ett FHIR-endpoint per VG: `/{vgHsaId}/fhir/metadata` returnerar VG-specifikt CapabilityStatement baserat på `vg-config.yaml`. Orkestrering: parallella FHIR-anrop per VG-resurs → Spärr → Logg. Serverar `/.well-known/smart-configuration` (gemensamt). |
 | **ntjp-proxy** *(bryggtjänst, modul 2)* | Spring Boot + Apache CXF | All SOAP/RIVTA-logik. Innehåller mapping-engine och soap-client. Exponerar FHIR-API per VG. Deployerbar centralt eller nära VG. |
 | **mapping-engine** *(bryggtjänst, modul 3)* | Maven-bibliotek (JAR) | RIVTA JAXB-typer, NamingSystemRegistry (OID↔URI), ConceptMapRegistry (RIVTA-kod → FHIR-kod), TK-specifika mappningsklasser (GetDiagnosisMapper, GetDocumentListMapper). |
 
@@ -44,8 +44,7 @@ I testmiljö tillkommer fyra mock-containers samt en HAPI FHIR audit-databas.
 Ingångspunkt för alla externa FHIR-anrop. Hanterar:
 
 - TLS-terminering
-- Multi-tenant URL-routing: extraherar `{vg-hsa-id}` ur `/fhir/{vg-hsa-id}/{resurs}`
-  och vidarebefordrar det som `X-VG-HSA-ID`-header till fhir-server
+- URL-routing: vidarebefordrar `/{vgHsaId}/fhir/**` till fhir-server med sökvägen oförändrad
 - *Planerat:* vidarebefordran till Åtkomstintygstjänsten för JWT-validering
 
 ### Åtkomstintygstjänst *(planerad)*
@@ -56,13 +55,19 @@ ur JWT-claims och gör dessa tillgängliga för bryggtjänsten.
 
 ### fhir-server (Spring Boot + HAPI FHIR)
 
-Kärnan i FHIR-laget. Tar emot och validerar FHIR-förfrågningar, extraherar VG-kontexten
-från `X-VG-HSA-ID`-headern och driver anropsflödet:
+Kärnan i FHIR-laget. Virtualiserar ett FHIR-endpoint per VG under `/{vgHsaId}/fhir/**`.
+Extraherar VG-kontexten ur URL-sökvägen och driver anropsflödet:
 
 1. Slår upp per-resurs-konfiguration för VG:n i `vg-config.yaml` (endpoint-URL + accessmetod)
 2. Anropar VG-endpointen via HTTP/FHIR (ntjp-proxy eller nativt FHIR-API, beroende på `access`)
 3. Filtrerar svaret mot Säkerhetstjänsten (spärr, organisationsnivå)
 4. Returnerar `Bundle` till konsumenten (AuditEvent POSTas asynkront, se [Audit-händelser](audit-events.html))
+
+`/{vgHsaId}/fhir/metadata` returnerar ett VG-specifikt CapabilityStatement som enbart
+listar de resurstyper som VG:n stöder enligt `vg-config.yaml`. Okänt `vgHsaId` → 404.
+
+`/.well-known/smart-configuration` returnerar gemensam SMART-konfiguration för alla VG:ar
+(authorizationendpoint, token, introspection, scopes).
 
 ### ntjp-proxy (Spring Boot + Apache CXF)
 
@@ -115,17 +120,19 @@ Bundle levererats till klienten.
 
 ## Anropsflöde
 
-### VG-scopat anrop: GET /fhir/{vg-hsa-id}/Condition
+### VG-scopat anrop: GET /{vgHsaId}/fhir/Condition
 
 ```
 Konsument        Gateway       fhir-server        ntjp-proxy        Inera / VG
     |                |               |                  |                |
-    |-- GET /fhir/   |               |                  |                |
-    |   {vg-hsa-id}/ |               |                  |                |
+    |-- GET           |               |                  |                |
+    |   /{vgHsaId}/  |               |                  |                |
+    |   fhir/        |               |                  |                |
     |   Condition?   |               |                  |                |
     |   patient={pnr}→               |                  |                |
-    |                |-- X-VG-HSA-ID |                  |                |
-    |                |   + routing  →|                  |                |
+    |                |-- routing    →|                  |                |
+    |                |   (sökväg    |                  |                |
+    |                |   oförändrad)|                  |                |
     |                |               |                  |                |
     |          [JWT-validering, scope: system/Condition.read — planerat]
     |                |               |                  |                |

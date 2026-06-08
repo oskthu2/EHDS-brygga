@@ -9,8 +9,9 @@ import se.inera.ehds.fhir.provider.ConditionResourceProvider;
 import se.inera.ehds.fhir.provider.DocumentReferenceResourceProvider;
 
 /**
- * HAPI FHIR RestfulServer registered at /* in Spring Boot.
- * nginx strips /fhir/ prefix before forwarding, so HAPI receives /Condition, /metadata etc.
+ * HAPI FHIR RestfulServer registrerad på /* i Spring Boot.
+ * {@link VgAwareAddressStrategy} beräknar bas-URL ur URL-sökvägen (/{vgHsaId}/fhir),
+ * vilket gör att HAPI korrekt kan tolka resurssökvägar som /Condition och /metadata.
  */
 public class EhdsFhirServer extends RestfulServer {
 
@@ -35,8 +36,8 @@ public class EhdsFhirServer extends RestfulServer {
         registerProvider(conditionProvider);
         registerProvider(documentReferenceProvider);
         setDefaultPrettyPrint(true);
+        setServerAddressStrategy(new VgAwareAddressStrategy());
 
-        // Tenant interceptor: extracts X-VG-HSA-ID header into RequestDetails
         registerInterceptor(tenantInterceptor);
         // CapabilityStatement enricher: adds EU HDA/EPS conformance, SMART security, profiles
         registerInterceptor(csEnricher);

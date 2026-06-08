@@ -6,8 +6,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.web.client.RestTemplate;
 import se.inera.ehds.config.AppProperties;
+import se.inera.ehds.config.VgConfig;
+import se.inera.ehds.config.VgConfigLoader;
 import se.inera.ehds.fhir.provider.ConditionResourceProvider;
 import se.inera.ehds.fhir.provider.DocumentReferenceResourceProvider;
+
+import java.util.List;
 
 @Configuration
 @EnableAsync
@@ -19,8 +23,10 @@ public class HapiConfig {
     }
 
     @Bean
-    public CapabilityStatementEnricher capabilityStatementEnricher(AppProperties props) {
-        return new CapabilityStatementEnricher(props.getAuthBaseUrl());
+    public CapabilityStatementEnricher capabilityStatementEnricher(AppProperties props,
+                                                                    List<VgConfig> vgConfigs,
+                                                                    VgConfigLoader vgConfigLoader) {
+        return new CapabilityStatementEnricher(props.getAuthBaseUrl(), vgConfigs, vgConfigLoader);
     }
 
     @Bean

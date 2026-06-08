@@ -262,7 +262,7 @@ utan undantag.
 
 ### DocumentReference: Provenance
 
-Sparr-filtret körs på organisationsnivå (`careProviderHSAId`) för både Condition och
-DocumentReference. Däremot skapas inga Provenance-resurser för DocumentReference-poster –
-hela kedjan (author/custodian/assembler) som finns för Condition saknas. Detta är en känd
-PoC-begränsning.
+Provenance skapas för DocumentReference-poster på samma sätt som för Condition —
+med `custodian` (`careProviderHSAId`), `author` (`careUnitHSAId`) och `assembler`
+(bryggan). Sparr-filtret körs därmed på fullständig organisationsnivå för båda
+resurstyper.

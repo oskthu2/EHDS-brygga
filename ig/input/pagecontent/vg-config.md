@@ -1,7 +1,7 @@
 # VG-konfiguration (`vg-config.yaml`)
 
 `vg-config.yaml` är EHDS-brygganss enda källa för VG-anslutningsinformation.
-Filen styr tre saker simultaneously:
+Filen styr tre saker samtidigt:
 
 | Syfte | Beteende |
 |---|---|

@@ -40,12 +40,14 @@ Händelsetypen särskiljs via `subtype` med kod från
 
 Loggas av fhir-server för varje inkommande patientbunden fråga. Innehåller:
 
-- `agent[consumer]` (requestor=true): konsumentsystemet, identifierat via JWT/OAuth eller `X-Client-HSA-ID`
+- `agent[system]` (requestor=true om ingen användare): eHM-applikationen, identifierad via JWT-claim `client_id` eller `azp`
+- `agent[user]` (requestor=true, valfri): inloggad vårdpersonal, identifierad via JWT-claim `fhirUser` eller `sub` (när skild från `client_id`); utelämnas vid rent systemanrop
 - `agent[bridge]` (requestor=false): fhir-server med DCM#110153 "Source Role ID"
+- `purposeOfEvent`: från JWT-claim `purpose_of_use` eller extraherat ur `scope` (t.ex. `TREAT`, `ETREAT`); utelämnas om saknas
 - `entity[patient]`: patientidentifierare
 - `entity[query]`: Base64-koded sträng med resurstyp, VG HSA-id och resultCount
 
-**Nuläge:** implementerad i `LoggService` — AuditEvent POSTas till audit-databasens `/AuditEvent`-endpoint.
+**Nuläge:** implementerad i `LoggService` — AuditEvent POSTas asynkront till audit-databasens `/AuditEvent`-endpoint.
 
 ## Spärrtillämpning {#sparr-filter}
 
@@ -60,7 +62,7 @@ Loggas av fhir-server efter `SparrFilterService` körts. Fångar utfallet av sp�
 
 Ger revisionsspår för hur många poster som faktiskt lämnades ut efter sekretessfiltrering.
 
-**Nuläge:** planerad; loggningspunkt finns i orchestratorerna men skapar ännu inte separat `sparr-filter`-händelse.
+**Nuläge:** implementerad i `LoggService.logSparrFilter()` — anropas av orchestratorerna direkt efter att `SparrFilterService` körts.
 
 ## Proxy-hämtning {#proxy-fetch}
 
@@ -76,7 +78,7 @@ Loggas av ntjp-proxy efter att ett SOAP-anrop till NTjP slutförts och konverter
 
 Möjliggör spårning på transaktionsnivå: vilka SOAP-anrop gjordes, mot vilka VG:er, med vilket resultat.
 
-**Nuläge:** planerad; ntjp-proxy har ännu ingen loggningspunkt.
+**Nuläge:** implementerad i `ProxyAuditService.logProxyFetch()` i ntjp-proxy — anropas av `ConditionProxyController` och `DocumentReferenceProxyController` efter varje SOAP-anrop.
 
 ## Infrastruktur
 

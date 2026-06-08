@@ -3,16 +3,16 @@
 ## Översikt
 
 EHDS-bryggan exponerar en enskild vårdgivares (VG) hälsodata via ett EURIDICE/FHIR R4-API.
-Varje VG har en dedikerad API-yta under `/fhir/{vg-hsa-id}/`, och bryggan fungerar som en
-direktöversättare mellan FHIR och regionens befintliga RIVTA SOAP-tjänster i nationell
-tjänsteplattform (NTjP).
+Varje VG har ett dedikerat virtuellt FHIR-endpoint under `/{vg-hsa-id}/fhir/`, och bryggan
+fungerar som en direktöversättare mellan FHIR och regionens befintliga RIVTA SOAP-tjänster
+i nationell tjänsteplattform (NTjP).
 
 Systemet är utformat för att vara:
 
 - **VG-scopat** – varje VG har ett eget virtuellt FHIR-endpoint (`/{vgHsaId}/fhir`) med eget CapabilityStatement; ingen aggregering över VG-gränser i ett anrop
 - **Konfigurationsdrivet** – nya tjänstekontrakt aktiveras via `vg-config.yaml` + ny mappningsklass
 - **Stateless** – bryggan cachelagrar ingen patientdata; alla anrop är realtidsgenomströmning
-- **Spårbart** – alla anrop loggas (ATNA/BALP) i Ineras loggtjänst
+- **Spårbart** – alla anrop loggas som FHIR `AuditEvent` i lokal audit-databas (se [Audit-händelser](audit-events.html))
 - **Säkert** – JWT-validering, mTLS mot NTjP, post-query spärrfiltrering
 
 ## Containers och moduler
@@ -24,7 +24,7 @@ I testmiljö tillkommer fyra mock-containers samt en HAPI FHIR audit-databas.
 | Container / modul | Teknisk karaktär | Syfte |
 |---|---|---|
 | **Gateway** | nginx (PoC), KONG + WSO2 APIM (prod) | TLS-terminering, URL-routing. Vidarebefordrar hela sökvägen `/{vgHsaId}/fhir/**` till fhir-server oförändrad. |
-| **fhir-server** *(bryggtjänst, modul 1)* | Spring Boot + HAPI FHIR | FHIR Resource Providers. Extraherar `{vgHsaId}` ur URL-sökvägen. Virtualiserar ett FHIR-endpoint per VG: `/{vgHsaId}/fhir/metadata` returnerar VG-specifikt CapabilityStatement baserat på `vg-config.yaml`. Orkestrering: parallella FHIR-anrop per VG-resurs → Spärr → Logg. Serverar `/.well-known/smart-configuration` (gemensamt). |
+| **fhir-server** *(bryggtjänst, modul 1)* | Spring Boot + HAPI FHIR | FHIR Resource Providers. Extraherar `{vgHsaId}` ur URL-sökvägen. Virtualiserar ett FHIR-endpoint per VG: `/{vgHsaId}/fhir/metadata` returnerar VG-specifikt CapabilityStatement baserat på `vg-config.yaml`. Orkestrering: FHIR-anrop per VG-resurs → Spärr → Logg. Serverar `/.well-known/smart-configuration` (gemensamt). |
 | **ntjp-proxy** *(bryggtjänst, modul 2)* | Spring Boot + Apache CXF | All SOAP/RIVTA-logik. Innehåller mapping-engine och soap-client. Exponerar FHIR-API per VG. Deployerbar centralt eller nära VG. |
 | **mapping-engine** *(bryggtjänst, modul 3)* | Maven-bibliotek (JAR) | RIVTA JAXB-typer, NamingSystemRegistry (OID↔URI), ConceptMapRegistry (RIVTA-kod → FHIR-kod), TK-specifika mappningsklasser (GetDiagnosisMapper, GetDocumentListMapper). |
 
@@ -233,10 +233,11 @@ Ingen ändring i Gateway, fhir-server-orkestrerare eller HAPI-konfiguration beh�
 - Yttre spärr: `careProviderHSAId` (organisationsnivå) från `Provenance.agent[role=custodian]`
 - Inre spärr: `careUnitHSAId` (avdelningsnivå) från `Provenance.agent[role=author]`
 
-### Loggning (PDL / ATNA/BALP)
+### Loggning (PDL / AuditEvent)
 
-Alla åtkomster loggas med patientidentifierare, aktör, tidpunkt och ändamål.
-Loggposter skickas till Ineras loggtjänst i ATNA/BALP-format.
+Alla åtkomster loggas som FHIR `AuditEvent`-resurser med patientidentifierare, aktör,
+tidpunkt och ändamål. Loggposter POSTas asynkront till en dedikerad HAPI FHIR-instans
+(`audit-db`). Se [Audit-händelser](audit-events.html) för detaljer.
 
 ## Driftsättning
 

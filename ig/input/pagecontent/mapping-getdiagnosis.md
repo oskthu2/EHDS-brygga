@@ -262,6 +262,38 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
 }
 ```
 
+### Förklaring av mappningen i exemplet
+
+- `clinicalStatus = active` – inget slutdatum i `diagnosisTimePeriod`, så diagnosen är fortfarande aktiv
+- `verificationStatus = confirmed` – sätts alltid vid mappning från RIVTA
+- `category[diagnostyp].coding.code = HD` – `diagnosisType = HD` (Huvuddiagnos) mappas direkt till Ineras kv_diagnostyp-kod
+- `code.coding.system = https://www.icd10.se/` – OID `1.2.752.116.1.1.1.1.3` konverteras till ICD-10-SE URI
+- `subject.identifier.system = http://electronichealth.se/identifier/personnummer` – OID `1.2.752.129.2.1.3.1` konverteras till kanonisk URI (HL7 Sweden basprofiler)
+- `recordedDate` – `20230601120000` konverteras till `2023-06-01T12:00:00`
+- `onsetDateTime` – `20230601` konverteras till `2023-06-01`
+- `meta.source = urn:oid:1.2.752.129.2.1.4.1#SE2321000016-4HK5` – källsystemets HSA-id som URI
+- `recorder` – `accountableHealthcareProfessional.personId` mappas till logisk PractitionerRole-referens
+- `asserter` – `legalAuthenticator.hcProfessional.personId` mappas till logisk PractitionerRole-referens
+- `extension[assertedDate]` – `legalAuthenticator.signatureDate` konverteras till `2023-06-01`
+
+## Fältvalidering
+
+Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver följande fält (kardinalitet 1..1 eller 1..*):
+
+- `clinicalStatus` – alltid satt (active eller resolved baserat på slutdatum)
+- `verificationStatus` – alltid satt till `confirmed`
+- `category[diagnostyp]` – exakt ett diagnostyp-snitt med kod från kv_diagnostyp
+- `code` – diagnoskod med minst en coding
+- `subject.identifier` – patientidentifierare med system och value
+
+Valfria fält (0..1) som sätts när källdata finns:
+
+- `recorder` – sätts om `accountableHealthcareProfessional` finns i RIVTA-svaret
+- `asserter` – sätts om `legalAuthenticator` finns i RIVTA-svaret
+- `extension[assertedDate]` – sätts om `legalAuthenticator.signatureDate` finns
+- `onsetDateTime` – sätts om `diagnosisTimePeriod.start` finns
+- `abatementDateTime` – sätts om `diagnosisTimePeriod.end` finns
+
 ## Provenance
 
 För varje Condition skapas en Provenance-resurs som inkluderas i sökbundlen med `Bundle.entry.search.mode = include`. Provenance-resursen bär den fullständiga provenanskedjan:
@@ -280,6 +312,6 @@ Provenance-resursen refererar Condition via `Provenance.target = urn:uuid:{Condi
 ## PoC-begränsningar
 
 ### Spärr: inre och yttre
-EHDS-bryggan är avsedd för cross-border och ska applicera alla spärrar. Sparrkontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med Ineras spärrtjänst.
+EHDS-bryggan är avsedd för cross-border och ska applicera alla spärrar. Sparrkontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med Ineras spärrtjänst som beskrivs på [Ineras konfluensida](https://inera.atlassian.net/wiki/spaces/PIS/pages/3435203724/).
 
 **Utanför PoC-scope:** En vårdgivare som tillhör en spärrad enhet men ändå har rätt att ta del av informationen (t.ex. nödsituationer / break-the-glass) hanteras inte. Denna logik kräver kontextinformation om inloggad användares behörighet och är out of scope för PoC:en.

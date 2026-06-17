@@ -50,10 +50,11 @@ Bryggan bevarar dessa som `urn:oid:` och söker upp via de båda kända OID-vari
 | `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id (Inera NTjP/RIVTA) | [NsHsaIdInera](NamingSystem-NsHsaIdInera.html) |
 | `1.2.752.29.4.19` | `urn:oid:1.2.752.29.4.19` | HSA-id (HL7 Sweden basprofiler) | [NsHsaIdBasprofil](NamingSystem-NsHsaIdBasprofil.html) |
 
-HSA-id förekommer i RIVTA-svar som `sourceSystemHSAId`, `careProviderHSAId` och `careUnitHSAId`
-och bärs vidare till FHIR-resurser via `Condition.recorder`, `Condition.extension[sourceSystem]`,
-`Condition.extension[careProvider]`, `Condition.extension[careUnit]`, `DocumentReference.author`,
-`DocumentReference.custodian` och `DocumentReference.extension[careProvider]`.
+HSA-id förekommer i RIVTA-svar som `sourceSystemHSAId`, `careProviderHSAId`, `careUnitHSAId`,
+`accountableHealthcareProfessional.personId` och `legalAuthenticator.hcProfessional.personId`.
+De bärs vidare till FHIR-resurser via `Condition.meta.source`, `Condition.recorder`,
+`Condition.asserter`, `Provenance.agent[custodian]`, `Provenance.agent[author]`,
+`DocumentReference.author`, `DocumentReference.authenticator` och `DocumentReference.meta.source`.
 
 ## Professionella identifierare
 

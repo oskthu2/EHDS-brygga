@@ -2,6 +2,15 @@
 Alias: $ipsCondition = http://hl7.org/fhir/uv/ips/StructureDefinition/Condition-uv-ips
 Alias: $ipsPatient = http://hl7.org/fhir/uv/ips/StructureDefinition/Patient-uv-ips
 
+// Svenska basprofiler (HL7 Sweden basprofiler-r4, hl7se.fhir.base)
+Alias: $seBasePatient = http://hl7.se/fhir/ig/base/StructureDefinition/SEBasePatient
+Alias: $seBasePractitionerRole = http://hl7.se/fhir/ig/base/StructureDefinition/SEBasePractitionerRole
+Alias: $seBasePractitioner = http://hl7.se/fhir/ig/base/StructureDefinition/SEBasePractitioner
+Alias: $seBaseOrganization = http://hl7.se/fhir/ig/base/StructureDefinition/SEBaseOrganization
+
+// EHDS-brygga egna profiler
+Alias: $seEhdsPatient = https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-patient
+
 // EURIDICE/EHDS canonical base (EU EHDS IG)
 Alias: $euCondition = https://hl7.eu/fhir/ehds/StructureDefinition/Condition-eu-ehds
 Alias: $euDocumentReference = https://hl7.eu/fhir/ehds/StructureDefinition/DocumentReference-eu-ehds
@@ -11,6 +20,9 @@ Alias: $epsConditionObl = http://hl7.eu/fhir/eps/StructureDefinition/condition-o
 
 // Terminologi
 Alias: $iheDocType = http://ihe.net/connectathon/classCodes
+
+// Inera terminologitjänst
+Alias: $diagnosisTypeCS = https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp
 
 // External code system aliases
 Alias: $conditionClinical = http://hl7.org/fhir/ValueSet/condition-clinical
@@ -29,6 +41,8 @@ Alias: DCM = http://dicom.nema.org/resources/ontology/DCM
 Alias: AuditEntityType = http://terminology.hl7.org/CodeSystem/audit-entity-type
 Alias: ObjectRole = http://terminology.hl7.org/CodeSystem/object-role
 Alias: SEEHDSAuditSubtypeCS = https://ehds-brygga.inera.se/fhir/CodeSystem/audit-event-subtype
+
+// Svenska identifierarsystem (HL7 Sweden basprofiler-r4)
 Alias: $personnummerSystem = http://electronichealth.se/identifier/personnummer
 Alias: $samordningsnummerSystem = http://electronichealth.se/identifier/samordningsnummer
 Alias: $lmaNummer = http://electronichealth.se/identifier/LMA-nummer

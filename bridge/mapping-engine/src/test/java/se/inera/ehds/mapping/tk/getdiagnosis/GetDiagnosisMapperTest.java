@@ -104,33 +104,35 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void verificationStatus_sätts_inte_automatiskt() {
+        void verificationStatus_sätts_till_confirmed() {
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(minimalDiagnosis()), ctx);
             Condition c = result.get(0).condition();
-            assertTrue(c.getVerificationStatus().isEmpty());
+            assertEquals("confirmed", c.getVerificationStatus().getCodingFirstRep().getCode());
         }
     }
 
     @Nested
     class DiagnosKategori {
         @Test
-        void HD_mappar_till_encounter_diagnosis() {
+        void HD_mappar_till_kv_diagnostyp_HD() {
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisBody().setDiagnosisType("HD");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
-            assertEquals("encounter-diagnosis", c.getCategoryFirstRep().getCodingFirstRep().getCode());
+            assertEquals("HD", c.getCategoryFirstRep().getCodingFirstRep().getCode());
+            assertEquals("https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp",
+                    c.getCategoryFirstRep().getCodingFirstRep().getSystem());
         }
 
         @Test
-        void BY_mappar_till_bi_diagnos() {
+        void BY_mappar_till_kv_diagnostyp_BY() {
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisBody().setDiagnosisType("BY");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
-            assertEquals("bi-diagnos", c.getCategoryFirstRep().getCodingFirstRep().getCode());
+            assertEquals("BY", c.getCategoryFirstRep().getCodingFirstRep().getCode());
         }
 
         @Test
@@ -261,14 +263,61 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void assertedDate_läggs_till_som_extension() {
+        void assertedDate_från_legalAuthenticator_signatureDate_läggs_till_som_extension() {
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisBody().setAssertedDate("20240101");
+            LegalAuthenticatorType la = new LegalAuthenticatorType();
+            la.setSignatureDate("20240101");
+            diag.getDiagnosisHeader().setLegalAuthenticator(la);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
             assertFalse(c.getExtension().isEmpty());
             assertTrue(c.getExtension().get(0).getUrl().endsWith("ext-asserted-date"));
+        }
+    }
+
+    @Nested
+    class RecorderOchAsserter {
+        @Test
+        void accountableHealthcareProfessional_mappar_till_recorder() {
+            Diagnosis diag = minimalDiagnosis();
+            HealthcareProfessionalType ahp = new HealthcareProfessionalType();
+            PersonIdType pid = new PersonIdType();
+            pid.setRoot("1.2.752.129.2.1.4.1");
+            pid.setExtension("SE2321000016-DOK");
+            ahp.setPersonId(pid);
+            diag.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertNotNull(c.getRecorder());
+            assertEquals("SE2321000016-DOK", c.getRecorder().getIdentifier().getValue());
+        }
+
+        @Test
+        void legalAuthenticator_hcProfessional_mappar_till_asserter() {
+            Diagnosis diag = minimalDiagnosis();
+            LegalAuthenticatorType la = new LegalAuthenticatorType();
+            HealthcareProfessionalType prof = new HealthcareProfessionalType();
+            PersonIdType pid = new PersonIdType();
+            pid.setRoot("1.2.752.129.2.1.4.1");
+            pid.setExtension("SE2321000016-AUTH");
+            prof.setPersonId(pid);
+            la.setHcProfessional(prof);
+            diag.getDiagnosisHeader().setLegalAuthenticator(la);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertNotNull(c.getAsserter());
+            assertEquals("SE2321000016-AUTH", c.getAsserter().getIdentifier().getValue());
+        }
+
+        @Test
+        void recorder_och_asserter_saknas_utan_rivta_data() {
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(minimalDiagnosis()), ctx);
+            Condition c = result.get(0).condition();
+            assertTrue(c.getRecorder().isEmpty());
+            assertTrue(c.getAsserter().isEmpty());
         }
     }
 

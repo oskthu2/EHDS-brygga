@@ -8,7 +8,9 @@ Usage: #example
 
 * clinicalStatus = http://terminology.hl7.org/CodeSystem/condition-clinical#active "Active"
 
-* category[0] = http://terminology.hl7.org/CodeSystem/condition-category#encounter-diagnosis "Encounter Diagnosis"
+* verificationStatus = http://terminology.hl7.org/CodeSystem/condition-ver-status#confirmed "Confirmed"
+
+* category[diagnostyp] = https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp#HD "Huvuddiagnos"
 
 * code.coding[0].system = "https://www.icd10.se/"
 * code.coding[0].code = #J18.9

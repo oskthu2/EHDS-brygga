@@ -8,7 +8,9 @@ Usage: #example
 
 * clinicalStatus = http://terminology.hl7.org/CodeSystem/condition-clinical#resolved "Resolved"
 
-* category[0] = https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType#bi-diagnos "Bidiagnos (FHIR)"
+* verificationStatus = http://terminology.hl7.org/CodeSystem/condition-ver-status#confirmed "Confirmed"
+
+* category[diagnostyp] = https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp#BY "Bidiagnos"
 
 * code.coding[0].system = "https://www.icd10.se/"
 * code.coding[0].code = #I10

@@ -21,7 +21,7 @@ Usage: #example
 * subject.identifier.value = "191212121212"
 
 * onsetDateTime = "2024-01-15"
-* recordedDate = "2024-01-15T08:30:00"
+* recordedDate = "2024-01-15"
 
 * recorder.type = "PractitionerRole"
 * recorder.identifier.system = "urn:oid:1.2.752.129.2.1.4.1"

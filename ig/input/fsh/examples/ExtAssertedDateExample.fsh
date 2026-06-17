@@ -22,6 +22,6 @@ Usage: #example
 
 * onsetDateTime = "2020-03-01"
 * abatementDateTime = "2021-06-30"
-* recordedDate = "2020-03-02T09:00:00"
+* recordedDate = "2020-03-02"
 
 * extension[assertedDate].valueDateTime = "2020-03-02"

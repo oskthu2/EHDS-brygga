@@ -23,6 +23,7 @@ dependencies:
   hl7.fhir.uv.ips: current        # International Patient Summary – basis för EURIDICE
   hl7.fhir.eu.eps: current        # HL7 Europe Patient Summary (EPS) – condition-obl-eu-eps
   hl7.fhir.eu.health-data-api: current  # EU Health Data API – Resource Access Provider capability
+  hl7se.fhir.base: 1.1.0          # HL7 Sweden basprofiler – SEBasePractitionerRole m.fl.
 
 pages:
   index.md:

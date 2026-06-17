@@ -21,10 +21,11 @@ public class GetDiagnosisMapper {
     private static final String HSA_OID_INERA = "1.2.752.129.2.1.4.1";
     private static final String CLIN_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-clinical";
     private static final String VER_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-ver-status";
-    private static final String EXT_ASSERTED_DATE  = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
+    private static final String EXT_ASSERTED_DATE = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-condition";
     private static final String PROFILE_URL_EU_EPS =
             "http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps";
+    private static final String PRACTITIONER_ROLE_TYPE = "PractitionerRole";
 
     private final NamingSystemRegistry namingSystem;
     private final ConceptMapRegistry conceptMaps;
@@ -60,6 +61,9 @@ public class GetDiagnosisMapper {
         boolean resolved = body.getDiagnosisTimePeriod() != null
                 && body.getDiagnosisTimePeriod().getEnd() != null;
         c.setClinicalStatus(codeable(CLIN_STATUS_SYS, resolved ? "resolved" : "active"));
+
+        // verificationStatus: always confirmed for RIVTA-sourced data
+        c.setVerificationStatus(codeable(VER_STATUS_SYS, "confirmed"));
 
         // category: HD → encounter-diagnosis, BY → bi-diagnos via ConceptMap
         ConceptMapEntry cat = conceptMaps.translateDiagnosisType(body.getDiagnosisType())
@@ -116,11 +120,23 @@ public class GetDiagnosisMapper {
             c.getMeta().setSource(hsaSystem + "#" + sourceHsaId);
         }
 
-        // ext-asserted-date: EPS extension – administrative assertion date (author-time)
-        if (body.getAssertedDate() != null) {
-            Extension extAd = new Extension(EXT_ASSERTED_DATE);
-            extAd.setValue(new DateTimeType(RivDateParser.parse(body.getAssertedDate())));
-            c.addExtension(extAd);
+        // recorder: accountableHealthcareProfessional → PractitionerRole (logical reference)
+        HealthcareProfessionalType ahp = header.getAccountableHealthcareProfessional();
+        if (ahp != null && ahp.getPersonId() != null) {
+            c.setRecorder(practitionerRoleRef(ahp.getPersonId(), hsaSystem));
+        }
+
+        // asserter: legalAuthenticator → PractitionerRole; signatureDate → extension[assertedDate]
+        LegalAuthenticatorType la = header.getLegalAuthenticator();
+        if (la != null) {
+            if (la.getHcProfessional() != null && la.getHcProfessional().getPersonId() != null) {
+                c.setAsserter(practitionerRoleRef(la.getHcProfessional().getPersonId(), hsaSystem));
+            }
+            if (la.getSignatureDate() != null) {
+                Extension extAd = new Extension(EXT_ASSERTED_DATE);
+                extAd.setValue(new DateTimeType(RivDateParser.parse(la.getSignatureDate())));
+                c.addExtension(extAd);
+            }
         }
 
         Provenance prov = ProvenanceBuilder.build(
@@ -132,6 +148,15 @@ public class GetDiagnosisMapper {
                 ctx);
 
         return new MappedDiagnosisEntry(c, prov);
+    }
+
+    private Reference practitionerRoleRef(PersonIdType personId, String defaultSystem) {
+        String system = personId.getRoot() != null
+                ? namingSystem.oidToUri(personId.getRoot())
+                : defaultSystem;
+        return new Reference()
+                .setType(PRACTITIONER_ROLE_TYPE)
+                .setIdentifier(new Identifier().setSystem(system).setValue(personId.getExtension()));
     }
 
     private CodeableConcept codeable(String system, String code) {

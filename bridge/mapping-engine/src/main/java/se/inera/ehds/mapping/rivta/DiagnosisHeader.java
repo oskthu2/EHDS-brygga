@@ -7,7 +7,8 @@ import jakarta.xml.bind.annotation.XmlType;
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "DiagnosisHeader", propOrder = {
     "patientId", "sourceSystemHSAId", "documentTime",
-    "careUnitHSAId", "careProviderHSAId"
+    "careUnitHSAId", "careProviderHSAId",
+    "accountableHealthcareProfessional", "legalAuthenticator"
 })
 public class DiagnosisHeader {
     private PersonIdType patientId;
@@ -15,6 +16,8 @@ public class DiagnosisHeader {
     private String documentTime;
     private String careUnitHSAId;
     private String careProviderHSAId;
+    private HealthcareProfessionalType accountableHealthcareProfessional;
+    private LegalAuthenticatorType legalAuthenticator;
 
     public PersonIdType getPatientId() { return patientId; }
     public void setPatientId(PersonIdType patientId) { this.patientId = patientId; }
@@ -26,4 +29,8 @@ public class DiagnosisHeader {
     public void setCareUnitHSAId(String careUnitHSAId) { this.careUnitHSAId = careUnitHSAId; }
     public String getCareProviderHSAId() { return careProviderHSAId; }
     public void setCareProviderHSAId(String careProviderHSAId) { this.careProviderHSAId = careProviderHSAId; }
+    public HealthcareProfessionalType getAccountableHealthcareProfessional() { return accountableHealthcareProfessional; }
+    public void setAccountableHealthcareProfessional(HealthcareProfessionalType accountableHealthcareProfessional) { this.accountableHealthcareProfessional = accountableHealthcareProfessional; }
+    public LegalAuthenticatorType getLegalAuthenticator() { return legalAuthenticator; }
+    public void setLegalAuthenticator(LegalAuthenticatorType legalAuthenticator) { this.legalAuthenticator = legalAuthenticator; }
 }

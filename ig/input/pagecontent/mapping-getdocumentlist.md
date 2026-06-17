@@ -16,11 +16,25 @@
 | `documentEntry.typeCode.displayName` | `DocumentReference.type.coding.display` | Kodverkets officiella benämning |
 | `documentEntry.typeCode.originalText` | `DocumentReference.type.text` | Fritext från källsystemet; om saknad används `displayName` som fallback |
 | `documentEntry.patientId` | `DocumentReference.subject.identifier` | Personnummer/samordningsnummer |
-| `documentEntry.careUnitHSAId` | `DocumentReference.author[0].identifier` | Vårdenhet (informationsägare) |
+| `documentEntry.accountableHealthcareProfessional` | `DocumentReference.author` (Reference(PractitionerRole)) | Ansvarig hälso- och sjukvårdspersonal |
+| `documentEntry.legalAuthenticator` | `DocumentReference.authenticator` (Reference(PractitionerRole)) | Rättslig äkthetsintygsgivare |
 | `documentEntry.careProviderHSAId` | `Provenance.agent[role=custodian].who.identifier` | Juridiskt ansvarig vårdgivare – bärs **enbart** i Provenance |
 | `documentEntry.careUnitHSAId` | `Provenance.agent[role=author].who.identifier` | Vårdenhet i Provenance |
 | `documentEntry.sourceSystemHSAId` | `DocumentReference.meta.source` | Källsystemets HSA-id som URI (urn:oid:{OID}#{hsaId}) |
 | `statusCode == "active"` | `status = current` | Annars `superseded` |
+
+## healthcareProfessionalType → PractitionerRole
+
+Både `accountableHealthcareProfessional` och `legalAuthenticator` är av RIVTA-typen
+`healthcareProfessionalType`, som innehåller uppgifter om en person och deras yrkesroll
+vid tidpunkten för dokumentet. Dessa mappas till FHIR `PractitionerRole` som anges
+som logisk referens via HSA-identifierare.
+
+| RIVTA-underelement | FHIR PractitionerRole-fält | Kommentar |
+|---|---|---|
+| `healthcareProfessional.personId` | `PractitionerRole.identifier` | HSA-id för personen |
+| `healthcareProfessional.personId.root` | `PractitionerRole.identifier.system` | OID→URI via NamingSystemRegistry |
+| `roleAtTime` | `PractitionerRole.code` | Yrkeskategori/roll vid tillfället |
 
 ## content.attachment – platshållare
 

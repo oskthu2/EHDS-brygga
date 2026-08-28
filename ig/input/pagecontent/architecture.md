@@ -33,6 +33,7 @@ I testmiljö tillkommer fyra mock-containers samt en HAPI FHIR audit-databas.
 | Container | Port | Syfte |
 |---|---|---|
 | `mock-tjanstekatalog` | 4001 | T1 — tjänstesökning (FHIR `Endpoint`-sökning, fysisk adress per VG+tjänstekontrakt) |
+| `mock-ei` | 4002 | Engagemangsindex — avgör vilka VG:er som frågas för oscopade ("alla VG") sökningar |
 | `mock-sparr` | 4003 | Säkerhetstjänsten (spärr) |
 | `audit-db` | 4004 | HAPI FHIR R4 – lagrar AuditEvent-resurser (se [Audit-händelser](audit-events.html)) |
 | `mock-backend` | 4005 | Producerande journalsystem (SOAP, kräver Bearer-åtkomstintyg) |
@@ -277,10 +278,10 @@ Bryggan driftsätts som **två huvud-containers** i Kubernetes:
 De tre interna modulerna (`fhir-server`, `ntjp-proxy`, `mapping-engine`) kan vid behov
 deployeras som separata pods, t.ex. för att köra ntjp-proxy nära en specifik VG.
 
-I lokal utveckling tillkommer sex mock-containers (Tjänstekatalog, Federationsmedlemskatalog,
-Åtkomstintygsutfärdare, Spärr, Backend-SOAP, samt EI/Logg som ännu inte är inkopplade i
-anropsflödet) plus `audit-db` (HAPI FHIR för AuditEvent-lagring) via `docker-compose.yml`
-i projektets rot.
+I lokal utveckling tillkommer sju mock-containers (Tjänstekatalog, Federationsmedlemskatalog,
+Åtkomstintygsutfärdare, Engagemangsindex, Spärr, Backend-SOAP, samt Logg som ännu inte är
+inkopplad i anropsflödet) plus `audit-db` (HAPI FHIR för AuditEvent-lagring) via
+`docker-compose.yml` i projektets rot.
 
 ## Kända begränsningar {#kanda-begransningar}
 

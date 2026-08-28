@@ -55,6 +55,22 @@
       "logicalAddress": "SE2321000098-7XYZ",
       "physicalAddress": "http://mock-backend:4005/soap",
       "clinicalProcessInterestId": "SE2321000098-7XYZ#clinicalprocess:activity:conditions"
+    },
+    {
+      "patientId": "191212121212",
+      "patientSystem": "http://electronichealth.se/identifier/personnummer",
+      "namespace": "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1",
+      "logicalAddress": "SE2321000016-4HK5",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "clinicalProcessInterestId": "SE2321000016-4HK5#clinicalprocess:healthrecord"
+    },
+    {
+      "patientId": "191212121212",
+      "patientSystem": "http://electronichealth.se/identifier/personnummer",
+      "namespace": "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1",
+      "logicalAddress": "SE2321000098-7XYZ",
+      "physicalAddress": "http://mock-backend:4005/soap",
+      "clinicalProcessInterestId": "SE2321000098-7XYZ#clinicalprocess:healthrecord"
     }
   ]
 }

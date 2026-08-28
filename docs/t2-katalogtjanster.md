@@ -68,9 +68,18 @@ Mockarna och `ntjp-proxy` har byggts om för att spegla demomiljöns kontrakt oc
 - Detta fixar även det dolda felet ovan: `ConditionProxyController`/`DocumentReferenceProxyController`
   anropar nu en verklig, adresserbar endpoint (den uppslagna via T1) istället för en
   URL utan mottagare.
+- **`mocks/ei` kopplades in** i det oscopade ("alla VG") anropsflödet via ny `EiService`
+  i `fhir-server`. Detta var, precis som TAK-routingen, tidigare bara dokumenterat men
+  aldrig kopplat in: `mock-ei` saknades helt i `docker-compose.yml`, och
+  `VgConfigLoader.findByHsaId(configs, null)` gav en `NullPointerException` för varje
+  oscopat `Condition`/`DocumentReference`-anrop (`hsaId.equals(...)` på ett `null`-värde) —
+  återigen maskerat av CI:s `continue-on-error`. `QueryOrchestrator`/`DocumentQueryOrchestrator`
+  grenar nu explicit: känt `vgHsaId` → oförändrad enkel-VG-sökning; `null` (oscopat anrop) →
+  EI avgör vilka VG:er som frågas, resultaten sammanfogas.
 
 Se README:s [Katalogtjänster och åtkomstintyg (T1/F1)](../README.md#katalogtjänster-och-åtkomstintyg-t1f1)
-för konfigurationsdetaljer.
+och [Anropsflöde (oscopat — "alla VG")](../README.md#anropsflöde-oscopat--alla-vg) för
+konfigurationsdetaljer.
 
 ## Kvarstående skillnader mot den riktiga demomiljön
 
@@ -82,7 +91,7 @@ Dessa gap är medvetet kvar i den här PoC:n:
 | **Anvisad utfärdare** | I demon anvisar anslutningspunkten (Endpoint-resursen) vilken utfärdare som gäller för just den producenten. PoC:n använder en enda, statiskt konfigurerad utfärdare (`ntjp.token-issuer-url`) för alla VG:er — `Endpoint`-mocken bär ingen utfärdarreferens ännu. |
 | **WSO2 API Gateway** | Demons åtkomstkontroll (401/200) sker i en API Gateway framför producenten. I PoC:n sitter samma kontroll i `mock-backend` självt, som får spela båda rollerna. |
 | **mTLS / SAML** | RIVTA BP 2.1 kräver SITHS-certifikat (mTLS) och SAML-assertion utöver OAuth2-intyget. Fortfarande placeholder-kommentarer i `GetDiagnosisClient`/`GetDocumentListClient`. |
-| **Engagemangsindex (EI)** | `mocks/ei` är inte inkopplat i anropsflödet alls (varken före eller efter denna branch) — `fhir-server` frågar aldrig EI innan den anropar VG:erna. Ingen ändring gjord här; kvarstår som separat uppgift. |
+| **Engagemangsindex (EI): RIVTA-kontrakt** | `mocks/ei` och `EiService` (nu inkopplade i det oscopade anropsflödet) exponerar/konsumerar ett förenklat HTTP-API. Produktion ska använda RIVTA `GetEngagements:1`. |
 | **Produktionens verkliga bas-URL:er** | Att faktiskt koppla mot de riktiga T2-katalogtjänsterna kräver TLS, klientcertifikat/nycklar utfärdade av Inera, och att byta `ntjp.tjanstekatalog-url` / `ntjp.fedkatalog-url` / `ntjp.token-issuer-url` (+ klient-id/secret) från mock-adresserna till de riktiga. Själva anropskontraktet (sökparametrar, resurstyper, tokenflöde) är redan detsamma. |
 
 ## Så byter du mockarna mot riktiga tjänster senare

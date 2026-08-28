@@ -10,6 +10,7 @@ import se.inera.ehds.config.VgConfig;
 import se.inera.ehds.config.VgConfigLoader;
 import se.inera.ehds.fhir.provider.ConditionResourceProvider;
 import se.inera.ehds.fhir.provider.DocumentReferenceResourceProvider;
+import se.inera.ehds.mapping.naming.NamingSystemRegistry;
 
 import java.util.List;
 
@@ -50,5 +51,10 @@ public class HapiConfig {
     @Bean
     public RestTemplate restTemplate() {
         return new RestTemplate();
+    }
+
+    @Bean
+    public NamingSystemRegistry namingSystemRegistry() {
+        return new NamingSystemRegistry();
     }
 }

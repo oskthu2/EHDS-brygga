@@ -69,12 +69,12 @@ Ger revisionsspår för hur många poster som faktiskt lämnades ut efter sekret
 **Profil:** [SEEHDSAuditEventProxyFetch]  
 **Subtype:** `proxy-fetch`
 
-Loggas av ntjp-proxy efter att ett SOAP-anrop till NTjP slutförts och konverterats till FHIR:
+Loggas av ntjp-proxy efter att ett SOAP-anrop till producenten slutförts och konverterats till FHIR:
 
 - `agent[caller]` (requestor=true): fhir-server (bridgeHsaId) som initierade anropet
-- `agent[proxy]` (requestor=false): ntjp-proxy med `network.address` = NTjP-endpoint URL
+- `agent[proxy]` (requestor=false): ntjp-proxy med `network.address` = den fysiska adress som slogs upp via T1 (tjänstekatalogen) för anropet
 - `entity[query]`: resurstyp, logisk adress (VG HSA-id), resultCount
-- `outcome = 8` om SOAP-anropet misslyckades
+- `outcome = 8` om F1-medlemsverifieringen nekade anropet, T1-uppslaget inte hittade någon endpoint, eller SOAP-anropet misslyckades (`network.address` saknas i de två förstnämnda fallen)
 
 Möjliggör spårning på transaktionsnivå: vilka SOAP-anrop gjordes, mot vilka VG:er, med vilket resultat.
 

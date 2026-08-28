@@ -24,7 +24,7 @@ jobs:
 
       - name: Lint mock services (Node.js)
         run: |
-          for dir in mocks/tak mocks/ei mocks/sparr mocks/logg mocks/backend; do
+          for dir in mocks/tjanstekatalog mocks/fedkatalog mocks/token-issuer mocks/ei mocks/sparr mocks/logg mocks/backend; do
             echo "-> $dir"
             npm ci --prefix $dir --silent
           done

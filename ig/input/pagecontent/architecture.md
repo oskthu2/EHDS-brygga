@@ -32,10 +32,16 @@ I testmiljö tillkommer fyra mock-containers samt en HAPI FHIR audit-databas.
 
 | Container | Port | Syfte |
 |---|---|---|
-| `mock-ntjp` | 4001 | NTjP / Nationell Tjänsteplattform (SOAP-router) |
+| `mock-tjanstekatalog` | 4001 | T1 — tjänstesökning (FHIR `Endpoint`-sökning, fysisk adress per VG+tjänstekontrakt) |
 | `mock-sparr` | 4003 | Säkerhetstjänsten (spärr) |
 | `audit-db` | 4004 | HAPI FHIR R4 – lagrar AuditEvent-resurser (se [Audit-händelser](audit-events.html)) |
-| `mock-backend` | 4005 | Producerande journalsystem (SOAP) |
+| `mock-backend` | 4005 | Producerande journalsystem (SOAP, kräver Bearer-åtkomstintyg) |
+| `mock-fedkatalog` | 4006 | F1 — medlemsverifiering (FHIR `OrganizationAffiliation`-sökning) |
+| `mock-token-issuer` | 4007 | Åtkomstintygsutfärdare (OAuth2 `client_credentials`) |
+
+Katalogtjänsterna (`mock-tjanstekatalog`, `mock-fedkatalog`) och åtkomstintygsutfärdaren
+(`mock-token-issuer`) speglar API-kontraktet i Ineras "T2-katalogtjänster"-demomiljö, så att
+bryggan på sikt kan pekas om mot de riktiga tjänsterna genom att enbart byta bas-URL:er.
 
 ## Systemkomponenter
 
@@ -74,13 +80,21 @@ listar de resurstyper som VG:n stöder enligt `vg-config.yaml`. Okänt `vgHsaId`
 Separat tjänst (port 8091) som äger all RIVTA SOAP-logik. Tar emot FHIR-förfrågningar
 från fhir-server och returnerar FHIR-resurser, men utför internt:
 
-1. Konverterar FHIR-frågeparametrar till SOAP-request (URI → OID via `NamingSystemRegistry`)
-2. Anropar NTjP/VP med mTLS och korrekt `LogicalAddress` + `x-rivta-original-serviceconsumer-hsaid`
-3. Mappar SOAP-svar till FHIR-resurser + Provenance-poster (via `GetDiagnosisMapper`)
-4. Returnerar en lokal `Bundle` med `searchMode=match` (Condition) och `searchMode=include` (Provenance)
+1. **F1 — medlemsverifiering:** `CatalogDiscoveryService` frågar federationsmedlemskatalogen
+   om VG:n har ett aktivt medlemskap. Nekas anropet direkt om inte.
+2. **T1 — tjänstesökning:** `CatalogDiscoveryService` slår upp den fysiska adressen för
+   rätt tjänstekontrakt hos tjänstekatalogen (`Endpoint`-sökning på HSA-id + RIVTA-namespace).
+3. **Åtkomstintyg:** `AccessTokenService` hämtar (och cachelagrar) ett OAuth2-åtkomstintyg
+   via `client_credentials` från åtkomstintygsutfärdaren.
+4. Konverterar FHIR-frågeparametrar till SOAP-request (URI → OID via `NamingSystemRegistry`)
+5. Anropar den uppslagna adressen med `LogicalAddress` + `x-rivta-original-serviceconsumer-hsaid`
+   + `Authorization: Bearer {access_token}` (mTLS: se [PoC-begränsningar](#kanda-begransningar))
+6. Mappar SOAP-svar till FHIR-resurser + Provenance-poster (via `GetDiagnosisMapper`)
+7. Returnerar en lokal `Bundle` med `searchMode=match` (Condition) och `searchMode=include` (Provenance)
 
 Gränssnittet mot fhir-server är rent FHIR HTTP — fhir-server vet inte om endpointen är
 ntjp-proxy eller ett nativt FHIR-API. Det styrs enbart av `endpointUrl` per resurstyp i `vg-config.yaml`.
+T1/F1-uppslaget mot katalogtjänsterna sker internt i ntjp-proxy, transparent för fhir-server.
 
 ### mapping-engine (Maven-bibliotek)
 
@@ -92,10 +106,18 @@ Delat bibliotek som innehåller:
 - `GetDiagnosisMapper` / `GetDocumentListMapper` — TK-specifik mappningslogik
 - `MappedDiagnosisEntry` — record som håller `(Condition, Provenance)` länkade genom pipelinen
 
-### NTjP / VP (Nationell Tjänsteplattform / Virtuell Producent)
+### Katalogtjänster (T1/F1) och åtkomstintygsutfärdare
 
-Routar SOAP-anropet till rätt producent baserat på tjänstekontrakt och logisk adress.
-SOAP-klienten skickar VG:ns HSA-id som logisk adress; NTjP resolver den fysiska adressen.
+I stället för att förlita sig på en implicit NTjP-intern routingtabell slår ntjp-proxy själv
+upp den fysiska adressen och verifierar federationsmedlemskap innan anrop görs — samma
+mönster som Ineras "T2-katalogtjänster"-demomiljö (Uppslagsdemo):
+
+- **Federationsmedlemskatalogen (F1):** `GET /OrganizationAffiliation?participating-organization.identifier={system}|{vgHsaId}&active=true`
+- **Tjänstekatalogen (T1):** `GET /Endpoint?organization.identifier={system}|{vgHsaId}&status=active&implements={rivtaNamespace}`
+- **Åtkomstintygsutfärdaren:** `POST /token` (`grant_type=client_credentials`) — mockad WSO2 Key Manager-motsvarighet
+
+Producenten (mock-backend) kräver ett `Authorization: Bearer`-huvud på SOAP-anropet och
+svarar 401 utan det — samma nolläge som demomiljön visar för anrop utan åtkomstintyg.
 
 ### Säkerhetstjänsten (Spärr)
 
@@ -138,9 +160,15 @@ Konsument        Gateway       fhir-server        ntjp-proxy        Inera / VG
     |                |               |                  |                |
     |                |               |-- GET Condition? →               |
     |                |               |   (FHIR HTTP)    |               |
+    |                |               |                  |-- F1: aktiv medlem? -→ (fedkatalog)
+    |                |               |                  |←-- ja/nej -----|
+    |                |               |                  |-- T1: fysisk URL? --→ (tjänstekatalog)
+    |                |               |                  |←-- Endpoint.address -|
+    |                |               |                  |-- token (client_credentials) --→ (åtkomstintygsutfärdare)
+    |                |               |                  |←-- access_token -----|
     |                |               |                  |-- SOAP        |
     |                |               |                  |   GetDiagnosis:2
-    |                |               |                  |              →| (NTjP/VP)
+    |                |               |                  |   + Bearer   →| (uppslagen adress)
     |                |               |                  |               |→ Producent
     |                |               |                  |               |←- SOAP-svar
     |                |               |                  |←-- SOAP-svar --|
@@ -249,8 +277,10 @@ Bryggan driftsätts som **två huvud-containers** i Kubernetes:
 De tre interna modulerna (`fhir-server`, `ntjp-proxy`, `mapping-engine`) kan vid behov
 deployeras som separata pods, t.ex. för att köra ntjp-proxy nära en specifik VG.
 
-I lokal utveckling tillkommer fyra mock-containers (NTjP, Spärr, Backend-SOAP) plus
-`audit-db` (HAPI FHIR för AuditEvent-lagring) via `docker-compose.yml` i projektets rot.
+I lokal utveckling tillkommer sex mock-containers (Tjänstekatalog, Federationsmedlemskatalog,
+Åtkomstintygsutfärdare, Spärr, Backend-SOAP, samt EI/Logg som ännu inte är inkopplade i
+anropsflödet) plus `audit-db` (HAPI FHIR för AuditEvent-lagring) via `docker-compose.yml`
+i projektets rot.
 
 ## Kända begränsningar {#kanda-begransningar}
 

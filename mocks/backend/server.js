@@ -203,11 +203,39 @@ function buildDocumentListSoapResponse(patientId, documents) {
 }
 
 /**
+ * Requires an "Authorization: Bearer <token>" header, mirroring how the WSO2 API
+ * Gateway in the "T2-katalogtjänster" demo stops calls that lack an åtkomstintyg
+ * (401) and lets them through once one is presented (no signature check here —
+ * this mock only plays the gateway's enforcement role, not the token issuer's).
+ */
+function hasBearerToken(req) {
+  const authHeader = req.get('Authorization') || '';
+  const [scheme, token] = authHeader.split(' ');
+  return scheme === 'Bearer' && !!token;
+}
+
+function unauthorizedSoapFault(res) {
+  res.status(401).set('Content-Type', 'text/xml; charset=utf-8').send(`<?xml version="1.0" encoding="UTF-8"?>
+<soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/">
+  <soapenv:Body>
+    <soapenv:Fault>
+      <faultcode>soapenv:Client</faultcode>
+      <faultstring>Missing or invalid Authorization header (Bearer token required)</faultstring>
+    </soapenv:Fault>
+  </soapenv:Body>
+</soapenv:Envelope>`);
+}
+
+/**
  * POST /soap
  * Receives a SOAP request (GetDiagnosis or GetDocumentList), parses the patient ID,
  * and returns the appropriate SOAP response.
  */
 app.post('/soap', (req, res) => {
+  if (!hasBearerToken(req)) {
+    return unauthorizedSoapFault(res);
+  }
+
   const body = req.body;
 
   if (!body || typeof body !== 'string' || body.trim() === '') {

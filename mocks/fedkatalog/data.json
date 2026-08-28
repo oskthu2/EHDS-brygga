@@ -1,0 +1,14 @@
+{
+  "activeMembers": [
+    {
+      "id": "affiliation-vgr",
+      "vgHsaId": "SE2321000016-4HK5",
+      "description": "VGR – Västra Götalandsregionen"
+    },
+    {
+      "id": "affiliation-sll",
+      "vgHsaId": "SE2321000098-7XYZ",
+      "description": "SLL – Stockholms läns landsting"
+    }
+  ]
+}

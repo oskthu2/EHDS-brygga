@@ -17,12 +17,14 @@ services:
       - ehds-net
     environment:
       - EHDS_SPARR_URL=http://mock-sparr:4003
+      - EHDS_EI_URL=http://mock-ei:4002
       - EHDS_AUDIT_FHIR_URL=http://audit-db:8080/fhir
       - EHDS_BRIDGE_HSA_ID=SE2321000999-EHDS
       - EHDS_AUTH_BASE_URL=http://localhost:8080
     depends_on:
       - ntjp-proxy
       - mock-sparr
+      - mock-ei
       - audit-db
 
   ntjp-proxy:
@@ -33,21 +35,38 @@ services:
     networks:
       - ehds-net
     environment:
-      - NTJP_NTJP_URL=http://mock-ntjp:4001
+      - NTJP_TJANSTEKATALOG_URL=http://mock-tjanstekatalog:4001
+      - NTJP_FEDKATALOG_URL=http://mock-fedkatalog:4006
+      - NTJP_TOKEN_ISSUER_URL=http://mock-token-issuer:4007
       - NTJP_BRIDGE_HSA_ID=SE2321000999-EHDS
       - NTJP_AUDIT_FHIR_URL=http://audit-db:8080/fhir
     depends_on:
-      - mock-ntjp
+      - mock-tjanstekatalog
+      - mock-fedkatalog
+      - mock-token-issuer
       - mock-backend
 
-  mock-ntjp:
-    build: ./mocks/tak
+  mock-tjanstekatalog:
+    build: ./mocks/tjanstekatalog
     networks:
       - ehds-net
     environment:
       - PORT=4001
       - BACKEND_URL=http://mock-backend:4005
-      - BRIDGE_HSA_ID=SE2321000999-EHDS
+
+  mock-fedkatalog:
+    build: ./mocks/fedkatalog
+    networks:
+      - ehds-net
+    environment:
+      - PORT=4006
+
+  mock-token-issuer:
+    build: ./mocks/token-issuer
+    networks:
+      - ehds-net
+    environment:
+      - PORT=4007
 
   mock-sparr:
     build: ./mocks/sparr
@@ -55,6 +74,13 @@ services:
       - ehds-net
     environment:
       - PORT=4003
+
+  mock-ei:
+    build: ./mocks/ei
+    networks:
+      - ehds-net
+    environment:
+      - PORT=4002
 
   audit-db:
     image: hapiproject/hapi:latest

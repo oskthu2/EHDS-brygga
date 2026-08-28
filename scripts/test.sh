@@ -50,10 +50,12 @@ info_check() {
     echo "  --  $desc (not reachable from host — OK in Docker)"
   fi
 }
-info_check "TAK mock"   "http://localhost:4001/health"
-info_check "EI mock"    "http://localhost:4002/health"
-info_check "Spärr mock" "http://localhost:4003/health"
-info_check "Logg mock"  "http://localhost:4004/health"
+info_check "Tjänstekatalog mock"      "http://localhost:4001/health"
+info_check "EI mock"                  "http://localhost:4002/health"
+info_check "Spärr mock"               "http://localhost:4003/health"
+info_check "Logg mock"                "http://localhost:4004/health"
+info_check "Federationsmedlemskatalog mock" "http://localhost:4006/health"
+info_check "Åtkomstintygsutfärdare mock"    "http://localhost:4007/health"
 
 echo ""
 if [ "$FAILED" -eq 1 ]; then

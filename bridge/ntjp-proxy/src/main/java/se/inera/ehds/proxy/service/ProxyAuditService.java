@@ -33,22 +33,26 @@ public class ProxyAuditService {
     private final FhirContext fhirCtx = FhirContext.forR4Cached();
     private final RestTemplate rest;
     private final String auditFhirUrl;
-    private final String ntjpUrl;
     private final String bridgeHsaId;
 
     public ProxyAuditService(RestTemplate rest, ProxyProperties props) {
         this.rest = rest;
         this.auditFhirUrl = props.getAuditFhirUrl();
-        this.ntjpUrl = props.getNtjpUrl();
         this.bridgeHsaId = props.getBridgeHsaId();
     }
 
+    /**
+     * @param resolvedAddress Fysisk adress uppslagen via T1 (tjänstekatalogen), eller
+     *                        {@code null} om anropet aldrig nådde så långt (t.ex. nekad
+     *                        F1-medlemsverifiering eller misslyckad T1-uppslagning).
+     */
     @Async
     public void logProxyFetch(String requestId, String patientId, String patientSystem,
-                              String vgHsaId, String resourceType, int resultCount, boolean success) {
+                              String vgHsaId, String resourceType, int resultCount, boolean success,
+                              String resolvedAddress) {
         try {
             AuditEvent ae = buildProxyFetchEvent(requestId, patientId, patientSystem,
-                    vgHsaId, resourceType, resultCount, success);
+                    vgHsaId, resourceType, resultCount, success, resolvedAddress);
             String json = fhirCtx.newJsonParser().encodeResourceToString(ae);
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.APPLICATION_JSON);
@@ -59,7 +63,7 @@ public class ProxyAuditService {
     }
 
     private AuditEvent buildProxyFetchEvent(String requestId, String patientId, String patientSystem,
-            String vgHsaId, String resourceType, int resultCount, boolean success) {
+            String vgHsaId, String resourceType, int resultCount, boolean success, String resolvedAddress) {
         AuditEvent ae = new AuditEvent();
         ae.setId(requestId);
 
@@ -80,7 +84,9 @@ public class ProxyAuditService {
         proxyAgent.setRequestor(false);
         proxyAgent.setWho(new Reference().setDisplay(bridgeHsaId + ":ntjp-proxy"));
         proxyAgent.getType().addCoding().setSystem(DCM).setCode("110153").setDisplay("Source Role ID");
-        proxyAgent.getNetwork().setAddress(ntjpUrl);
+        if (resolvedAddress != null) {
+            proxyAgent.getNetwork().setAddress(resolvedAddress);
+        }
 
         ae.getSource().getObserver().setDisplay(bridgeHsaId + ":ntjp-proxy");
 

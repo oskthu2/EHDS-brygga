@@ -152,7 +152,9 @@ Konsument
       NTjP / VP → Regionens producent
 ```
 
-I lokal utveckling: fem extra mock-containers (TAK, EI, Spärr, Logg, Backend-SOAP).
+I lokal utveckling: sju extra mock-containers (Tjänstekatalog, Federationsmedlemskatalog,
+Åtkomstintygsutfärdare, EI, Spärr, Logg, Backend-SOAP) — se [Katalogtjänster och
+åtkomstintyg (T1/F1)](#katalogtjänster-och-åtkomstintyg-t1f1).
 
 ### Anropsflöde (VG-scopat)
 
@@ -167,16 +169,17 @@ Konsument       Gateway        fhir-server             ntjp-proxy          Inera
     │               │               │                       │                   │
     │          [JWT-validering — planerat, se §PoC]          │                   │
     │               │               │                       │                   │
-    │               │               │─EI: finns data?───────────────────────────►
-    │               │               │◄──ja/nej──────────────────────────────────│
-    │               │               │                       │                   │
     │               │               │─GET /fhir/{vg}/───────►                   │
     │               │               │  Condition?patient=..  │                   │
-    │               │               │                       │─TAK: fysisk URL?──►
-    │               │               │                       │◄──URL─────────────│
+    │               │               │                       │─F1: aktiv medlem?─►(fedkatalog)
+    │               │               │                       │◄──ja/nej──────────│
+    │               │               │                       │─T1: fysisk URL?───►(tjänstekatalog)
+    │               │               │                       │◄──Endpoint.address─│
+    │               │               │                       │─token (client_cred)►(åtkomstintygsutfärdare)
+    │               │               │                       │◄──access_token────│
     │               │               │                       │                   │
-    │               │               │                       │─GetDiagnosis:2────►(NTjP/VP)
-    │               │               │                       │                   │→ Producent
+    │               │               │                       │─GetDiagnosis:2────►(uppslagen adress)
+    │               │               │                       │  + Bearer-token   │→ Producent
     │               │               │                       │◄──SOAP-svar───────│
     │               │               │                       │                   │
     │               │               │                       │  [SOAP→FHIR        │
@@ -193,6 +196,33 @@ Konsument       Gateway        fhir-server             ntjp-proxy          Inera
     │               │               │                       │                   │
     │◄─200 OK Bundle─────────────────│                       │                   │
 ```
+
+### Anropsflöde (oscopat — "alla VG")
+
+Ett anrop utan `{vgHsaId}` i sökvägen (`GET /fhir/Condition`) känner inte till vilka VG:er
+som ska frågas. `QueryOrchestrator`/`DocumentQueryOrchestrator` frågar då Engagemangsindexet
+(EI) om vilka logiska adresser som har ett engagemang för patienten inom det aktuella
+tjänstekontraktet, och kör sedan samma VG-scopade pipeline (F1 → T1 → åtkomstintyg → SOAP →
+Sparr → Logg) per träff. Resultaten sammanfogas i en gemensam Bundle — **utan
+ägarskaps-deduplicering**: eftersom mock-backend inte skiljer producent på `LogicalAddress`,
+ger detta i PoC:n dubblerade träffar när flera VG:er "äger" samma underliggande data (se
+E2E-testerna: 3 diagnoser × 2 VG = 6 för `/fhir/Condition`).
+
+```
+fhir-server                    EI                    (per engagerad VG)
+    │                           │                            │
+    │─GET /engagement?──────────►                            │
+    │  patientId&namespace      │                            │
+    │◄──[{logicalAddress}, ...]─│                            │
+    │                           │                            │
+    │─── för varje logicalAddress: F1 → T1 → åtkomstintyg → SOAP → Sparr → Logg ───►
+    │◄──────────────────────────────────────────────────────────────────────────────│
+    │                                                                                │
+    │  [Bundle-resultat sammanfogas, total = summan av alla VG:ers träffar]          │
+```
+
+EI-uppslaget är **fail-safe, inte fail-closed**: kan EI inte nås frågas ingen VG (tom
+Bundle) — det oscopade anropet gör aldrig en blind sökning mot samtliga konfigurerade VG:er.
 
 ---
 
@@ -223,18 +253,45 @@ vgConfigs:
 
 ### `bridge/ntjp-proxy/src/main/resources/application.properties`
 
-Konfigurerar proxyn mot NTjP och för autentisering.
+Konfigurerar proxyns katalogtjänsteuppslag (T1/F1), åtkomstintyg och autentisering.
 
 ```properties
-ntjp.tak-url=http://mock-tak:4001
+ntjp.tjanstekatalog-url=http://mock-tjanstekatalog:4001
+ntjp.fedkatalog-url=http://mock-fedkatalog:4006
+ntjp.token-issuer-url=http://mock-token-issuer:4007
+ntjp.token-client-id=ehds-brygga
+ntjp.token-client-secret=mock-secret
+ntjp.org-identifier-system=urn:oid:1.2.752.29.4.19
 ntjp.bridge-hsa-id=SE2321000999-EHDS
 server.port=8091
 ```
 
 | Egenskap | Beskrivning |
 |---|---|
-| `ntjp.tak-url` | TAK-tjänstens URL för fysisk adressuppslag |
+| `ntjp.tjanstekatalog-url` | Tjänstekatalogens URL för T1 (fysisk adressuppslagning) |
+| `ntjp.fedkatalog-url` | Federationsmedlemskatalogens URL för F1 (medlemsverifiering) |
+| `ntjp.token-issuer-url` | Åtkomstintygsutfärdarens URL (OAuth2 `client_credentials`) |
+| `ntjp.token-client-id` / `ntjp.token-client-secret` | Bryggans klientuppgifter mot åtkomstintygsutfärdaren |
+| `ntjp.org-identifier-system` | Identifierarsystem för HSA-id i katalogsökningarna (`urn:oid:1.2.752.29.4.19`) |
 | `ntjp.bridge-hsa-id` | Bryggans HSA-id som skickas i `x-rivta-original-serviceconsumer-hsaid` och används som `assembler` i Provenance |
+
+### Katalogtjänster och åtkomstintyg (T1/F1)
+
+Uppslagsflödet i `ntjp-proxy` (`CatalogDiscoveryService` + `AccessTokenService`) följer samma
+mönster som Ineras "T2-katalogtjänster"-demomiljö (Uppslagsdemo): bryggan slår själv upp
+producentens fysiska adress och verifierar federationsmedlemskap, istället för att förlita sig
+på en implicit NTjP-routingtabell:
+
+1. **F1 — medlemsverifiering:** `GET {fedkatalogUrl}/OrganizationAffiliation?participating-organization.identifier={system}|{vgHsaId}&active=true`
+2. **T1 — tjänstesökning:** `GET {tjanstekatalogUrl}/Endpoint?organization.identifier={system}|{vgHsaId}&status=active&implements={rivtaNamespace}`
+3. **Åtkomstintyg:** `POST {tokenIssuerUrl}/token` (`grant_type=client_credentials`) — cachelagras i minnet tills det närmar sig utgång
+4. **Anrop:** SOAP-anrop mot adressen från steg 2, med `Authorization: Bearer {access_token}`
+
+Se [PoC-begränsningar](#poc-begränsningar-och-produktionsgap) för vad som skiljer denna PoC
+från den riktiga demomiljön (bl.a. fast konfigurerad utfärdare istället för en per
+anslutningspunkt anvisad sådan, och R4- istället för R5-profilerade kataloger), och
+[`docs/t2-katalogtjanster.md`](docs/t2-katalogtjanster.md) för en fullständig
+gap-analys mot Ineras "T2-katalogtjänster"-demomiljö.
 
 ---
 
@@ -522,13 +579,16 @@ Dessa delar är medvetet ej implementerade i PoC:n och måste adresseras inför 
 | Gap | Beskrivning | Plats i kod |
 |---|---|---|
 | **JWT-validering** | Åtkomstintyg valideras ej. Gateway skickar inga JWT-claims till bryggan. | `gateway/nginx.conf`, ny Spring Security-config |
-| **mTLS mot NTjP** | CXF-klienten har plats-hållarkommentar för SITHS-keystore. Inga certifikat konfigurerade. | `GetDiagnosisClient.java` rad 39–41 |
-| **SAML WS-Security** | RIVTA BP 2.1 kräver SAML-assertion i SOAP-headern. Ej implementerat. | `GetDiagnosisClient.java` rad 39 |
+| **mTLS mot producenten** | CXF-klienten har plats-hållarkommentar för SITHS-keystore. Inga certifikat konfigurerade. | `GetDiagnosisClient.java` rad 45 |
+| **SAML WS-Security** | RIVTA BP 2.1 kräver SAML-assertion i SOAP-headern, utöver det nya OAuth2-åtkomstintyget. Ej implementerat. | `GetDiagnosisClient.java` rad 43 |
+| **Fast konfigurerad åtkomstintygsutfärdare** | I demomiljön anvisar anslutningspunkten (Endpoint) vilken utfärdare som gäller per producent. PoC:n använder en enda, statiskt konfigurerad utfärdare (`ntjp.token-issuer-url`) för alla VG:er. | `AccessTokenService.java`, `ProxyProperties.java` |
+| **Katalogtjänster: R4 istället för R5** | Demomiljöns tjänstekatalog/federationskatalog är FHIR R5 (`/r5`-suffix). Mockarna och `CatalogDiscoveryService` använder R4-strukturer (`Endpoint`/`OrganizationAffiliation` är i praktiken oförändrade mellan R4 och R5) för att undvika ett extra FHIR-versionsberoende i PoC:n. | `mocks/tjanstekatalog`, `mocks/fedkatalog`, `CatalogDiscoveryService.java` |
+| **Åtkomstintygssignatur** | `mock-token-issuer` signerar med en delad dev-nyckel men ingen part validerar signaturen (`mock-backend` kontrollerar bara att ett Bearer-värde finns) — motsvarande demomiljöns eget påpekande att intyget där avkodas "utan signaturkontroll". | `mocks/token-issuer/server.js`, `mocks/backend/server.js` |
 | **JAXB från WSDL** | Lager 1-klasser är handskrivna. Bör genereras från officiella RIVTA WSDL/XSD. | `mapping-engine/.../mapping/rivta/` |
 | **`COMPOSITION_ASSEMBLY`** | Utdataläget är reserverat men ej implementerat i ntjp-proxy. | `ntjp-proxy` saknar Composition-mapper |
 | **CapabilityStatement per VG** | HAPI genererar ett globalt CS. Varje VG bör deklarera sina egna resurser. | Kräver `IServerConformanceProvider`-implementation |
 | **PDL-loggformat** | `LoggService` loggar till mock. Formatet är inte validerat mot ATNA/BALP-specifikationen. | `LoggService.java` |
-| **EI-kontraktsversion** | EI-mock använder förenklat HTTP-API. Ska använda RIVTA `GetEngagements:1`. | `EiService.java` |
+| **EI-kontraktsversion** | EI är inkopplat i det oscopade anropsflödet, men mock-ei och `EiService` använder ett förenklat HTTP-API. Ska använda RIVTA `GetEngagements:1`. | `EiService.java`, `mocks/ei/server.js` |
 | **Lokal tidzon** | `parseRivDate()` returnerar datum utan tidszon. Kräver explicit hantering av `Europe/Stockholm` → UTC. | `GetDiagnosisMapper.java`, `GetDocumentListMapper.java` |
 | **Sparr: break-the-glass** | En konsument från en spärrad enhet som ändå har rätt till informationen (nödsituation) hanteras inte. Kräver kontextinfo om inloggad användares behörighet. | `SparrFilterService.java` |
 
@@ -542,9 +602,9 @@ EHDS-brygga/
 │   ├── fhir-server/               # Spring Boot + HAPI FHIR — providers, orkestrering, Sparr, Logg
 │   │   └── src/main/resources/
 │   │       └── config/vg-config.yaml  ← Per-VG-konfiguration (fhirEndpointUrl)
-│   ├── ntjp-proxy/                # Spring Boot — SOAP/RIVTA-logik, exponerar FHIR-API
+│   ├── ntjp-proxy/                # Spring Boot — SOAP/RIVTA-logik, T1/F1-uppslag, exponerar FHIR-API
 │   │   └── src/main/resources/
-│   │       └── application.properties ← ntjp.tak-url, ntjp.bridge-hsa-id
+│   │       └── application.properties ← ntjp.tjanstekatalog-url, ntjp.fedkatalog-url, ntjp.token-issuer-url
 │   ├── mapping-engine/            # Mappningsbibliotek — lager 1+2a+2b+3
 │   │   └── src/main/resources/
 │   │       ├── naming-systems.yaml         ← Lager 2a: OID↔URI-tabell
@@ -555,12 +615,14 @@ EHDS-brygga/
 │   ├── nginx.conf
 │   └── well-known/                # SMART/OpenID-konfiguration (statisk JSON)
 │
-├── mocks/                         # Fem mock-containers (Node.js/Express)
-│   ├── tak/                       # Tjänsteadresseringskatalog — routes + fysiska adresser
+├── mocks/                         # Sju mock-containers (Node.js/Express)
+│   ├── tjanstekatalog/            # T1 — FHIR Endpoint-sökning, fysisk adress per VG+TK
+│   ├── fedkatalog/                # F1 — FHIR OrganizationAffiliation-sökning, aktivt medlemskap
+│   ├── token-issuer/              # Åtkomstintygsutfärdare — OAuth2 client_credentials (JWT)
 │   ├── ei/                        # Engagemangsindex — patientengagemang per TK
 │   ├── sparr/                     # Säkerhetstjänsten — kontroll mot careProviderHSAId
 │   ├── logg/                      # Loggtjänsten — tar emot loggposter, loggar till stdout
-│   └── backend/                   # RIVTA SOAP-producent — testdata i responses.json
+│   └── backend/                   # RIVTA SOAP-producent — kräver Bearer-token, testdata i responses.json
 │
 ├── ig/                            # FHIR Implementation Guide (SUSHI/FSH)
 │   └── input/
@@ -586,11 +648,14 @@ EHDS-brygga/
 | Klass | Modul | Roll |
 |---|---|---|
 | `TenantInterceptor` | `fhir-server` | Extraherar `X-VG-HSA-ID`-header → `RequestDetails.setAttribute("vgHsaId")` |
-| `QueryOrchestrator` | `fhir-server` | EI → parallella FHIR-anrop → Sparr → Logg för Condition |
+| `QueryOrchestrator` | `fhir-server` | VG-scopat: FHIR-anrop → Sparr → Logg. Oscopat: EI → samma pipeline per engagerad VG → sammanfogning, för Condition |
 | `DocumentQueryOrchestrator` | `fhir-server` | Samma pipeline för DocumentReference |
+| `EiService` | `fhir-server` | Frågar Engagemangsindexet vilka VG:er som har engagemang för patienten (endast oscopade anrop) |
 | `FhirProxyClient` | `fhir-server` | HAPI FHIR-klient mot VG-endpoint; parsar Condition+Provenance ur Bundle |
 | `SparrFilterService` | `fhir-server` | Post-query Sparr (fail-closed) — läser HSA-id från Provenance.agent (custodian/author) |
-| `ConditionProxyController` | `ntjp-proxy` | TAK → SOAP → Mapping → Bundle (Condition+Provenance) |
+| `ConditionProxyController` | `ntjp-proxy` | F1 → T1 → åtkomstintyg → SOAP → Mapping → Bundle (Condition+Provenance) |
+| `CatalogDiscoveryService` | `ntjp-proxy` | T1 (tjänstekatalog) och F1 (federationsmedlemskatalog) mot katalogtjänsterna |
+| `AccessTokenService` | `ntjp-proxy` | Hämtar och cachelagrar åtkomstintyg (OAuth2 `client_credentials`) |
 | `NamingSystemRegistry` | `mapping-engine` | Lager 2a: OID↔URI, `oidToUri()` och `uriToOid()` |
 | `ConceptMapRegistry` | `mapping-engine` | Lager 2b: kod→kod, läses från `concept-maps/*.yaml` |
 | `GetDiagnosisMapper` | `mapping-engine` | Lager 3: `GetDiagnosisResponse` → `List<MappedDiagnosisEntry>` |

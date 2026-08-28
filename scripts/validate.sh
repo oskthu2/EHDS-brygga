@@ -13,7 +13,7 @@ echo "  bridge: OK"
 
 echo ""
 echo "--- Mock-tjänster (Node.js) ---"
-for dir in mocks/tak mocks/ei mocks/sparr mocks/logg mocks/backend; do
+for dir in mocks/tjanstekatalog mocks/fedkatalog mocks/token-issuer mocks/ei mocks/sparr mocks/logg mocks/backend; do
   if [ -f "$ROOT_DIR/$dir/package.json" ]; then
     echo "  -> $dir"
     npm ci --prefix "$ROOT_DIR/$dir" --silent

@@ -591,6 +591,8 @@ Dessa delar är medvetet ej implementerade i PoC:n och måste adresseras inför 
 | **EI-kontraktsversion** | EI är inkopplat i det oscopade anropsflödet, men mock-ei och `EiService` använder ett förenklat HTTP-API. Ska använda RIVTA `GetEngagements:1`. | `EiService.java`, `mocks/ei/server.js` |
 | **Lokal tidzon** | `parseRivDate()` returnerar datum utan tidszon. Kräver explicit hantering av `Europe/Stockholm` → UTC. | `GetDiagnosisMapper.java`, `GetDocumentListMapper.java` |
 | **Sparr: break-the-glass** | En konsument från en spärrad enhet som ändå har rätt till informationen (nödsituation) hanteras inte. Kräver kontextinfo om inloggad användares behörighet. | `SparrFilterService.java` |
+| **Patient kontra personal-anrop** | `SparrFilterService` körs ovillkorligt på varje svar. NDI-scenario 2 (patient ser egen data) ska inte spärrfiltreras, men bryggan gör idag ingen skillnad på anropskontext. Se [`docs/ndi-anvandningsscenarier.md`](docs/ndi-anvandningsscenarier.md). | `SparrFilterService.java`, `QueryOrchestrator.java` |
+| **Ombud (NDI-scenario 3)** | Medvetet parkerat — ingen NFF-integration eller fullmaktskontroll finns. Se parkeringsavsnittet i [`docs/ndi-anvandningsscenarier.md`](docs/ndi-anvandningsscenarier.md). | Saknas helt |
 
 ---
 

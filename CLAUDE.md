@@ -85,7 +85,7 @@ mapping-engine/
   RivDateParser            – YYYYMMDD / YYYYMMDDHHmmss → ISO 8601
   ProvenanceBuilder        – Bygger Provenance med tre agenter (custodian/author/assembler)
   GetDiagnosisMapper       – GetDiagnosis → Condition + Provenance
-  GetDocumentListMapper    – GetDocumentList → DocumentReference + Provenance
+  GetCareDocumentationMapper – GetCareDocumentation → DocumentReference + Provenance
   DocBookToNarrativeTransformer – DocBook XML → FHIR Narrative XHTML
   NamingSystemRegistry     – OID ↔ URI (läser /naming-systems.yaml)
   ConceptMapRegistry       – Diagnostyp HD/BY → encounter-diagnosis/bi-diagnos

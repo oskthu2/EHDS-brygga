@@ -9,9 +9,9 @@ import org.springframework.web.client.RestTemplate;
 import se.inera.ehds.mapping.concept.ConceptMapRegistry;
 import se.inera.ehds.mapping.naming.NamingSystemRegistry;
 import se.inera.ehds.mapping.tk.getdiagnosis.GetDiagnosisMapper;
-import se.inera.ehds.mapping.tk.getdocumentlist.GetDocumentListMapper;
+import se.inera.ehds.mapping.tk.getcaredocumentation.GetCareDocumentationMapper;
 import se.inera.ehds.soap.client.GetDiagnosisClient;
-import se.inera.ehds.soap.client.GetDocumentListClient;
+import se.inera.ehds.soap.client.GetCareDocumentationClient;
 
 @Configuration
 @EnableAsync
@@ -28,8 +28,8 @@ public class ProxyBeanConfig {
     }
 
     @Bean
-    public GetDocumentListMapper getDocumentListMapper(NamingSystemRegistry n, ConceptMapRegistry c) {
-        return new GetDocumentListMapper(n, c);
+    public GetCareDocumentationMapper getCareDocumentationMapper(NamingSystemRegistry n) {
+        return new GetCareDocumentationMapper(n);
     }
 
     @Bean
@@ -38,7 +38,7 @@ public class ProxyBeanConfig {
     }
 
     @Bean
-    public GetDocumentListClient getDocumentListClient(ProxyProperties props) {
-        return new GetDocumentListClient(props.getBridgeHsaId());
+    public GetCareDocumentationClient getCareDocumentationClient(ProxyProperties props) {
+        return new GetCareDocumentationClient(props.getBridgeHsaId());
     }
 }

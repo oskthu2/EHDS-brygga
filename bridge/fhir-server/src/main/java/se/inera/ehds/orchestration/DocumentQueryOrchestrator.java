@@ -32,7 +32,7 @@ public class DocumentQueryOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(DocumentQueryOrchestrator.class);
 
     /** RIVTA-tjänstekontraktet som EI:s engagemangsuppslag filtrerar på för DocumentReference. */
-    private static final String NS_RIV = "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1";
+    private static final String NS_RIV = "urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3";
 
     private final FhirProxyClient fhirClient;
     private final SparrFilterService sparr;

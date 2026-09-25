@@ -26,7 +26,7 @@ I testmiljö tillkommer fyra mock-containers samt en HAPI FHIR audit-databas.
 | **Gateway** | nginx (PoC), KONG + WSO2 APIM (prod) | TLS-terminering, URL-routing. Vidarebefordrar hela sökvägen `/{vgHsaId}/fhir/**` till fhir-server oförändrad. |
 | **fhir-server** *(bryggtjänst, modul 1)* | Spring Boot + HAPI FHIR | FHIR Resource Providers. Extraherar `{vgHsaId}` ur URL-sökvägen. Virtualiserar ett FHIR-endpoint per VG: `/{vgHsaId}/fhir/metadata` returnerar VG-specifikt CapabilityStatement baserat på `vg-config.yaml`. Orkestrering: FHIR-anrop per VG-resurs → Spärr → Logg. Serverar `/.well-known/smart-configuration` (gemensamt). |
 | **ntjp-proxy** *(bryggtjänst, modul 2)* | Spring Boot + Apache CXF | All SOAP/RIVTA-logik. Innehåller mapping-engine och soap-client. Exponerar FHIR-API per VG. Deployerbar centralt eller nära VG. |
-| **mapping-engine** *(bryggtjänst, modul 3)* | Maven-bibliotek (JAR) | RIVTA JAXB-typer, NamingSystemRegistry (OID↔URI), ConceptMapRegistry (RIVTA-kod → FHIR-kod), TK-specifika mappningsklasser (GetDiagnosisMapper, GetDocumentListMapper). |
+| **mapping-engine** *(bryggtjänst, modul 3)* | Maven-bibliotek (JAR) | RIVTA JAXB-typer, NamingSystemRegistry (OID↔URI), ConceptMapRegistry (RIVTA-kod → FHIR-kod), TK-specifika mappningsklasser (GetDiagnosisMapper, GetCareDocumentationMapper). |
 
 ### Mock-containers (testmiljö)
 
@@ -104,7 +104,7 @@ Delat bibliotek som innehåller:
 - RIVTA JAXB-typer (`mapping/rivta/`)
 - `NamingSystemRegistry` — OID ↔ URI-mappning, inkl. HL7 Sweden basprofiler-r4
 - `ConceptMapRegistry` — RIVTA-kod → FHIR-kod (t.ex. diagnostyp → category)
-- `GetDiagnosisMapper` / `GetDocumentListMapper` — TK-specifik mappningslogik
+- `GetDiagnosisMapper` / `GetCareDocumentationMapper` — TK-specifik mappningslogik
 - `MappedDiagnosisEntry` — record som håller `(Condition, Provenance)` länkade genom pipelinen
 
 ### Katalogtjänster (T1/F1) och åtkomstintygsutfärdare
@@ -227,10 +227,10 @@ kanoniska URI:er (HL7 Sweden basprofiler-r4).
 
 | Lager | Innehåll | Klass/fil |
 |-------|----------|-----------|
-| 1 | RIVTA JAXB-typer: `CVType`, `PersonIdType`, `DatePeriodType` m.fl. | `mapping/rivta/`, `mapping/rivta/doclist/` |
+| 1 | RIVTA JAXB-typer: `CVType`, `PersonIdType`, `DatePeriodType` m.fl. | `mapping/rivta/`, `mapping/rivta/caredocumentation/` |
 | 2a | OID ↔ FHIR URI (bidirektionell): `1.2.752.129.2.1.3.1` ↔ personnummer-URI | `NamingSystemRegistry` / `naming-systems.yaml` |
 | 2b | Kod ↔ kod: RIVTA diagnosTyp → FHIR `category` | `ConceptMapRegistry` / `concept-maps.yaml` |
-| 3 | TK-specifik logik per tjänstekontrakt | `GetDiagnosisMapper`, `GetDocumentListMapper` |
+| 3 | TK-specifik logik per tjänstekontrakt | `GetDiagnosisMapper`, `GetCareDocumentationMapper` |
 
 ## Lägga till ett nytt tjänstekontrakt
 

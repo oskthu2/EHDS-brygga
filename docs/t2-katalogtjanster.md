@@ -62,7 +62,7 @@ Mockarna och `ntjp-proxy` har byggts om för att spegla demomiljöns kontrakt oc
 - **`ntjp-proxy`**: nya klasser `CatalogDiscoveryService` (T1 + F1) och `AccessTokenService`
   (token, cachelagrad i minnet). `ConditionProxyController` och `DocumentReferenceProxyController`
   kör nu F1 → T1 → åtkomstintyg → SOAP-anrop i tur och ordning, istället för att anropa en
-  hårdkodad "NTjP-URL" direkt. `GetDiagnosisClient`/`GetDocumentListClient` tar emot den
+  hårdkodad "NTjP-URL" direkt. `GetDiagnosisClient`/`GetCareDocumentationClient` tar emot den
   uppslagna fysiska adressen och åtkomstintyget som parametrar och sätter
   `Authorization: Bearer`-headern på SOAP-anropet.
 - Detta fixar även det dolda felet ovan: `ConditionProxyController`/`DocumentReferenceProxyController`
@@ -90,7 +90,7 @@ Dessa gap är medvetet kvar i den här PoC:n:
 | **FHIR-version** | Demons kataloger är R5 (`/r5`-suffix); mockarna och `CatalogDiscoveryService` använder R4-strukturer. `Endpoint`/`OrganizationAffiliation` är i praktiken oförändrade mellan versionerna, men en riktig integration bör verifiera detta mot den faktiska profilen. |
 | **Anvisad utfärdare** | I demon anvisar anslutningspunkten (Endpoint-resursen) vilken utfärdare som gäller för just den producenten. PoC:n använder en enda, statiskt konfigurerad utfärdare (`ntjp.token-issuer-url`) för alla VG:er — `Endpoint`-mocken bär ingen utfärdarreferens ännu. |
 | **WSO2 API Gateway** | Demons åtkomstkontroll (401/200) sker i en API Gateway framför producenten. I PoC:n sitter samma kontroll i `mock-backend` självt, som får spela båda rollerna. |
-| **mTLS / SAML** | RIVTA BP 2.1 kräver SITHS-certifikat (mTLS) och SAML-assertion utöver OAuth2-intyget. Fortfarande placeholder-kommentarer i `GetDiagnosisClient`/`GetDocumentListClient`. |
+| **mTLS / SAML** | RIVTA BP 2.1 kräver SITHS-certifikat (mTLS) och SAML-assertion utöver OAuth2-intyget. Fortfarande placeholder-kommentarer i `GetDiagnosisClient`/`GetCareDocumentationClient`. |
 | **Engagemangsindex (EI): RIVTA-kontrakt** | `mocks/ei` och `EiService` (nu inkopplade i det oscopade anropsflödet) exponerar/konsumerar ett förenklat HTTP-API. Produktion ska använda RIVTA `GetEngagements:1`. |
 | **Produktionens verkliga bas-URL:er** | Att faktiskt koppla mot de riktiga T2-katalogtjänsterna kräver TLS, klientcertifikat/nycklar utfärdade av Inera, och att byta `ntjp.tjanstekatalog-url` / `ntjp.fedkatalog-url` / `ntjp.token-issuer-url` (+ klient-id/secret) från mock-adresserna till de riktiga. Själva anropskontraktet (sökparametrar, resurstyper, tokenflöde) är redan detsamma. |
 

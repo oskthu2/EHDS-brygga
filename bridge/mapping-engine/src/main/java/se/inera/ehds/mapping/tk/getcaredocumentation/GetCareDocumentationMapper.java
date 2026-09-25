@@ -31,6 +31,10 @@ import java.util.stream.Collectors;
  *     (DocBookToNarrativeTransformer) och sätts som text/html; ren fritext skickas som
  *     text/plain. Heuristiken (innehåll som börjar med "&lt;") är enkel med avsikt —
  *     RIVTA-fältet ger ingen egen typindikation.
+ *   - DocBook-innehåll mappas även till en Composition (Strategy B, DOC-004) med ett
+ *     Composition.section per strukturell DocBook-&lt;section&gt; (rekursivt nästlat likt
+ *     källan); innehåll utan &lt;section&gt;-element blir en enda namnlös sektion. Detta är
+ *     ett strukturerat komplement till den platta XHTML-narrativet ovan, inte en ersättning.
  *   - approvedForPatient (PDL-001) and hasMore/paging (DOC-001) are intentionally left
  *     unmapped — see "Öppna frågor" in the mapping doc.
  */
@@ -130,15 +134,17 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
 
         // type: clinicalDocumentNoteCode (ClinicalDocumentNoteCodeCS, OID 1.2.752.129.2.2.2.11)
         CVType noteCode = body.getClinicalDocumentNoteCode();
+        CodeableConcept typeCC = null;
         if (noteCode != null) {
             String codeSystem = namingSystem.oidToUri(noteCode.getCodeSystem());
             String codeText = noteCode.getOriginalText() != null ? noteCode.getOriginalText() : noteCode.getDisplayName();
-            dr.setType(new CodeableConcept()
+            typeCC = new CodeableConcept()
                     .addCoding(new Coding()
                             .setSystem(codeSystem)
                             .setCode(noteCode.getCode())
                             .setDisplay(noteCode.getDisplayName()))
-                    .setText(codeText));
+                    .setText(codeText);
+            dr.setType(typeCC);
         }
 
         // description: clinicalDocumentNoteTitle
@@ -190,7 +196,56 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
                 hsaSystem,
                 ctx);
 
-        return new MappedDocumentEntry(dr, prov);
+        // Composition (Strategy B, DOC-004): only when clinicalDocumentNoteText is DocBook-XML
+        // with an actual section structure to carry — plain fritext and multimediaEntry-backed
+        // entries get no Composition, since there is nothing to split into sections.
+        Composition composition = null;
+        if (body.getClinicalDocumentNoteText() != null && looksLikeDocBook(body.getClinicalDocumentNoteText())) {
+            composition = buildComposition(body, typeCC, dr.hasSubject() ? dr.getSubject() : null,
+                    dr.hasDateElement() ? dr.getDateElement() : null, dr.hasAuthor() ? dr.getAuthorFirstRep() : null);
+            if (composition != null) {
+                prov.addTarget(new Reference("urn:uuid:" + composition.getId()));
+            }
+        }
+
+        return new MappedDocumentEntry(dr, prov, composition);
+    }
+
+    /** Builds a Composition with one Composition.section per DocBook structural section (Strategy B). */
+    private Composition buildComposition(Body body, CodeableConcept type, Reference subject,
+                                          InstantType dateElement, Reference author) {
+        List<DocBookToNarrativeTransformer.DocSection> sections =
+                docBookTransformer.extractSections(body.getClinicalDocumentNoteText());
+        if (sections.isEmpty()) return null;
+
+        Composition comp = new Composition();
+        comp.setId(java.util.UUID.randomUUID().toString());
+        comp.setStatus(Composition.CompositionStatus.FINAL);
+        comp.setTitle(body.getClinicalDocumentNoteTitle() != null
+                ? body.getClinicalDocumentNoteTitle() : "Journalanteckning");
+        if (type != null) comp.setType(type);
+        if (subject != null) comp.setSubject(subject);
+        if (dateElement != null) comp.setDateElement(new DateTimeType(dateElement.getValueAsString()));
+        if (author != null) comp.addAuthor(author);
+        for (DocBookToNarrativeTransformer.DocSection section : sections) {
+            comp.addSection(toSectionComponent(section));
+        }
+        return comp;
+    }
+
+    private Composition.SectionComponent toSectionComponent(DocBookToNarrativeTransformer.DocSection section) {
+        Composition.SectionComponent sc = new Composition.SectionComponent();
+        if (section.title() != null) {
+            sc.setTitle(section.title());
+        }
+        Narrative narrative = new Narrative();
+        narrative.setStatus(Narrative.NarrativeStatus.GENERATED);
+        narrative.setDivAsString(section.narrativeDiv());
+        sc.setText(narrative);
+        for (DocBookToNarrativeTransformer.DocSection sub : section.subsections()) {
+            sc.addSection(toSectionComponent(sub));
+        }
+        return sc;
     }
 
     private DocumentReference.DocumentReferenceContentComponent buildContent(Body body) {

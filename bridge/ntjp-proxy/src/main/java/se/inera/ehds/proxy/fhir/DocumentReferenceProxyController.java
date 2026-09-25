@@ -119,6 +119,10 @@ public class DocumentReferenceProxyController {
              .getSearch().setMode(Bundle.SearchEntryMode.MATCH);
             b.addEntry().setFullUrl("urn:uuid:" + entry.provenance().getId()).setResource(entry.provenance())
              .getSearch().setMode(Bundle.SearchEntryMode.INCLUDE);
+            if (entry.composition() != null) {
+                b.addEntry().setFullUrl("urn:uuid:" + entry.composition().getId()).setResource(entry.composition())
+                 .getSearch().setMode(Bundle.SearchEntryMode.INCLUDE);
+            }
         }
         return b;
     }

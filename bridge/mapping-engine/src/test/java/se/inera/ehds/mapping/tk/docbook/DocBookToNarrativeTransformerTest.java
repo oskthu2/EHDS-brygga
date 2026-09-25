@@ -4,6 +4,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 class DocBookToNarrativeTransformerTest {
@@ -421,6 +423,120 @@ class DocBookToNarrativeTransformerTest {
                 String result = t.transform("<article><ej-stängt>");
                 assertEquals("<div xmlns=\"http://www.w3.org/1999/xhtml\"></div>", result);
             });
+        }
+    }
+
+    // ── Strategy B: extractSections ─────────────────────────────────────────
+
+    @Nested
+    class Sektionstrad {
+
+        @Test
+        void null_ger_tom_lista() {
+            assertEquals(List.of(), t.extractSections(null));
+        }
+
+        @Test
+        void tomt_article_ger_tom_lista() {
+            assertEquals(List.of(), t.extractSections("<article></article>"));
+        }
+
+        @Test
+        void ogiltigt_xml_ger_tom_lista_utan_undantag() {
+            assertDoesNotThrow(() -> assertEquals(List.of(), t.extractSections("<article><ej-stängt>")));
+        }
+
+        @Test
+        void article_utan_section_ger_en_namnlos_sektion_med_allt_innehall() {
+            List<DocBookToNarrativeTransformer.DocSection> sections =
+                    t.extractSections("<article><para>Patienten mår bra.</para></article>");
+
+            assertEquals(1, sections.size());
+            assertNull(sections.get(0).title());
+            assertTrue(sections.get(0).narrativeDiv().contains("<p>Patienten mår bra.</p>"));
+            assertEquals(List.of(), sections.get(0).subsections());
+        }
+
+        @Test
+        void enkel_section_med_title_blir_en_sektion_med_ratt_titel_och_innehall() {
+            List<DocBookToNarrativeTransformer.DocSection> sections = t.extractSections(
+                    "<article><section><title>Bedömning</title><para>Stabilt läge.</para></section></article>");
+
+            assertEquals(1, sections.size());
+            assertEquals("Bedömning", sections.get(0).title());
+            assertTrue(sections.get(0).narrativeDiv().contains("<p>Stabilt läge.</p>"));
+        }
+
+        @Test
+        void flera_top_level_sections_blir_flera_sektioner_i_dokumentordning() {
+            List<DocBookToNarrativeTransformer.DocSection> sections = t.extractSections(
+                    "<article>"
+                    + "<section><title>Anamnes</title><para>Söker för buksmärta.</para></section>"
+                    + "<section><title>Status</title><para>Palpationsömhet.</para></section>"
+                    + "</article>");
+
+            assertEquals(2, sections.size());
+            assertEquals("Anamnes", sections.get(0).title());
+            assertEquals("Status", sections.get(1).title());
+        }
+
+        @Test
+        void nastlad_section_blir_subsection_inte_egen_top_level_sektion() {
+            List<DocBookToNarrativeTransformer.DocSection> sections = t.extractSections(
+                    "<article><section><title>Nivå 1</title>"
+                    + "<para>Övergripande text.</para>"
+                    + "<section><title>Nivå 2</title><para>Detaljtext.</para></section>"
+                    + "</section></article>");
+
+            assertEquals(1, sections.size());
+            DocBookToNarrativeTransformer.DocSection top = sections.get(0);
+            assertEquals("Nivå 1", top.title());
+            assertTrue(top.narrativeDiv().contains("Övergripande text."));
+            assertFalse(top.narrativeDiv().contains("Detaljtext."), "nästlad sektions text ska inte dubbleras i förälderns narrativ");
+
+            assertEquals(1, top.subsections().size());
+            assertEquals("Nivå 2", top.subsections().get(0).title());
+            assertTrue(top.subsections().get(0).narrativeDiv().contains("Detaljtext."));
+        }
+
+        @Test
+        void styld_section_splittas_inte_ut_utan_stannar_i_forälderns_narrativ() {
+            List<DocBookToNarrativeTransformer.DocSection> sections = t.extractSections(
+                    "<article><section><title>Bedömning</title>"
+                    + "<para>Huvudtext.</para>"
+                    + "<section><title><emphasis role=\"information\">Viktigt</emphasis></title>"
+                    + "<para>Kom ihåg uppföljning.</para></section>"
+                    + "</section></article>");
+
+            assertEquals(1, sections.size());
+            DocBookToNarrativeTransformer.DocSection top = sections.get(0);
+            assertEquals(0, top.subsections().size(), "styld ruta ska inte bli en egen subsection");
+            assertTrue(top.narrativeDiv().contains("class=\"info-box\""));
+            assertTrue(top.narrativeDiv().contains("Kom ihåg uppföljning."));
+        }
+
+        @Test
+        void los_text_utanfor_sections_tappas_inte_bort() {
+            // Motsvarar den avslutande <para> efter fyra <section> i BOKAD_TID_XML ovan.
+            List<DocBookToNarrativeTransformer.DocSection> sections = t.extractSections(
+                    "<article>"
+                    + "<section><title>Först</title><para>Text ett.</para></section>"
+                    + "<para>Lös avslutande text.</para>"
+                    + "</article>");
+
+            assertEquals(2, sections.size());
+            assertEquals("Först", sections.get(0).title());
+            assertNull(sections.get(1).title());
+            assertTrue(sections.get(1).narrativeDiv().contains("Lös avslutande text."));
+        }
+
+        @Test
+        void enskilt_top_level_section_element_utan_wrappande_article_stods() {
+            List<DocBookToNarrativeTransformer.DocSection> sections =
+                    t.extractSections("<section><title>Rubrik</title><para>Innehåll.</para></section>");
+
+            assertEquals(1, sections.size());
+            assertEquals("Rubrik", sections.get(0).title());
         }
     }
 }

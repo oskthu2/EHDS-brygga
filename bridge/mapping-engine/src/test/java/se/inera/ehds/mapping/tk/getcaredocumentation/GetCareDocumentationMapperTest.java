@@ -270,6 +270,117 @@ class GetCareDocumentationMapperTest {
     }
 
     @Nested
+    class CompositionStrategyB {
+        @Test
+        void docBookText_ger_composition_med_sektioner() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteText(
+                    "<article>"
+                    + "<section><title>Anamnes</title><para>Söker för buksmärta.</para></section>"
+                    + "<section><title>Status</title><para>Palpationsömhet.</para></section>"
+                    + "</article>");
+
+            Composition comp = mapper.map(responseWith(entry), ctx).get(0).composition();
+            assertNotNull(comp);
+            assertEquals(2, comp.getSection().size());
+            assertEquals("Anamnes", comp.getSection().get(0).getTitle());
+            assertEquals("Status", comp.getSection().get(1).getTitle());
+        }
+
+        @Test
+        void ren_fritext_ger_ingen_composition() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteText("Patienten mår bra.");
+
+            assertNull(mapper.map(responseWith(entry), ctx).get(0).composition());
+        }
+
+        @Test
+        void multimediaEntry_ger_ingen_composition() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteText(null);
+            MultimediaEntry media = new MultimediaEntry();
+            media.setMediaType("application/pdf");
+            media.setReference("https://producent.example/doc/123");
+            entry.getBody().setMultimediaEntry(media);
+
+            assertNull(mapper.map(responseWith(entry), ctx).get(0).composition());
+        }
+
+        @Test
+        void composition_ar_final_och_far_titel_fran_clinicalDocumentNoteTitle() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteTitle("Besöksanteckning kardiologi");
+            entry.getBody().setClinicalDocumentNoteText("<article><para>Text.</para></article>");
+
+            Composition comp = mapper.map(responseWith(entry), ctx).get(0).composition();
+            assertEquals(Composition.CompositionStatus.FINAL, comp.getStatus());
+            assertEquals("Besöksanteckning kardiologi", comp.getTitle());
+        }
+
+        @Test
+        void saknad_clinicalDocumentNoteTitle_ger_fallback_titel() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteTitle(null);
+            entry.getBody().setClinicalDocumentNoteText("<article><para>Text.</para></article>");
+
+            Composition comp = mapper.map(responseWith(entry), ctx).get(0).composition();
+            assertEquals("Journalanteckning", comp.getTitle());
+        }
+
+        @Test
+        void composition_delar_type_subject_och_author_med_documentReference() {
+            CareDocumentation entry = minimalEntry();
+            CVType code = new CVType();
+            code.setCode("bes");
+            code.setCodeSystem("1.2.752.129.2.2.2.11");
+            entry.getBody().setClinicalDocumentNoteCode(code);
+            Author author = new Author();
+            author.setAuthorId("SE-HOS-001");
+            author.setName("Anna Andersson");
+            entry.getHeader().setAuthor(author);
+            entry.getBody().setClinicalDocumentNoteText("<article><para>Text.</para></article>");
+
+            MappedDocumentEntry mapped = mapper.map(responseWith(entry), ctx).get(0);
+            DocumentReference dr = mapped.documentReference();
+            Composition comp = mapped.composition();
+
+            assertEquals(dr.getType().getCodingFirstRep().getCode(), comp.getType().getCodingFirstRep().getCode());
+            assertEquals(dr.getSubject().getIdentifier().getValue(), comp.getSubject().getIdentifier().getValue());
+            assertEquals("SE-HOS-001", comp.getAuthorFirstRep().getIdentifier().getValue());
+        }
+
+        @Test
+        void nastlad_section_blir_nastlad_composition_section() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteText(
+                    "<article><section><title>Nivå 1</title>"
+                    + "<section><title>Nivå 2</title><para>Detalj.</para></section>"
+                    + "</section></article>");
+
+            Composition comp = mapper.map(responseWith(entry), ctx).get(0).composition();
+            assertEquals(1, comp.getSection().size());
+            assertEquals("Nivå 1", comp.getSection().get(0).getTitle());
+            assertEquals(1, comp.getSection().get(0).getSection().size());
+            assertEquals("Nivå 2", comp.getSection().get(0).getSection().get(0).getTitle());
+        }
+
+        @Test
+        void provenance_far_composition_som_extra_target_utover_documentReference() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteText("<article><para>Text.</para></article>");
+
+            MappedDocumentEntry mapped = mapper.map(responseWith(entry), ctx).get(0);
+            List<String> targetIds = mapped.provenance().getTarget().stream()
+                    .map(Reference::getReference)
+                    .toList();
+
+            assertTrue(targetIds.contains("urn:uuid:" + mapped.documentReference().getId()));
+            assertTrue(targetIds.contains("urn:uuid:" + mapped.composition().getId()));
+        }
+    }
+
+    @Nested
     class AuthorOchSignature {
         @Test
         void authorId_mappar_till_author_som_practitionerRole_referens() {

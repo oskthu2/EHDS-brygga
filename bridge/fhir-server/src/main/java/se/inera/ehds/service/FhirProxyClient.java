@@ -90,12 +90,23 @@ public class FhirProxyClient {
 
     private List<MappedDocumentEntry> pairDocumentReferencesWithProvenances(Bundle bundle) {
         Map<String, Provenance> provByDocRefId = new HashMap<>();
+        Map<String, Composition> compositionById = new HashMap<>();
+        for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
+            if (entry.getResource() instanceof Composition comp) {
+                compositionById.put(comp.getIdElement().getIdPart(), comp);
+            }
+        }
         for (Bundle.BundleEntryComponent entry : bundle.getEntry()) {
             if (entry.getResource() instanceof Provenance prov) {
                 for (Reference target : prov.getTarget()) {
                     String ref = target.getReference();
-                    if (ref != null) {
-                        String id = ref.startsWith("urn:uuid:") ? ref.substring(9) : ref;
+                    if (ref == null) continue;
+                    String id = ref.startsWith("urn:uuid:") ? ref.substring(9) : ref;
+                    // A Provenance targets both its DocumentReference and, when present, the
+                    // Composition built alongside it (Strategy B) — only the former is stored
+                    // here since it indexes DocumentReference id → Provenance; the Composition
+                    // itself is picked up via that same Provenance's targets below.
+                    if (!compositionById.containsKey(id)) {
                         provByDocRefId.put(id, prov);
                     }
                 }
@@ -109,8 +120,23 @@ public class FhirProxyClient {
                     if (drId != null && drId.startsWith("urn:uuid:")) {
                         drId = drId.substring(9);
                     }
-                    return new MappedDocumentEntry(dr, provByDocRefId.get(drId));
+                    Provenance prov = provByDocRefId.get(drId);
+                    Composition composition = prov == null ? null : compositionFor(prov, compositionById);
+                    return new MappedDocumentEntry(dr, prov, composition);
                 })
                 .toList();
+    }
+
+    /** The Composition among prov's targets, if any (a Provenance targets its DocumentReference
+     *  and, for Strategy B entries, the Composition built alongside it — see GetCareDocumentationMapper). */
+    private Composition compositionFor(Provenance prov, Map<String, Composition> compositionById) {
+        for (Reference target : prov.getTarget()) {
+            String ref = target.getReference();
+            if (ref == null) continue;
+            String id = ref.startsWith("urn:uuid:") ? ref.substring(9) : ref;
+            Composition comp = compositionById.get(id);
+            if (comp != null) return comp;
+        }
+        return null;
     }
 }

@@ -6,6 +6,8 @@ import org.xml.sax.InputSource;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import java.io.StringReader;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Transforms a DocBook XML subset (as used by 1177 Inkorg and RIVTA document services)
@@ -21,6 +23,105 @@ import java.io.StringReader;
  * Unknown elements are passed through (children rendered, wrapper tag dropped).
  */
 public class DocBookToNarrativeTransformer {
+
+    /**
+     * One semantic section extracted from a DocBook document for Strategy B
+     * (mapping-getcaredocumentation.md, DOC-004): mapping into Composition.section
+     * instead of a single flat XHTML narrative (Strategy A, see {@link #transform}).
+     *
+     * {@code narrativeDiv} carries only this section's own content (paragraphs, lists,
+     * styled call-out boxes) — nested unstyled {@code <section>} children are pulled out
+     * into {@code subsections} instead of being rendered inline, mirroring Composition's
+     * own recursive section nesting. A styled section (info/warning/frame/collapsible box,
+     * see {@link #detectSectionStyle}) is a call-out inside its parent's content, not a
+     * structural heading, so it stays embedded in {@code narrativeDiv} and is never split out.
+     */
+    public record DocSection(String title, String narrativeDiv, List<DocSection> subsections) {}
+
+    /**
+     * Extracts the structural {@code <section>} hierarchy of a DocBook document as a list
+     * of {@link DocSection}, for building FHIR Composition.section trees.
+     *
+     * When the document has no structural sections at all (e.g. a bare {@code <article>}
+     * with only paragraphs), the whole document is returned as a single untitled section,
+     * as long as it has some content — an empty or unparsable document yields an empty list.
+     *
+     * Content at the document root that sits alongside structural sections rather than inside
+     * one — a styled call-out box or a loose paragraph directly under {@code <article>}, as in
+     * the trailing {@code <para>} of the "Bokad tid" example — is not lost: it is collected into
+     * one trailing untitled section appended after the structural ones, rather than kept in its
+     * original document position. That reordering is a deliberate simplification for Strategy B;
+     * Strategy A's flat narrative (see {@link #transform}) always preserves the exact source order.
+     */
+    public List<DocSection> extractSections(String docBookXml) {
+        if (docBookXml == null || docBookXml.isBlank()) return List.of();
+        try {
+            Element root = parse(docBookXml).getDocumentElement();
+            if ("section".equals(root.getTagName()) && detectSectionStyle(root) == null) {
+                return List.of(buildSection(root));
+            }
+
+            List<DocSection> sections = new ArrayList<>(collectSections(root));
+            String remainder = renderOwnContent(root);
+            if (hasRenderableContent(remainder)) {
+                sections.add(new DocSection(sections.isEmpty() ? titleText(root) : null, remainder, List.of()));
+            }
+            return sections;
+        } catch (Exception e) {
+            return List.of();
+        }
+    }
+
+    private DocSection buildSection(Element sectionEl) {
+        return new DocSection(titleText(sectionEl), renderOwnContent(sectionEl), collectSections(sectionEl));
+    }
+
+    /** Direct {@code <section>} children of {@code parent} that are structural, not styled call-out boxes. */
+    private List<DocSection> collectSections(Element parent) {
+        List<DocSection> sections = new ArrayList<>();
+        NodeList nodes = parent.getChildNodes();
+        for (int i = 0; i < nodes.getLength(); i++) {
+            Node n = nodes.item(i);
+            if (n.getNodeType() == Node.ELEMENT_NODE && "section".equals(((Element) n).getTagName())
+                    && detectSectionStyle((Element) n) == null) {
+                sections.add(buildSection((Element) n));
+            }
+        }
+        return sections;
+    }
+
+    /** Renders el's own content as a narrative div, excluding its title and its unstyled (structural) subsections. */
+    private String renderOwnContent(Element el) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<div xmlns=\"http://www.w3.org/1999/xhtml\">");
+        NodeList nodes = el.getChildNodes();
+        for (int i = 0; i < nodes.getLength(); i++) {
+            Node n = nodes.item(i);
+            if (n.getNodeType() == Node.ELEMENT_NODE) {
+                Element child = (Element) n;
+                if ("title".equals(child.getTagName())) continue;
+                if ("section".equals(child.getTagName()) && detectSectionStyle(child) == null) continue;
+                transformElement(child, sb, 1);
+            } else if (n.getNodeType() == Node.TEXT_NODE) {
+                appendText(n.getNodeValue(), sb);
+            }
+        }
+        sb.append("</div>");
+        return sb.toString();
+    }
+
+    private boolean hasRenderableContent(String narrativeDiv) {
+        return narrativeDiv != null && !narrativeDiv.equals(emptyDiv());
+    }
+
+    private String titleText(Element el) {
+        Element title = firstChild(el, "title");
+        if (title == null) return null;
+        StringBuilder sb = new StringBuilder();
+        appendTextContent(title, sb);
+        String text = sb.toString().trim();
+        return text.isEmpty() ? null : text;
+    }
 
     public String transform(String docBookXml) {
         if (docBookXml == null || docBookXml.isBlank()) return emptyDiv();

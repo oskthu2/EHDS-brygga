@@ -113,6 +113,11 @@ public class DocumentQueryOrchestrator {
                 b.addEntry().setFullUrl("urn:uuid:" + prov.getId()).setResource(prov)
                  .getSearch().setMode(Bundle.SearchEntryMode.INCLUDE);
             }
+            if (entry.composition() != null) {
+                Composition comp = entry.composition();
+                b.addEntry().setFullUrl("urn:uuid:" + comp.getId()).setResource(comp)
+                 .getSearch().setMode(Bundle.SearchEntryMode.INCLUDE);
+            }
         }
         return b;
     }

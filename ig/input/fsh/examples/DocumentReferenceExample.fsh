@@ -33,5 +33,5 @@ Usage: #example
 
 * context.related[0].identifier.value = "process-42"
 
-* content[0].attachment.contentType = "text/plain; charset=utf-8"
+* content[0].attachment.contentType = #"text/plain; charset=utf-8"
 * content[0].attachment.title = "Mottagningsanteckning kardiologi"

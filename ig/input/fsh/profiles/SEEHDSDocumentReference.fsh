@@ -73,10 +73,11 @@ inga separata element för de två grenarna — båda mynnar ut i content.attach
 * context.related.identifier MS
 * context.related.identifier.value ^short = "careProcessId — referens till individanpassad vårdprocess"
 
-* content 0..1 MS
+* content 1..1 MS
+* content ^short = "Ett attachment per dokument — RIVTA-invarianten garanterar att antingen clinicalDocumentNoteText eller multimediaEntry finns"
 * content.attachment 1..1 MS
 * content.attachment.contentType MS
-* content.attachment.contentType ^short = "text/plain; charset=utf-8 (clinicalDocumentNoteText) eller multimediaEntry.mediaType"
+* content.attachment.contentType ^short = "text/plain (fritext), text/html (fritext som ser ut som DocBook-XML, transformerad) eller multimediaEntry.mediaType"
 * content.attachment.data MS
 * content.attachment.data ^short = "Base64: fritext (clinicalDocumentNoteText) eller binärdata (multimediaEntry.value)"
 * content.attachment.url MS

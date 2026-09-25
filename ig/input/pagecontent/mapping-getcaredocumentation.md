@@ -55,7 +55,7 @@ Varje `careDocumentation`-post i svaret ger upphov till exakt en `DocumentRefere
 |---|---|---|
 | `body.clinicalDocumentNoteCode` | `DocumentReference.type` | Kodsystem ClinicalDocumentNoteCodeCS (OID `1.2.752.129.2.2.2.11`) — se värdegrupp nedan |
 | `body.clinicalDocumentNoteTitle` | `DocumentReference.description` samt `content.attachment.title` | Anteckningens titel |
-| `body.clinicalDocumentNoteText` | `DocumentReference.content[0].attachment.data` | Fritext, kodas base64 med `contentType: text/plain; charset=utf-8`. XOR med `multimediaEntry` — se [DOC-004](#öppna-frågor) |
+| `body.clinicalDocumentNoteText` | `DocumentReference.content[0].attachment.data` | Fritext: kodas base64 med `contentType: text/plain; charset=utf-8`. DocBook-XML (se [DOC-004](#öppna-frågor)): transformeras till XHTML-narrative och kodas base64 med `contentType: text/html; charset=utf-8`. XOR med `multimediaEntry` |
 | `body.multimediaEntry.mediaType` | `DocumentReference.content[0].attachment.contentType` | MIME-typ (t.ex. `application/pdf`, `image/jpeg`) |
 | `body.multimediaEntry.value` | `DocumentReference.content[0].attachment.data` | Redan base64-kodad binärdata från RIVTA — avkodas och skickas vidare oförändrad, inte dubbelkodad |
 | `body.multimediaEntry.reference` | `DocumentReference.content[0].attachment.url` | URL till externt dokument. XOR med `value` inom `multimediaEntry` |
@@ -205,7 +205,7 @@ nästlat block) — se [DES-005](#bakgrund) ovan.
 | DOC-001 | `hasMore 0..*` saknar FHIR-ekvivalent. | Ej mappat — pagineringen hanteras inte alls; se [hasMore](#hasmore-paginering) |
 | DOC-002 | `author.timestamp` saknar källa om `author` helt saknas. | Löst: `Provenance.recorded` faller tillbaka på `record.timestamp` |
 | DOC-003 | `signature.timestamp` är valfri, till skillnad från PatientSummaryHeader-konventionens obligatoriska `signatureTime`. | Mappas till `extension[ext-signature-time]` när den finns; ingen ersättning när den saknas |
-| DOC-004 | Är `clinicalDocumentNoteText` redan entity-encodad DocBook-text som base64-kodas, eller ska den avkodas först? | Ej löst i denna PoC — texten base64-kodas rakt av som den kommer in. Se `guidance-docbook-narrative.md` för hur DocBook-innehåll *i övrigt* transformeras till FHIR Narrative (`DocBookToNarrativeTransformer`), som ännu inte är kopplad in i denna mappning |
+| DOC-004 | Är `clinicalDocumentNoteText` redan entity-encodad DocBook-text som base64-kodas, eller ska den avkodas först? | Delvis löst: `GetCareDocumentationMapper` avgör med en enkel heuristik (innehållet börjar med `<`) om texten är DocBook-XML. Om ja transformeras den via `DocBookToNarrativeTransformer` (Strategy A — direkt XHTML, se `guidance-docbook-narrative.md`) till `content.attachment` med `contentType: text/html`. Om nej skickas den som `text/plain` precis som tidigare. Heuristiken är inte spec-fastställd — RIVTA-fältet ger ingen egen typindikation — och Strategy B (semantisk `Composition.section`) är inte implementerad |
 | PDL-001 | `approvedForPatient` saknar ett standardiserat FHIR-kodsystem för `meta.security`. | Ej mappat — kräver ett gemensamt beslut om kodsystem innan det kan implementeras |
 | GENERAL-001 | RIVTA-tidsstämplar saknar tidszon; FHIR kräver ISO 8601 med tidszon. | Samma kända PoC-begränsning som gäller `GetDiagnosis` — se `README.md`s PoC-begränsningstabell ("Lokal tidzon") |
 
@@ -219,10 +219,13 @@ hämtade något innehåll alls). Stora binärfiler base64-kodade direkt i FHIR-s
 kostsamt för stora dokument — inte optimerat i denna PoC.
 
 ### DocBook-innehåll i clinicalDocumentNoteText
-Om `clinicalDocumentNoteText` innehåller DocBook-formaterad text (se DOC-004 ovan och
-`guidance-docbook-narrative.md`) transformeras den **inte** till FHIR Narrative i denna
-mappning — den base64-kodas som rå text. `DocBookToNarrativeTransformer` finns i
-mapping-engine och är fullt enhetstestad, men är inte kopplad in i
-`GetCareDocumentationMapper`. Att koppla in den (avgöra Strategy A/B enligt
-`guidance-docbook-narrative.md`, och om resultatet ska ersätta eller komplettera
-`content.attachment`) är ett uppföljningsarbete, inte del av denna PoC.
+`clinicalDocumentNoteText` som ser ut som DocBook-XML (se DOC-004 ovan) transformeras via
+`DocBookToNarrativeTransformer` till XHTML och skickas som `content.attachment` med
+`contentType: text/html` (Strategy A i `guidance-docbook-narrative.md`). Kvarstående
+begränsningar:
+- Detektionen är en enkel heuristik (innehåll som börjar med `<`), inte en spec-fastställd
+  regel — RIVTA-fältet ger ingen egen typindikation för fritext kontra DocBook.
+- Strategy B (semantisk `Composition.section`-uppdelning) är inte implementerad.
+- Transformationen sker fortfarande in i `content.attachment`, inte i resursens egna
+  `DomainResource.text` — det vore semantiskt fel eftersom `.text` ska sammanfatta
+  resursen, inte bära dokumentets faktiska innehåll.

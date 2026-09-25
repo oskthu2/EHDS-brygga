@@ -9,6 +9,7 @@ import se.inera.ehds.mapping.tk.MappedDocumentEntry;
 import se.inera.ehds.mapping.tk.ProvenanceBuilder;
 import se.inera.ehds.mapping.tk.RivDateParser;
 import se.inera.ehds.mapping.tk.TkMapper;
+import se.inera.ehds.mapping.tk.docbook.DocBookToNarrativeTransformer;
 
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
@@ -26,6 +27,10 @@ import java.util.stream.Collectors;
  *   - status is always "current" — the RIVTA body carries no status field; makulerade
  *     anteckningar are assumed not to be returned by the source system.
  *   - content is XOR: clinicalDocumentNoteText (fritext) or multimediaEntry (binary/URL).
+ *     Fritext som ser ut som DocBook-XML transformeras till XHTML-narrative
+ *     (DocBookToNarrativeTransformer) och sätts som text/html; ren fritext skickas som
+ *     text/plain. Heuristiken (innehåll som börjar med "&lt;") är enkel med avsikt —
+ *     RIVTA-fältet ger ingen egen typindikation.
  *   - approvedForPatient (PDL-001) and hasMore/paging (DOC-001) are intentionally left
  *     unmapped — see "Öppna frågor" in the mapping doc.
  */
@@ -42,6 +47,7 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
     private static final String PRACTITIONER_ROLE_TYPE = "PractitionerRole";
 
     private final NamingSystemRegistry namingSystem;
+    private final DocBookToNarrativeTransformer docBookTransformer = new DocBookToNarrativeTransformer();
 
     public GetCareDocumentationMapper(NamingSystemRegistry namingSystem) {
         this.namingSystem = namingSystem;
@@ -191,8 +197,17 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
         Attachment attachment = new Attachment();
 
         if (body.getClinicalDocumentNoteText() != null) {
-            attachment.setContentType("text/plain; charset=utf-8");
-            attachment.setData(body.getClinicalDocumentNoteText().getBytes(StandardCharsets.UTF_8));
+            String text = body.getClinicalDocumentNoteText();
+            if (looksLikeDocBook(text)) {
+                // DocBook-formaterad fritext (t.ex. från 1177 Inkorg) transformeras till
+                // XHTML-narrative istället för att skickas vidare som obehandlad DocBook-XML.
+                String html = docBookTransformer.transform(text);
+                attachment.setContentType("text/html; charset=utf-8");
+                attachment.setData(html.getBytes(StandardCharsets.UTF_8));
+            } else {
+                attachment.setContentType("text/plain; charset=utf-8");
+                attachment.setData(text.getBytes(StandardCharsets.UTF_8));
+            }
         } else if (body.getMultimediaEntry() != null) {
             MultimediaEntry media = body.getMultimediaEntry();
             attachment.setContentType(media.getMediaType());
@@ -213,6 +228,14 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
                 new DocumentReference.DocumentReferenceContentComponent();
         content.setAttachment(attachment);
         return content;
+    }
+
+    // Enkel heuristik: clinicalDocumentNoteText innehåller antingen ren fritext eller
+    // DocBook-XML (root-element t.ex. <article>/<section>) — RIVTA-fältet ger ingen
+    // egen indikation om vilket, så vi avgör på om innehållet ser ut som ett XML-dokument.
+    private boolean looksLikeDocBook(String text) {
+        String trimmed = text.stripLeading();
+        return trimmed.startsWith("<");
     }
 
     private Extension buildDissentingOpinionExtension(DissentingOpinion dissent) {

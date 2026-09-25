@@ -242,6 +242,31 @@ class GetCareDocumentationMapperTest {
             DocumentReference dr = mapper.map(responseWith(entry), ctx).get(0).documentReference();
             assertEquals(0, dr.getContent().size());
         }
+
+        @Test
+        void docBookFormaterad_clinicalDocumentNoteText_transformeras_till_text_html() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteText(
+                    "<article><para>Patienten mår <emphasis role=\"italics\">mycket</emphasis> bra.</para></article>");
+
+            DocumentReference dr = mapper.map(responseWith(entry), ctx).get(0).documentReference();
+            Attachment attachment = dr.getContentFirstRep().getAttachment();
+            String html = new String(attachment.getData(), StandardCharsets.UTF_8);
+
+            assertEquals("text/html; charset=utf-8", attachment.getContentType());
+            assertTrue(html.contains("<em>mycket</em>"));
+        }
+
+        @Test
+        void vanlig_fritext_transformeras_inte_till_html() {
+            CareDocumentation entry = minimalEntry();
+            entry.getBody().setClinicalDocumentNoteText("Patienten mår bra.");
+
+            DocumentReference dr = mapper.map(responseWith(entry), ctx).get(0).documentReference();
+            Attachment attachment = dr.getContentFirstRep().getAttachment();
+
+            assertEquals("text/plain; charset=utf-8", attachment.getContentType());
+        }
     }
 
     @Nested

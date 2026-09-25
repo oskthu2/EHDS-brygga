@@ -317,7 +317,7 @@ Java-subpackage per XML-namespace (eftersom JAXB-namespace är paketglobalt via 
 | Package | XML-namespace | Kontrakt |
 |---|---|---|
 | `mapping/rivta/` | `urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2` | GetDiagnosis |
-| `mapping/rivta/doclist/` | `urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1` | GetDocumentList |
+| `mapping/rivta/caredocumentation/` | `urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3` | GetCareDocumentation |
 
 Nyckeltyper (gemensamma för alla kontrakt):
 
@@ -412,7 +412,7 @@ En konkret klass per tjänstekontrakt:
 | Klass | Intyp | Uttyp | TK |
 |---|---|---|---|
 | `GetDiagnosisMapper` | `GetDiagnosisResponse` | `List<MappedDiagnosisEntry>` | GetDiagnosis:2 |
-| `GetDocumentListMapper` | `GetDocumentListResponse` | `List<MappedDocumentEntry>` | GetDocumentList:1 |
+| `GetCareDocumentationMapper` | `GetCareDocumentationResponse` | `List<MappedDocumentEntry>` | GetCareDocumentation:3 |
 
 `MapperContext` skickas med vid varje mappning och innehåller:
 - `patientSystem` — FHIR-URI för patientidentifierarsystemet
@@ -523,7 +523,7 @@ Implementation Guide finns under `ig/`. Byggs med SUSHI (FSH-kompilator).
 | Profil | FHIR-resurs | Förälderprofil | Kontrakt |
 |---|---|---|---|
 | `SEEHDSCondition` | Condition | IPS `Condition-uv-ips` | GetDiagnosis:2 |
-| `SEEHDSDocumentReference` | DocumentReference | FHIR R4 base | GetDocumentList:1 |
+| `SEEHDSDocumentReference` | DocumentReference | FHIR R4 base | GetCareDocumentation:3 |
 
 ### Extensions och meta på Condition
 
@@ -589,8 +589,13 @@ Dessa delar är medvetet ej implementerade i PoC:n och måste adresseras inför 
 | **CapabilityStatement per VG** | HAPI genererar ett globalt CS. Varje VG bör deklarera sina egna resurser. | Kräver `IServerConformanceProvider`-implementation |
 | **PDL-loggformat** | `LoggService` loggar till mock. Formatet är inte validerat mot ATNA/BALP-specifikationen. | `LoggService.java` |
 | **EI-kontraktsversion** | EI är inkopplat i det oscopade anropsflödet, men mock-ei och `EiService` använder ett förenklat HTTP-API. Ska använda RIVTA `GetEngagements:1`. | `EiService.java`, `mocks/ei/server.js` |
-| **Lokal tidzon** | `parseRivDate()` returnerar datum utan tidszon. Kräver explicit hantering av `Europe/Stockholm` → UTC. | `GetDiagnosisMapper.java`, `GetDocumentListMapper.java` |
+| **Lokal tidzon** | `parseRivDate()` returnerar datum utan tidszon. Kräver explicit hantering av `Europe/Stockholm` → UTC. | `GetDiagnosisMapper.java`, `GetCareDocumentationMapper.java` |
 | **Sparr: break-the-glass** | En konsument från en spärrad enhet som ändå har rätt till informationen (nödsituation) hanteras inte. Kräver kontextinfo om inloggad användares behörighet. | `SparrFilterService.java` |
+| **Patient kontra personal-anrop** | `SparrFilterService` körs ovillkorligt på varje svar. NDI-scenario 2 (patient ser egen data) ska inte spärrfiltreras, men bryggan gör idag ingen skillnad på anropskontext. Se [`docs/ndi-anvandningsscenarier.md`](docs/ndi-anvandningsscenarier.md). | `SparrFilterService.java`, `QueryOrchestrator.java` |
+| **Ombud (NDI-scenario 3)** | Medvetet parkerat — ingen NFF-integration eller fullmaktskontroll finns. Se parkeringsavsnittet i [`docs/ndi-anvandningsscenarier.md`](docs/ndi-anvandningsscenarier.md). | Saknas helt |
+| **GetCareDocumentation: paginering** | `hasMore 0..*` i RIVTA-svaret hanteras inte alls — en patient med fler anteckningar än en sida returnerar bara första sidan. Se DOC-001 i mapping-getcaredocumentation.md. | `GetCareDocumentationMapper.java` |
+| **GetCareDocumentation: DocBook-detektion** | `clinicalDocumentNoteText` som ser ut som DocBook-XML transformeras via `DocBookToNarrativeTransformer` till `text/html`; detektionen är en enkel heuristik (börjar med `<`), inte en spec-fastställd regel, och Strategy B (`Composition.section`) är inte implementerad. Se DOC-004. | `GetCareDocumentationMapper.java`, `DocBookToNarrativeTransformer.java` |
+| **GetCareDocumentation: PractitionerRole-fält** | `author`/`authenticator` är logiska referenser (samma mönster som GetDiagnosis); `byRole` och `orgUnit` har ingen plats på en ren `Reference` och mappas inte. | `GetCareDocumentationMapper.java` |
 
 ---
 
@@ -659,6 +664,6 @@ EHDS-brygga/
 | `NamingSystemRegistry` | `mapping-engine` | Lager 2a: OID↔URI, `oidToUri()` och `uriToOid()` |
 | `ConceptMapRegistry` | `mapping-engine` | Lager 2b: kod→kod, läses från `concept-maps/*.yaml` |
 | `GetDiagnosisMapper` | `mapping-engine` | Lager 3: `GetDiagnosisResponse` → `List<MappedDiagnosisEntry>` |
-| `GetDocumentListMapper` | `mapping-engine` | Lager 3: `GetDocumentListResponse` → `List<MappedDocumentEntry>` |
+| `GetCareDocumentationMapper` | `mapping-engine` | Lager 3: `GetCareDocumentationResponse` → `List<MappedDocumentEntry>` |
 | `MappedDiagnosisEntry` | `mapping-engine` | Record: `(Condition condition, Provenance provenance)` |
 | `MappedDocumentEntry` | `mapping-engine` | Record: `(DocumentReference documentReference, Provenance provenance)` |

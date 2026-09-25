@@ -59,18 +59,18 @@
     {
       "patientId": "191212121212",
       "patientSystem": "http://electronichealth.se/identifier/personnummer",
-      "namespace": "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1",
+      "namespace": "urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3",
       "logicalAddress": "SE2321000016-4HK5",
       "physicalAddress": "http://mock-backend:4005/soap",
-      "clinicalProcessInterestId": "SE2321000016-4HK5#clinicalprocess:healthrecord"
+      "clinicalProcessInterestId": "SE2321000016-4HK5#clinicalprocess:healthcond:description"
     },
     {
       "patientId": "191212121212",
       "patientSystem": "http://electronichealth.se/identifier/personnummer",
-      "namespace": "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1",
+      "namespace": "urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3",
       "logicalAddress": "SE2321000098-7XYZ",
       "physicalAddress": "http://mock-backend:4005/soap",
-      "clinicalProcessInterestId": "SE2321000098-7XYZ#clinicalprocess:healthrecord"
+      "clinicalProcessInterestId": "SE2321000098-7XYZ#clinicalprocess:healthcond:description"
     }
   ]
 }

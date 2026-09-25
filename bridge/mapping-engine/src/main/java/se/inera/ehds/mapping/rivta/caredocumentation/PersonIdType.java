@@ -1,4 +1,4 @@
-package se.inera.ehds.mapping.rivta.doclist;
+package se.inera.ehds.mapping.rivta.caredocumentation;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;

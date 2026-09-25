@@ -10,15 +10,15 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import se.inera.ehds.mapping.naming.NamingSystemRegistry;
-import se.inera.ehds.mapping.rivta.doclist.GetDocumentListResponse;
+import se.inera.ehds.mapping.rivta.caredocumentation.GetCareDocumentationResponse;
 import se.inera.ehds.mapping.tk.MapperContext;
 import se.inera.ehds.mapping.tk.MappedDocumentEntry;
-import se.inera.ehds.mapping.tk.getdocumentlist.GetDocumentListMapper;
+import se.inera.ehds.mapping.tk.getcaredocumentation.GetCareDocumentationMapper;
 import se.inera.ehds.proxy.config.ProxyProperties;
 import se.inera.ehds.proxy.discovery.AccessTokenService;
 import se.inera.ehds.proxy.discovery.CatalogDiscoveryService;
 import se.inera.ehds.proxy.service.ProxyAuditService;
-import se.inera.ehds.soap.client.GetDocumentListClient;
+import se.inera.ehds.soap.client.GetCareDocumentationClient;
 
 import java.util.Date;
 import java.util.List;
@@ -30,10 +30,10 @@ import java.util.UUID;
 public class DocumentReferenceProxyController {
 
     private static final Logger log = LoggerFactory.getLogger(DocumentReferenceProxyController.class);
-    private static final String NS_RIV = "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1";
+    private static final String NS_RIV = "urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3";
 
-    private final GetDocumentListClient soapClient;
-    private final GetDocumentListMapper mapper;
+    private final GetCareDocumentationClient soapClient;
+    private final GetCareDocumentationMapper mapper;
     private final NamingSystemRegistry namingRegistry;
     private final IParser fhirParser;
     private final ProxyProperties proxyProps;
@@ -41,8 +41,8 @@ public class DocumentReferenceProxyController {
     private final AccessTokenService tokenService;
     private final ProxyAuditService audit;
 
-    public DocumentReferenceProxyController(GetDocumentListClient soapClient,
-                                             GetDocumentListMapper mapper,
+    public DocumentReferenceProxyController(GetCareDocumentationClient soapClient,
+                                             GetCareDocumentationMapper mapper,
                                              NamingSystemRegistry namingRegistry,
                                              FhirContext fhirContext,
                                              ProxyProperties proxyProps,
@@ -76,10 +76,10 @@ public class DocumentReferenceProxyController {
             return ResponseEntity.ok(emptyBundle());
         }
 
-        // T1 — slå upp fysisk adress för GetDocumentList-endpointen hos vgHsaId.
+        // T1 — slå upp fysisk adress för GetCareDocumentation-endpointen hos vgHsaId.
         Optional<String> endpointAddress = discovery.resolveEndpointAddress(vgHsaId, NS_RIV);
         if (endpointAddress.isEmpty()) {
-            log.warn("T1-tjänstesökning hittade ingen GetDocumentList-endpoint för vgHsaId={}", vgHsaId);
+            log.warn("T1-tjänstesökning hittade ingen GetCareDocumentation-endpoint för vgHsaId={}", vgHsaId);
             audit.logProxyFetch(UUID.randomUUID().toString(), patientValue, patientSystem,
                     vgHsaId, "DocumentReference", 0, false, null);
             return ResponseEntity.ok(emptyBundle());
@@ -89,9 +89,9 @@ public class DocumentReferenceProxyController {
         List<MappedDocumentEntry> entries;
         try {
             String accessToken = tokenService.fetchAccessToken();
-            GetDocumentListResponse response = soapClient.call(endpointAddress.get(), vgHsaId, root, patientValue, accessToken);
+            GetCareDocumentationResponse response = soapClient.call(endpointAddress.get(), vgHsaId, root, patientValue, accessToken);
             entries = mapper.map(response, new MapperContext(patientSystem, patientValue, proxyProps.getBridgeHsaId()));
-            log.debug("GetDocumentList för {} returnerade {} DocumentReference(s)", vgHsaId, entries.size());
+            log.debug("GetCareDocumentation för {} returnerade {} DocumentReference(s)", vgHsaId, entries.size());
             audit.logProxyFetch(UUID.randomUUID().toString(), patientValue, patientSystem,
                     vgHsaId, "DocumentReference", entries.size(), true, endpointAddress.get());
         } catch (Exception e) {

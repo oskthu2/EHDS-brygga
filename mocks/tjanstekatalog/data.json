@@ -15,18 +15,18 @@
       "description": "SLL – GetDiagnosis (konsument: brygga SE2321000999-EHDS)"
     },
     {
-      "id": "endpoint-vgr-getdocumentlist",
+      "id": "endpoint-vgr-getcaredocumentation",
       "vgHsaId": "SE2321000016-4HK5",
-      "namespace": "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1",
+      "namespace": "urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3",
       "physicalAddress": "http://mock-backend:4005/soap",
-      "description": "VGR – GetDocumentList (konsument: brygga SE2321000999-EHDS)"
+      "description": "VGR – GetCareDocumentation (konsument: brygga SE2321000999-EHDS)"
     },
     {
-      "id": "endpoint-sll-getdocumentlist",
+      "id": "endpoint-sll-getcaredocumentation",
       "vgHsaId": "SE2321000098-7XYZ",
-      "namespace": "urn:riv:clinicalprocess:healthrecord:GetDocumentListResponder:1",
+      "namespace": "urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3",
       "physicalAddress": "http://mock-backend:4005/soap",
-      "description": "SLL – GetDocumentList (konsument: brygga SE2321000999-EHDS)"
+      "description": "SLL – GetCareDocumentation (konsument: brygga SE2321000999-EHDS)"
     }
   ]
 }

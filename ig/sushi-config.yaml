@@ -34,8 +34,8 @@ pages:
     title: Hem
   mapping-getdiagnosis.md:
     title: "Mappning: GetDiagnosis → Condition"
-  mapping-getdocumentlist.md:
-    title: "Mappning: GetDocumentList → DocumentReference"
+  mapping-getcaredocumentation.md:
+    title: "Mappning: GetCareDocumentation → DocumentReference"
   naming-systems.md:
     title: "OID-till-URI-mappningar"
   architecture.md:
@@ -53,7 +53,7 @@ menu:
   Hem: index.html
   Mappningar:
     "GetDiagnosis → Condition": mapping-getdiagnosis.html
-    "GetDocumentList → DocumentReference": mapping-getdocumentlist.html
+    "GetCareDocumentation → DocumentReference": mapping-getcaredocumentation.html
   "OID-mappningar": naming-systems.html
   Arkitektur: architecture.html
   "VG-konfiguration": vg-config.html

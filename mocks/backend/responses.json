@@ -197,31 +197,44 @@
       }
     ]
   },
-  "documents": {
+  "careDocumentations": {
     "191212121212": [
       {
-        "documentId": "doc-001-vgr",
-        "title": "Inskrivningsanteckning akutmottagning",
-        "documentTime": "20230601120000",
+        "recordId": "rec-001-vgr",
+        "recordTimestamp": "20230601120000",
         "sourceSystemHSAId": "SE2321000016-4HK5",
-        "careUnitHSAId": "SE2321000016-4HK5",
-        "careProviderHSAId": "SE2321000016-4HK5",
-        "typeCode": "74155-3",
-        "typeCodeSystem": "2.16.840.1.113883.6.1",
-        "typeDisplayName": "Hospital admission note",
-        "statusCode": "active"
+        "accountableHealthcareProvider": "SE2321000016-4HK5",
+        "accountableCareUnit": "SE2321000016-4HK5",
+        "blockComparisonTime": "20230601115500",
+        "approvedForPatient": true,
+        "authorId": "SE2321000016-HOS001",
+        "authorName": "Anna Andersson",
+        "authorTimestamp": "20230601120000",
+        "noteCode": "ins",
+        "noteCodeSystem": "1.2.752.129.2.2.2.11",
+        "noteDisplayName": "Inskrivningsanteckning",
+        "noteTitle": "Inskrivningsanteckning akutmottagning",
+        "noteText": "Patienten inkommer med andningsbesvär. Status vid ankomst stabilt."
       },
       {
-        "documentId": "doc-002-sll",
-        "title": "Mottagningsanteckning kardiologi",
-        "documentTime": "20220315090000",
+        "recordId": "rec-002-sll",
+        "recordTimestamp": "20220315090000",
         "sourceSystemHSAId": "SE2321000098-7XYZ",
-        "careUnitHSAId": "SE2321000098-7XYZ",
-        "careProviderHSAId": "SE2321000098-7XYZ",
-        "typeCode": "11506-3",
-        "typeCodeSystem": "2.16.840.1.113883.6.1",
-        "typeDisplayName": "Progress note",
-        "statusCode": "active"
+        "accountableHealthcareProvider": "SE2321000098-7XYZ",
+        "accountableCareUnit": "SE2321000098-7XYZ",
+        "blockComparisonTime": "20220315085500",
+        "approvedForPatient": true,
+        "authorId": "SE2321000098-HOS002",
+        "authorName": "Bo Bengtsson",
+        "authorTimestamp": "20220315090000",
+        "signatureId": "SE2321000098-HOS002",
+        "signatureName": "Bo Bengtsson",
+        "signatureTimestamp": "20220315093000",
+        "noteCode": "bes",
+        "noteCodeSystem": "1.2.752.129.2.2.2.11",
+        "noteDisplayName": "Besöksanteckning",
+        "noteTitle": "Mottagningsanteckning kardiologi",
+        "noteText": "Patienten kommer för uppföljning av förmaksflimmer. Opåverkad, EKG oförändrat."
       }
     ]
   }

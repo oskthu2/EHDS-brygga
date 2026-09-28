@@ -560,55 +560,55 @@ class GetCareDocumentationMapperTest {
 
     @Nested
     class VardgivarFiltrering {
-        // Två vårdgivare, SE111-VG1 och SE222-VG2, i samma system: många anteckningar
+        // Två vårdgivare, BC_TEST_VG1 och BC_TEST_VG2, i samma system: många anteckningar
         // per vårdgivare i samma svar. Ett VG-scopat anrop (MapperContext.requestedVgHsaId)
         // ska bara ge tillbaka poster för den efterfrågade vårdgivaren.
 
         @Test
         void vg_scopat_anrop_ger_bara_poster_for_efterfragad_vardgivare() {
             List<CareDocumentation> entries = List.of(
-                    entryFor("SE111-VG1", "rec-1"),
-                    entryFor("SE111-VG1", "rec-2"),
-                    entryFor("SE111-VG1", "rec-3"),
-                    entryFor("SE222-VG2", "rec-4"),
-                    entryFor("SE222-VG2", "rec-5"));
+                    entryFor("BC_TEST_VG1", "rec-1"),
+                    entryFor("BC_TEST_VG1", "rec-2"),
+                    entryFor("BC_TEST_VG1", "rec-3"),
+                    entryFor("BC_TEST_VG2", "rec-4"),
+                    entryFor("BC_TEST_VG2", "rec-5"));
 
             MapperContext scoped = new MapperContext(
                     "http://electronichealth.se/identifier/personnummer", "190101011234",
-                    "SE2321000999-EHDS", "SE111-VG1");
+                    "SE2321000999-EHDS", "BC_TEST_VG1");
 
             List<MappedDocumentEntry> result = mapper.map(responseWith(entries.toArray(new CareDocumentation[0])), scoped);
 
             assertEquals(3, result.size());
             assertTrue(result.stream()
-                    .allMatch(e -> "SE111-VG1".equals(agentValue(e.provenance(), "custodian"))));
+                    .allMatch(e -> "BC_TEST_VG1".equals(agentValue(e.provenance(), "custodian"))));
         }
 
         @Test
         void vg_scopat_anrop_for_andra_vardgivaren_ger_bara_dess_poster() {
             List<CareDocumentation> entries = List.of(
-                    entryFor("SE111-VG1", "rec-1"),
-                    entryFor("SE111-VG1", "rec-2"),
-                    entryFor("SE222-VG2", "rec-3"),
-                    entryFor("SE222-VG2", "rec-4"),
-                    entryFor("SE222-VG2", "rec-5"));
+                    entryFor("BC_TEST_VG1", "rec-1"),
+                    entryFor("BC_TEST_VG1", "rec-2"),
+                    entryFor("BC_TEST_VG2", "rec-3"),
+                    entryFor("BC_TEST_VG2", "rec-4"),
+                    entryFor("BC_TEST_VG2", "rec-5"));
 
             MapperContext scoped = new MapperContext(
                     "http://electronichealth.se/identifier/personnummer", "190101011234",
-                    "SE2321000999-EHDS", "SE222-VG2");
+                    "SE2321000999-EHDS", "BC_TEST_VG2");
 
             List<MappedDocumentEntry> result = mapper.map(responseWith(entries.toArray(new CareDocumentation[0])), scoped);
 
             assertEquals(3, result.size());
             assertTrue(result.stream()
-                    .allMatch(e -> "SE222-VG2".equals(agentValue(e.provenance(), "custodian"))));
+                    .allMatch(e -> "BC_TEST_VG2".equals(agentValue(e.provenance(), "custodian"))));
         }
 
         @Test
         void ej_vg_scopat_anrop_ger_alla_vardgivares_poster() {
             List<CareDocumentation> entries = List.of(
-                    entryFor("SE111-VG1", "rec-1"),
-                    entryFor("SE222-VG2", "rec-2"));
+                    entryFor("BC_TEST_VG1", "rec-1"),
+                    entryFor("BC_TEST_VG2", "rec-2"));
 
             List<MappedDocumentEntry> result = mapper.map(responseWith(entries.toArray(new CareDocumentation[0])), ctx);
 

@@ -77,6 +77,13 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
         AccessControlHeader ach = header.getAccessControlHeader();
         RecordType record = header.getRecord();
 
+        // VG-scopat anrop: filtrera bort poster som tillhör en annan vårdgivare än den
+        // efterfrågade — skydd om bakomliggande system returnerar flera vårdgivares poster.
+        if (ctx != null && ctx.getRequestedVgHsaId() != null
+                && !ctx.getRequestedVgHsaId().equals(ach != null ? ach.getAccountableHealthcareProvider() : null)) {
+            return null;
+        }
+
         DocumentReference dr = new DocumentReference();
         dr.setId(java.util.UUID.randomUUID().toString());
         dr.getMeta().addProfile(PROFILE_URL);

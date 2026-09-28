@@ -1,0 +1,155 @@
+namn,hsa_id
+TestVG,SE1234-STARTestVG
+akkaTest VG,SE1234-akkaTest
+Aleris,SE2321000016-2769
+anliTest VG,SE1234-anliTest
+backup,backup
+BC_TEST_VG1,BC_TEST_VG1
+BC_TEST_VG2,BC_TEST_VG2
+BHVQ VG,BHVQ_TEST_VG
+BLOCKED_TestVG,SE1234-BLOCKEDtestVG
+BOA Test,SE1234-BOA
+Borås Stad,TST2120001561-1000
+Bröstcentrum Mammografi Screening S:t Göran,SE5565189692-31662
+BUKSPOTTVÅRD AB TEST,SE-BUKSPOTT-99001
+Capio Lundby Sjukhus,TST5565189692-104D
+Capio St:Görans Sjukhus,SE5565189692-10000
+CARMONA_BHVQ_TESTDATA_VG1,CARMONA_BHVQ_TESTDATA_VG1
+Caspien Vårdteam AB,SE2321000206-E00780
+Danderyds sjukhus,SE2321000016-1K2W
+Doktor.se Njurunda,SE2321000206-E01658
+ECT Testvårdgivare,ECT_TEST_VG
+EMQ Testdata,EMQ_TEST_VG
+Familjeläkarna Mitt AB,SE2321000206-E00767
+GHP Stockholm Gastro Center,SE2321000016-C9N2
+goma testvårgivare,SE1234-gomatest
+Haninge Kommun,SE2321000016-A1AL3H
+Human Resurs HC AB,SE2321000206-E01655
+InfCareHepatit-TEST-VG,SE12340000-INFCAREHEPATITTESTVG
+InfCareHIV-TEST-VG,SE12340000-INFCAREHIVTESTVG
+JOAO-TESTVÅRDGIVARE,JOAO111111111
+Jönköpings kommun,TST2120000530-1000
+KAR TESTVG,SE55641111111-4321KARTESTVG
+Kardiogenetik-TestVG,SE1234-KardiogenetikTest
+Karlshamn (direkt),SE162321000081-B1G
+Karlshamns kommun,SE2120000845-1000
+Karlskoga (direkt),SE162120001991-KMS1
+Katarakt TestVG,SE1234-KataraktVG
+kridaVG,SE123kridaVG-001
+Landstinget Dalarna QA,SE2321000180-1000
+Lindesbergs Kommun,TSE2120002015-1000
+Mammografi Bröstcentrum Solna,SE2321000016-B4X8
+Mammografi Testvårdgivare,SE1231000-MAMTESTVG
+Mawell (Mockar),Mawell
+Nader,rcid
+NKRR Mockar (NKRR fel),NKRR_MOCKTEST_VG2
+NKRR Prestanda (Mockar),NKRR_MOCKTEST_PERF
+NKRR TEST (Mockar - NTP fel),NKRR_MOCKTEST_VG3
+NKRR TEST (Mockar - OK),NKRR_MOCKTEST_VG5
+NKRR TEST (Mockar - VG fel),NKRR_MOCKTEST_VG4
+NKRR TEST VG1 (Mockar),SE55641111111-1234nkrrtestVG1
+NKRR TEST VG2 (Mockar),SE55642222222-1234nkrrtestVG2
+NKRR test-VG Rikssvikt 2.0,SE123456-RIKSSVIKT20
+NKRR testvårdgivare NTP,NKRR_TEST_VG1
+NKRR Testvårdgivare Senior Alert,SE2120001000-SATESTVG
+NKRR_LOCAL_VG1,NKRR_LOCAL_VG1
+NKRR_LOCAL_VG2,NKRR_LOCAL_VG2
+NKRR_TESTDATA_VG1,NKRR_TESTDATA_VG1
+NKRR-TEST NPCR,SE123456-NPCRTEST
+Norrköping,SE2120000456-AAAA
+Norrtälje och primärvård Tiohundra,SE2321000016-1329
+Premicare Härnösand AB,SE2321000206-E01656
+Premicare Johannesberg AB,SE2321000206-E01659
+Premicare Ljustadalen AB,SE2321000206-E00765
+QRC_CARE,QRC_CARE_HSAID_001
+RCNTest TestVG,SE1234-RCNTest-TEST
+Region Blekinge,SE2321000081-L001
+Region Gävleborg,SE2321000198-016965
+Region Halland,SE2321000115-O00001
+Region Jämtland Härjedalen,TSE2321000214-0001
+Region Jönköpings län,TSE2321000057-TEST
+Region Jönköpings län PMO UTB,SE2321000057-45ZQ
+Region Kalmar,LKL162321000073-1000
+Region Kronoberg,SE2321000065-7330028000014
+Region Norrbotten,SE2321000230-E00001
+Region Skåne (direkt),SE162321000255-O00001
+Region Sörmland,SE2321000032-1000
+Region Uppsala,SE162321000024-3P3V
+Region Värmland,SE162321000156-400S
+Region Västernorrland,SE2321000206-E00001
+Region Västmanland Gammal,SE2321000172-2DB3
+Region Västmanland Ny,TSE2321000172-2DB3
+Region Örebro,SE2321000164-7381037590003
+Region Östergötland,SE2321000040-TEST
+RegisterCentrum123456789,RegisterCentrum123456789
+Regressionstester_vg1,Regressionstester_vg1
+Regressionstestvårdgivare,Regressionstest_VG1
+ReUseThisCareGiver,0
+ReUseThisCareGiver,00
+ReUseThisCareGiver,000
+RiksHIA TestVG,SE123-RIKSHIATEST
+Riksstroke Testdata,RIKSSTROKE_TESTDATA
+Riksviktvårdgivare,Riksvikt
+SCAAR TestVG,SE1234-SCAAR-TEST
+SE123_DannyVG,SE123_DannyVG
+SENIOR_ALERT_UTB,SENIOR_ALERT_UTB
+SeniorAlertQA,SEPROC123456-0001
+Sephia TestVG,SE1234-Sephia-TEST
+Smoke_test_vg_22,Smoke_test_vg_22
+SMOKE2 testdata,SMOKE10242
+smoke22vg,smoke22hsaid
+Smoke329456,Smoke3291HsaId45
+Smoketest2018,234234234
+smoketestregister,sdffd21223
+smoketestvårdgivare 2,smoketest234
+smoketestvårdgivare 3,smoketest3
+smokeys,smokey2222
+smoktestvårdgivare22,mawell234
+Smöker,324234
+Smökätåst2018,2342342
+SPAHR-TestVG,SE1234-SPAHR-Test
+SQRTPA_Orebro_VG1,SQRTPA_Orebro_VG1
+SRQ Testvårdgivare,SE123-SRQTEST
+STALLEDRÄNG_VÅRD_AB,SE01STALLEDRANG0001
+STALLEDRÄNG_VÅRD_AB,SE01STALLEDRANG0002
+Sundsvall Vårdteam AB,SE2321000206-E00927
+SvensktBråckregister-TEST-VG,SE12340000-BRACKREGISTERTESTVG
+Swedcon TestVG,SE1234-Swedcon-TEST
+Swedvasc TestVG,SE1234-Swedvasc-TEST
+Swentry TestVG,SE1234-Swentry-TEST
+SWIBREG-TEST-VG,SE12340000-SWIBREGTESTVG
+SÖS Mammografi Bröstcentrum,SE2321000016-12MH
+Test_0309_2_åöä,12345
+Test_0309_2_åöäa,1234r
+Test_20171207_åäö,Test_20171207
+test22_1,test234_1
+Testregister-vg1,Testregister-vg1-hsa
+testRikssvikt 3.0,testhsaidRikssvikt
+TestVG LVR,SE1234-LVR
+TestVG SoReg,SE1234-SoReg
+TESTVG_RCVGRTEST,SE123_RCVGRTEST
+TestVG-pneumoni,SE1234-pneumoni
+TESTVÅRDGIVARE EXEMPELREGISTRET,SE123456789EXEMPEL
+Testvårdgivare åäö,hejhopp
+Testvårdgivare åäö,hejhopp1
+Tieto Cloud (direkt),T_SERVICES_SE165565594230-10BS
+Tomt,Tomt
+Uddevalla kommun,TST2120001397-1000
+UTB_VG,UTB_VG
+VardgivareMedFleraLogiskaAdresser,VardgivareFleraLogiskaAdresser
+Vetlanda Kommun,TSE2120000571-100A
+VG DE FÖRKYLDA,SE100020003000
+VG kursreg1,SE1Kursreg1
+VG kursreg10,SE1Kursreg10
+VG kursreg11,SE1Kursreg11
+VG kursreg12,SE1Kursreg12
+VG kursreg2,SE1Kursreg2
+VG kursreg3,SE1Kursreg3
+VG kursreg4,SE1Kursreg4
+VG kursreg5,SE1Kursreg5
+VG kursreg6,SE1Kursreg6
+VG kursreg7,SE1Kursreg7
+VG_CGM.CGMX.Uppsala,CGM-CGMX-UPPSALA01-HSAID
+VG_lukli_test,SE1234_VG_lukli_test
+VG_TEST_1,VG_TEST_1
+Wetterhälsan,TSE2321000057-5SRP

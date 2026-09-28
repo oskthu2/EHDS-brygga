@@ -208,7 +208,7 @@ class SparrFilterServiceTest {
 
         @Test
         void manga_diagnoser_fran_samma_vardgivare_spärras_nar_diagnoser_ar_spärrade() {
-            Provenance provenance = provenanceWith("SE333-PROV", "SE333-UNIT");
+            Provenance provenance = provenanceWith("SE1234-BLOCKEDtestVG", "SE1234-BLOCKEDtestVG-E01");
             when(rest.postForObject(anyString(), any(), eq(Map.class)))
                     .thenReturn(Map.of("blocked", true));
 
@@ -224,7 +224,7 @@ class SparrFilterServiceTest {
 
         @Test
         void anteckningar_fran_samma_vardgivare_passerar_trots_diagnosspärr() {
-            Provenance provenance = provenanceWith("SE333-PROV", "SE333-UNIT");
+            Provenance provenance = provenanceWith("SE1234-BLOCKEDtestVG", "SE1234-BLOCKEDtestVG-E01");
             when(rest.postForObject(anyString(), any(), eq(Map.class)))
                     .thenReturn(Map.of("blocked", false));
 

@@ -52,6 +52,13 @@ public class GetDiagnosisMapper {
         DiagnosisBody body = diag.getDiagnosisBody();
         if (header == null || body == null) return null;
 
+        // VG-scopat anrop: filtrera bort poster som tillhör en annan vårdgivare än den
+        // efterfrågade — skydd om bakomliggande system returnerar flera vårdgivares poster.
+        if (ctx != null && ctx.getRequestedVgHsaId() != null
+                && !ctx.getRequestedVgHsaId().equals(header.getCareProviderHSAId())) {
+            return null;
+        }
+
         Condition c = new Condition();
         c.setId(UUID.randomUUID().toString());
         c.getMeta().addProfile(PROFILE_URL);

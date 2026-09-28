@@ -148,7 +148,27 @@ check_status "GET DocumentReference VGR-scope"    "$DOCREF_VGR_URL"
 check_json   "DocumentReference VGR total = 2"    "$DOCREF_VGR_URL" '.total' "2"
 
 echo ""
-echo "--- 6. Edge cases ---"
+echo "--- 6. Vårdgivarfiltrering – två vårdgivare, många rader per vårdgivare ---"
+# Patient med 4 diagnoser/3 anteckningar från VGR och 3 diagnoser/2 anteckningar från SLL
+# i samma svar från bakomliggande system (samma mönster som patient $PATIENT_ID,
+# fast med fler rader per vårdgivare). KÄND BEGRÄNSNING: VG-scopad sökning filtrerar
+# idag INTE bort poster som tillhör en annan vårdgivare än den efterfrågade — se
+# GetDiagnosisMapper/GetCareDocumentationMapper (MapperContext.requestedVgHsaId finns
+# och är enhetstestad, men är inte kopplad in i ntjp-proxy:s controllers ännu, eftersom
+# det skulle ändra befintligt, redan e2e-testat beteende — se avsnitt 4 ovan). Dessa
+# asserts dokumenterar dagens faktiska (ofiltrerade) beteende; uppdatera till "bara
+# egna poster" den dag filtreringen kopplas in.
+MANY_ROWS_PATIENT_ID="199003035678"
+COND_MANY_VGR_URL="$GATEWAY_URL/fhir/${VGR_HSA}/Condition?patient.identifier=${PATIENT_SYSTEM}%7C${MANY_ROWS_PATIENT_ID}"
+COND_MANY_SLL_URL="$GATEWAY_URL/fhir/${SLL_HSA}/Condition?patient.identifier=${PATIENT_SYSTEM}%7C${MANY_ROWS_PATIENT_ID}"
+DOCREF_MANY_VGR_URL="$GATEWAY_URL/fhir/${VGR_HSA}/DocumentReference?patient.identifier=${PATIENT_SYSTEM}%7C${MANY_ROWS_PATIENT_ID}"
+
+check_json   "Condition VGR total = 7 (ofiltrerat, känd begränsning)" "$COND_MANY_VGR_URL" '.total' "7"
+check_json   "Condition SLL total = 7 (ofiltrerat, känd begränsning)" "$COND_MANY_SLL_URL" '.total' "7"
+check_json   "DocumentReference VGR total = 5 (ofiltrerat, känd begränsning)" "$DOCREF_MANY_VGR_URL" '.total' "5"
+
+echo ""
+echo "--- 7. Edge cases ---"
 UNKNOWN_URL="$GATEWAY_URL/fhir/Condition?patient.identifier=${PATIENT_SYSTEM}%7C000000000000"
 check_status "Okänd patient returnerar 200"       "$UNKNOWN_URL"
 check_json   "Okänd patient total = 0"            "$UNKNOWN_URL" '.total' "0"

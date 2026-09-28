@@ -38,7 +38,6 @@
         "periodEnd": null
       }
     ],
-
     "200001011234": [
       {
         "sourceSystemHSAId": "SE2321000016-4HK5",
@@ -53,7 +52,6 @@
         "periodEnd": null
       }
     ],
-
     "198505152222": [
       {
         "sourceSystemHSAId": "SE2321000016-4HK5",
@@ -119,7 +117,6 @@
         "assertedDate": "20231201"
       }
     ],
-
     "195810161234": [
       {
         "sourceSystemHSAId": "SE2321000016-4HK5",
@@ -195,6 +192,92 @@
         "periodStart": "20220520",
         "periodEnd": "20220715"
       }
+    ],
+    "199003035678": [
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240601090000",
+        "careUnitHSAId": "SE2321000016-4HK5-E01",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "J18.9",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Pneumoni, ospecificerad",
+        "diagnosisType": "HD",
+        "periodStart": "20230601",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240601090000",
+        "careUnitHSAId": "SE2321000016-4HK5-E01",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "E11.9",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Diabetes mellitus typ 2 utan komplikationer",
+        "diagnosisType": "HD",
+        "periodStart": "20200101",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240601090000",
+        "careUnitHSAId": "SE2321000016-4HK5-E01",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "I10",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Essentiell hypertoni",
+        "diagnosisType": "BY",
+        "periodStart": "20190515",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "documentTime": "20240601090000",
+        "careUnitHSAId": "SE2321000016-4HK5-E01",
+        "careProviderHSAId": "SE2321000016-4HK5",
+        "diagnosisCode": "Z79.4",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Långtidsanvändning av insulin",
+        "diagnosisType": "BY",
+        "periodStart": "20200101",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "documentTime": "20240101080000",
+        "careUnitHSAId": "SE2321000098-7XYZ-E01",
+        "careProviderHSAId": "SE2321000098-7XYZ",
+        "diagnosisCode": "J44.1",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Kronisk obstruktiv lungsjukdom med akut exacerbation",
+        "diagnosisType": "HD",
+        "periodStart": "20230510",
+        "periodEnd": "20230625"
+      },
+      {
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "documentTime": "20240101080000",
+        "careUnitHSAId": "SE2321000098-7XYZ-E01",
+        "careProviderHSAId": "SE2321000098-7XYZ",
+        "diagnosisCode": "F32.1",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Depressiv episod, måttlig",
+        "diagnosisType": "BY",
+        "periodStart": "20231201",
+        "periodEnd": null
+      },
+      {
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "documentTime": "20240101080000",
+        "careUnitHSAId": "SE2321000098-7XYZ-E01",
+        "careProviderHSAId": "SE2321000098-7XYZ",
+        "diagnosisCode": "N18.3",
+        "codeSystem": "1.2.752.116.1.1.1.1.3",
+        "displayName": "Kronisk njursjukdom, stadium 3",
+        "diagnosisType": "BY",
+        "periodStart": "20180901",
+        "periodEnd": null
+      }
     ]
   },
   "careDocumentations": {
@@ -235,6 +318,93 @@
         "noteDisplayName": "Besöksanteckning",
         "noteTitle": "Mottagningsanteckning kardiologi",
         "noteText": "Patienten kommer för uppföljning av förmaksflimmer. Opåverkad, EKG oförändrat."
+      }
+    ],
+    "199003035678": [
+      {
+        "recordId": "rec-101-vg1",
+        "recordTimestamp": "20240601090000",
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "accountableHealthcareProvider": "SE2321000016-4HK5",
+        "accountableCareUnit": "SE2321000016-4HK5-E01",
+        "blockComparisonTime": "20240601085500",
+        "approvedForPatient": true,
+        "authorId": "SE2321000016-4HK5-HOS010",
+        "authorName": "Erik Eriksson",
+        "authorTimestamp": "20240601090000",
+        "noteCode": "ins",
+        "noteCodeSystem": "1.2.752.129.2.2.2.11",
+        "noteDisplayName": "Inskrivningsanteckning",
+        "noteTitle": "Inskrivningsanteckning akutmottagning",
+        "noteText": "Patienten inkommer med bröstsmärta."
+      },
+      {
+        "recordId": "rec-102-vg1",
+        "recordTimestamp": "20240601090000",
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "accountableHealthcareProvider": "SE2321000016-4HK5",
+        "accountableCareUnit": "SE2321000016-4HK5-E01",
+        "blockComparisonTime": "20240601085500",
+        "approvedForPatient": true,
+        "authorId": "SE2321000016-4HK5-HOS010",
+        "authorName": "Erik Eriksson",
+        "authorTimestamp": "20240601090000",
+        "noteCode": "epi",
+        "noteCodeSystem": "1.2.752.129.2.2.2.11",
+        "noteDisplayName": "Epikris",
+        "noteTitle": "Epikris medicin",
+        "noteText": "Sammanfattning av vårdtillfället."
+      },
+      {
+        "recordId": "rec-103-vg1",
+        "recordTimestamp": "20240601090000",
+        "sourceSystemHSAId": "SE2321000016-4HK5",
+        "accountableHealthcareProvider": "SE2321000016-4HK5",
+        "accountableCareUnit": "SE2321000016-4HK5-E01",
+        "blockComparisonTime": "20240601085500",
+        "approvedForPatient": true,
+        "authorId": "SE2321000016-4HK5-HOS010",
+        "authorName": "Erik Eriksson",
+        "authorTimestamp": "20240601090000",
+        "noteCode": "bes",
+        "noteCodeSystem": "1.2.752.129.2.2.2.11",
+        "noteDisplayName": "Besöksanteckning",
+        "noteTitle": "Mottagningsanteckning primärvård",
+        "noteText": "Återbesök efter utskrivning."
+      },
+      {
+        "recordId": "rec-201-vg2",
+        "recordTimestamp": "20240101080000",
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "accountableHealthcareProvider": "SE2321000098-7XYZ",
+        "accountableCareUnit": "SE2321000098-7XYZ-E01",
+        "blockComparisonTime": "20240101075500",
+        "approvedForPatient": true,
+        "authorId": "SE2321000098-7XYZ-HOS020",
+        "authorName": "Frida Fransson",
+        "authorTimestamp": "20240101080000",
+        "noteCode": "bes",
+        "noteCodeSystem": "1.2.752.129.2.2.2.11",
+        "noteDisplayName": "Besöksanteckning",
+        "noteTitle": "Mottagningsanteckning kardiologi",
+        "noteText": "Uppföljning av förmaksflimmer."
+      },
+      {
+        "recordId": "rec-202-vg2",
+        "recordTimestamp": "20240101080000",
+        "sourceSystemHSAId": "SE2321000098-7XYZ",
+        "accountableHealthcareProvider": "SE2321000098-7XYZ",
+        "accountableCareUnit": "SE2321000098-7XYZ-E01",
+        "blockComparisonTime": "20240101075500",
+        "approvedForPatient": true,
+        "authorId": "SE2321000098-7XYZ-HOS020",
+        "authorName": "Frida Fransson",
+        "authorTimestamp": "20240101080000",
+        "noteCode": "opb",
+        "noteCodeSystem": "1.2.752.129.2.2.2.11",
+        "noteDisplayName": "Operationsberättelse",
+        "noteTitle": "Operationsberättelse",
+        "noteText": "Genomförd elkonvertering."
       }
     ]
   }

@@ -198,6 +198,48 @@ class SparrFilterServiceTest {
     }
 
     @Nested
+    class SparrPerInformationstyp {
+        // Samma vårdgivare, många poster: spärren i spärrtjänsten gäller för
+        // diagnoser (Condition) men inte för anteckningar (DocumentReference).
+        // Sparr-tjänsten spärrar per anrop (inte per resurstyp i själva svaret),
+        // så scenariot modelleras genom att GetDiagnosis- och
+        // GetCareDocumentation-anropen mot spärrtjänsten ger olika svar för
+        // samma vårdgivare/vårdenhet.
+
+        @Test
+        void manga_diagnoser_fran_samma_vardgivare_spärras_nar_diagnoser_ar_spärrade() {
+            Provenance provenance = provenanceWith("SE333-PROV", "SE333-UNIT");
+            when(rest.postForObject(anyString(), any(), eq(Map.class)))
+                    .thenReturn(Map.of("blocked", true));
+
+            List<MappedDiagnosisEntry> entries = List.of(
+                    diagnosisEntry(provenance), diagnosisEntry(provenance),
+                    diagnosisEntry(provenance), diagnosisEntry(provenance));
+
+            FilterResult<MappedDiagnosisEntry> result = service.filterConditions(entries, "sys", "id");
+
+            assertTrue(result.entries().isEmpty());
+            assertFalse(result.failClosed());
+        }
+
+        @Test
+        void anteckningar_fran_samma_vardgivare_passerar_trots_diagnosspärr() {
+            Provenance provenance = provenanceWith("SE333-PROV", "SE333-UNIT");
+            when(rest.postForObject(anyString(), any(), eq(Map.class)))
+                    .thenReturn(Map.of("blocked", false));
+
+            List<MappedDocumentEntry> entries = List.of(
+                    documentEntry(provenance), documentEntry(provenance),
+                    documentEntry(provenance), documentEntry(provenance));
+
+            FilterResult<MappedDocumentEntry> result = service.filterDocumentReferences(entries, "sys", "id");
+
+            assertEquals(4, result.entries().size());
+            assertFalse(result.failClosed());
+        }
+    }
+
+    @Nested
     class DocumentReferenceFilter {
         @Test
         void ej_blockerad_documentreference_passerar_igenom() {

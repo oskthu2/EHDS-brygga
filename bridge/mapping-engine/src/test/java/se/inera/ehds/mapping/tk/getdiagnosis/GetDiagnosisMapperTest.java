@@ -373,6 +373,71 @@ class GetDiagnosisMapperTest {
         }
     }
 
+    @Nested
+    class VardgivarFiltrering {
+        // Två vårdgivare, SE111-VG1 och SE222-VG2, i samma system: många diagnoser
+        // per vårdgivare i samma svar. Ett VG-scopat anrop (MapperContext.requestedVgHsaId)
+        // ska bara ge tillbaka poster för den efterfrågade vårdgivaren.
+
+        @Test
+        void vg_scopat_anrop_ger_bara_poster_for_efterfragad_vardgivare() {
+            List<Diagnosis> diagnoses = List.of(
+                    diagnosisFor("SE111-VG1", "J18.9"),
+                    diagnosisFor("SE111-VG1", "E11.9"),
+                    diagnosisFor("SE111-VG1", "I10"),
+                    diagnosisFor("SE222-VG2", "F32.1"),
+                    diagnosisFor("SE222-VG2", "N18.3"));
+
+            MapperContext scoped = new MapperContext(
+                    "http://electronichealth.se/identifier/personnummer", "190101011234",
+                    "SE2321000999-EHDS", "SE111-VG1");
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diagnoses.toArray(new Diagnosis[0])), scoped);
+
+            assertEquals(3, result.size());
+            assertTrue(result.stream()
+                    .allMatch(e -> "SE111-VG1".equals(agentValue(e.provenance(), "custodian"))));
+        }
+
+        @Test
+        void vg_scopat_anrop_for_andra_vardgivaren_ger_bara_dess_poster() {
+            List<Diagnosis> diagnoses = List.of(
+                    diagnosisFor("SE111-VG1", "J18.9"),
+                    diagnosisFor("SE111-VG1", "E11.9"),
+                    diagnosisFor("SE222-VG2", "F32.1"),
+                    diagnosisFor("SE222-VG2", "N18.3"),
+                    diagnosisFor("SE222-VG2", "I50.9"));
+
+            MapperContext scoped = new MapperContext(
+                    "http://electronichealth.se/identifier/personnummer", "190101011234",
+                    "SE2321000999-EHDS", "SE222-VG2");
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diagnoses.toArray(new Diagnosis[0])), scoped);
+
+            assertEquals(3, result.size());
+            assertTrue(result.stream()
+                    .allMatch(e -> "SE222-VG2".equals(agentValue(e.provenance(), "custodian"))));
+        }
+
+        @Test
+        void ej_vg_scopat_anrop_ger_alla_vardgivares_poster() {
+            List<Diagnosis> diagnoses = List.of(
+                    diagnosisFor("SE111-VG1", "J18.9"),
+                    diagnosisFor("SE222-VG2", "F32.1"));
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diagnoses.toArray(new Diagnosis[0])), ctx);
+
+            assertEquals(2, result.size());
+        }
+
+        private Diagnosis diagnosisFor(String careProviderHsaId, String diagnosisCode) {
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisHeader().setCareProviderHSAId(careProviderHsaId);
+            diag.getDiagnosisBody().getDiagnosisCode().setCode(diagnosisCode);
+            return diag;
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Diagnosis minimalDiagnosis() {

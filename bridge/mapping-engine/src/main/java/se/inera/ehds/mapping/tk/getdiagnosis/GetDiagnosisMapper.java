@@ -114,11 +114,6 @@ public class GetDiagnosisMapper {
             }
         }
 
-        // recordedDate from documentTime
-        if (header.getDocumentTime() != null) {
-            c.setRecordedDateElement(new DateTimeType(RivDateParser.parse(header.getDocumentTime())));
-        }
-
         String hsaSystem = namingSystem.oidToUri(HSA_OID_INERA);
 
         // meta.source: sourceSystemHSAId as URI (urn:oid:{HSA_OID}#{hsaId})
@@ -128,9 +123,15 @@ public class GetDiagnosisMapper {
         }
 
         // recorder: accountableHealthcareProfessional → PractitionerRole (logical reference)
+        // recordedDate: accountableHealthcareProfessional/authorTime (documentTime har kardinalitet 0..0)
         HealthcareProfessionalType ahp = header.getAccountableHealthcareProfessional();
-        if (ahp != null && ahp.getPersonId() != null) {
-            c.setRecorder(practitionerRoleRef(ahp.getPersonId(), hsaSystem));
+        if (ahp != null) {
+            if (ahp.getPersonId() != null) {
+                c.setRecorder(practitionerRoleRef(ahp.getPersonId(), hsaSystem));
+            }
+            if (ahp.getAuthorTime() != null) {
+                c.setRecordedDateElement(new DateTimeType(RivDateParser.parse(ahp.getAuthorTime())));
+            }
         }
 
         // asserter: legalAuthenticator → PractitionerRole; signatureDate → extension[assertedDate]

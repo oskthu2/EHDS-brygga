@@ -253,13 +253,25 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void documentTime_sätts_som_recordedDate() {
+        void authorTime_från_accountableHealthcareProfessional_sätts_som_recordedDate() {
+            Diagnosis diag = minimalDiagnosis();
+            HealthcareProfessionalType ahp = new HealthcareProfessionalType();
+            ahp.setAuthorTime("20240315");
+            diag.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertEquals("2024-03-15", c.getRecordedDateElement().getValueAsString());
+        }
+
+        @Test
+        void saknad_authorTime_ger_ingen_recordedDate() {
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisHeader().setDocumentTime("20240315");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
-            assertEquals("2024-03-15", c.getRecordedDateElement().getValueAsString());
+            assertFalse(c.hasRecordedDate());
         }
 
         @Test

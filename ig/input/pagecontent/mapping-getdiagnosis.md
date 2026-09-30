@@ -305,8 +305,14 @@ För varje Condition skapas en Provenance-resurs som inkluderas i sökbundlen me
 | `author` | `diagnosisHeader.careUnitHSAId` | Informationsägare vårdenhet |
 | `assembler` | `EHDS_BRIDGE_HSA_ID` (env-variabel) | EHDS-bryggan som sammansatte FHIR-bundlen |
 
-`Provenance.recorded` sätts till `diagnosisHeader.documentTime` (konverterad till ISO 8601 + UTC).
-Om `documentTime` saknas används aktuell systemtid.
+`Provenance.recorded` sätts till `diagnosisHeader.accountableHealthcareProfessional.authorTime`
+(konverterad till ISO 8601 + UTC) – samma källa som `Condition.recordedDate`. `documentTime` används
+inte eftersom fältet har kardinalitet 0..0 för GetDiagnosis. Om `authorTime` saknas används aktuell
+systemtid.
+
+`Provenance.recorded` återanvänds även som jämförelsetidpunkt (`comparisonTime`, "CheckBlocks-tid")
+i anropet till spärrtjänsten, se [Säkerhetstjänsten (Spärr)](architecture.html#sakerhetstjansten-sparr)
+i arkitekturdokumentationen.
 
 Provenance-resursen refererar Condition via `Provenance.target = urn:uuid:{Condition.id}`.
 

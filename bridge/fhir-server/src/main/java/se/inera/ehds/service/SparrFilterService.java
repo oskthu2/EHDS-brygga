@@ -1,5 +1,6 @@
 package se.inera.ehds.service;
 
+import org.hl7.fhir.r4.model.InstantType;
 import org.hl7.fhir.r4.model.Provenance;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -76,10 +77,12 @@ public class SparrFilterService {
         }
 
         String careUnitHsaId = extractHsaId(provenance, "author");
-        String cacheKey = careProviderHsaId + "|" + (careUnitHsaId != null ? careUnitHsaId : "");
+        String comparisonTime = extractComparisonTime(provenance);
+        String cacheKey = careProviderHsaId + "|" + (careUnitHsaId != null ? careUnitHsaId : "")
+                + "|" + (comparisonTime != null ? comparisonTime : "");
 
         boolean blocked = cache.computeIfAbsent(cacheKey,
-                k -> checkSparr(patientSystem, patientId, careProviderHsaId, careUnitHsaId, failClosed));
+                k -> checkSparr(patientSystem, patientId, careProviderHsaId, careUnitHsaId, comparisonTime, failClosed));
 
         if (blocked) {
             log.info("Sparr: blockerar {} från vårdgivare {} / enhet {} för patient {}",
@@ -102,9 +105,21 @@ public class SparrFilterService {
         return hsaId != null && HSA_ID_PATTERN.matcher(hsaId).matches();
     }
 
+    /**
+     * Jämförelsetidpunkt (CheckBlocks-tid) för spärrkontrollen. Provenance.recorded bär redan
+     * den tidpunkt varje mappare anser korrekt för sin resurstyp (t.ex. accountableHealthcareProfessional.authorTime
+     * för GetDiagnosis), så den återanvänds här istället för att introducera en egen tidskälla.
+     */
+    private String extractComparisonTime(Provenance prov) {
+        if (prov == null || !prov.hasRecorded()) return null;
+        InstantType recorded = prov.getRecordedElement();
+        return recorded != null && !recorded.isEmpty() ? recorded.getValueAsString() : null;
+    }
+
     @SuppressWarnings("unchecked")
     private boolean checkSparr(String patientSystem, String patientId,
-                                String careProviderHsaId, String careUnitHsaId, AtomicBoolean failClosed) {
+                                String careProviderHsaId, String careUnitHsaId, String comparisonTime,
+                                AtomicBoolean failClosed) {
         try {
             Map<String, String> req = new HashMap<>();
             req.put("patientSystem", patientSystem);
@@ -112,6 +127,9 @@ public class SparrFilterService {
             req.put("careProviderHsaId", careProviderHsaId);
             if (careUnitHsaId != null) {
                 req.put("careUnitHsaId", careUnitHsaId);
+            }
+            if (comparisonTime != null) {
+                req.put("comparisonTime", comparisonTime);
             }
             Map<String, Object> resp = rest.postForObject(sparrUrl + "/check", req, Map.class);
             if (resp == null) {

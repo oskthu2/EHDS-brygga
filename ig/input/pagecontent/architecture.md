@@ -129,9 +129,15 @@ Sparrtjänsten kontrollerar yttre spärr (`careProviderHSAId`, organisationsniv�
 `careUnitHSAId` som `agent[role=author]` (informationsägare). Varken
 `careProviderHSAId` eller `careUnitHSAId` placeras som extension inne i FHIR-resursen.
 
-Spärrkontrollen är synkron och sker per unikt `(careProviderHSAId, careUnitHSAId)`-par i svaret
-(cachelagrat per request). Fail-closed gäller: saknas giltig Provenance eller misslyckas
+Spärrkontrollen är synkron och sker per unikt `(careProviderHSAId, careUnitHSAId, comparisonTime)`-par
+i svaret (cachelagrat per request). Fail-closed gäller: saknas giltig Provenance eller misslyckas
 anropet till spärrtjänsten filtreras posten bort.
+
+**Jämförelsetidpunkt (CheckBlocks-tid):** anropet till spärrtjänsten skickar även `comparisonTime`,
+hämtad från den mappade resursens `Provenance.recorded` (den tidpunkt som mapparen redan bedömt
+korrekt för resurstypen). För GetDiagnosis är detta `diagnosisHeader.accountableHealthcareProfessional.authorTime` –
+`documentTime` används inte här eftersom fältet har kardinalitet 0..0 för det tjänstekontraktet.
+Saknas `Provenance.recorded` skickas inget `comparisonTime`.
 
 **PoC-begränsning:** En vårdgivare från en spärrad enhet som ändå har rätt att ta del av
 informationen (t.ex. nödsituationer, break-the-glass) hanteras inte. Se [Kända begränsningar](#kanda-begransningar).

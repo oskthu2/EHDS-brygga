@@ -383,6 +383,19 @@ class GetDiagnosisMapperTest {
             Provenance p = result.get(0).provenance();
             assertEquals("SE2321000999-EHDS", agentValue(p, "assembler"));
         }
+
+        @Test
+        void provenance_recorded_kommer_fran_authorTime_inte_documentTime() {
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisHeader().setDocumentTime("20200101");
+            HealthcareProfessionalType ahp = new HealthcareProfessionalType();
+            ahp.setAuthorTime("20240315120000");
+            diag.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Provenance p = result.get(0).provenance();
+            assertTrue(p.getRecordedElement().getValueAsString().startsWith("2024-03-15"));
+        }
     }
 
     @Nested

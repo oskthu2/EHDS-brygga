@@ -147,11 +147,12 @@ public class GetDiagnosisMapper {
             }
         }
 
+        // Provenance.recorded: samma källa som recordedDate (authorTime) – documentTime är 0..0
         Provenance prov = ProvenanceBuilder.build(
                 c.getId(),
                 header.getCareProviderHSAId(),
                 header.getCareUnitHSAId(),
-                header.getDocumentTime(),
+                ahp != null ? ahp.getAuthorTime() : null,
                 hsaSystem,
                 ctx);
 

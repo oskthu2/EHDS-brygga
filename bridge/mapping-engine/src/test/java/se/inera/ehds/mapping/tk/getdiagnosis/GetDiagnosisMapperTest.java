@@ -253,13 +253,25 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void documentTime_sätts_som_recordedDate() {
+        void authorTime_från_accountableHealthcareProfessional_sätts_som_recordedDate() {
+            Diagnosis diag = minimalDiagnosis();
+            HealthcareProfessionalType ahp = new HealthcareProfessionalType();
+            ahp.setAuthorTime("20240315");
+            diag.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertEquals("2024-03-15", c.getRecordedDateElement().getValueAsString());
+        }
+
+        @Test
+        void saknad_authorTime_ger_ingen_recordedDate() {
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisHeader().setDocumentTime("20240315");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
-            assertEquals("2024-03-15", c.getRecordedDateElement().getValueAsString());
+            assertFalse(c.hasRecordedDate());
         }
 
         @Test
@@ -370,6 +382,19 @@ class GetDiagnosisMapperTest {
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(minimalDiagnosis()), ctx);
             Provenance p = result.get(0).provenance();
             assertEquals("SE2321000999-EHDS", agentValue(p, "assembler"));
+        }
+
+        @Test
+        void provenance_recorded_kommer_fran_authorTime_inte_documentTime() {
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisHeader().setDocumentTime("20200101");
+            HealthcareProfessionalType ahp = new HealthcareProfessionalType();
+            ahp.setAuthorTime("20240315120000");
+            diag.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Provenance p = result.get(0).provenance();
+            assertTrue(p.getRecordedElement().getValueAsString().startsWith("2024-03-15"));
         }
     }
 

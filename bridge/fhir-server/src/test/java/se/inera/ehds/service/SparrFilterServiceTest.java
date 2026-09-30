@@ -287,6 +287,40 @@ class SparrFilterServiceTest {
         }
     }
 
+    @Nested
+    class JamforelseTid {
+        @Test
+        void provenance_recorded_skickas_som_comparisonTime() {
+            Provenance provenance = provenanceWith("SE2321000016-PROV", "SE2321000016-4HK5");
+            provenance.setRecordedElement(new InstantType("2024-03-15T12:00:00Z"));
+            when(rest.postForObject(anyString(), any(), eq(Map.class)))
+                    .thenReturn(Map.of("blocked", false));
+
+            service.filterConditions(List.of(diagnosisEntry(provenance)), "sys", "id");
+
+            verify(rest).postForObject(anyString(), argThat(body -> {
+                @SuppressWarnings("unchecked")
+                Map<String, String> req = (Map<String, String>) body;
+                return "2024-03-15T12:00:00Z".equals(req.get("comparisonTime"));
+            }), eq(Map.class));
+        }
+
+        @Test
+        void saknad_provenance_recorded_skickar_inget_comparisonTime() {
+            Provenance provenance = provenanceWith("SE2321000016-PROV", "SE2321000016-4HK5");
+            when(rest.postForObject(anyString(), any(), eq(Map.class)))
+                    .thenReturn(Map.of("blocked", false));
+
+            service.filterConditions(List.of(diagnosisEntry(provenance)), "sys", "id");
+
+            verify(rest).postForObject(anyString(), argThat(body -> {
+                @SuppressWarnings("unchecked")
+                Map<String, String> req = (Map<String, String>) body;
+                return !req.containsKey("comparisonTime");
+            }), eq(Map.class));
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Provenance provenanceWith(String careProviderHsaId, String careUnitHsaId) {

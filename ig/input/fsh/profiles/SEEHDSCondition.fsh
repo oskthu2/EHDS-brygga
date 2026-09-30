@@ -85,7 +85,7 @@ Profilen säkerställer att:
 * abatementDateTime ^short = "Diagnosens slutdatum, mappat från diagnosisBody.diagnosisTimePeriod.end"
 
 * recordedDate MS
-* recordedDate ^short = "Registreringsdatum, mappat från diagnosisHeader.documentTime (YYYYMMDDHHMMSS → ISO 8601)"
+* recordedDate ^short = "Registreringsdatum, mappat från diagnosisHeader.accountableHealthcareProfessional.authorTime (YYYYMMDDHHMMSS → ISO 8601). documentTime har kardinalitet 0..0 och används inte"
 
 * recorder MS
 * recorder only Reference($seBasePractitionerRole)

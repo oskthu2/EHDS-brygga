@@ -16,7 +16,7 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 | `diagnosisHeader.patientId.extension` | `Condition.subject.identifier.value` | Personnummer eller samordningsnummer – subject är SEEHDSPatient |
 | `diagnosisHeader.patientId.root` | `Condition.subject.identifier.system` | OID konverteras till URI, se tabell nedan |
 | `diagnosisHeader.sourceSystemHSAId` | `Condition.meta.source` | Källsystemets HSA-id som URI (urn:oid:{OID}#{hsaId}) |
-| `diagnosisHeader.documentTime` | `Condition.recordedDate` | Format YYYYMMDDHHMMSS → ISO 8601 |
+| `diagnosisHeader.accountableHealthcareProfessional.authorTime` | `Condition.recordedDate` | Format YYYYMMDDHHMMSS → ISO 8601 (`documentTime` har kardinalitet 0..0 och används inte) |
 | `diagnosisBody.diagnosisCode.code` | `Condition.code.coding.code` | ICD-10-SE kod, t.ex. `J18.9` |
 | `diagnosisBody.diagnosisCode.codeSystem` | `Condition.code.coding.system` | OID `1.2.752.116.1.1.1.1.3` → `https://www.icd10.se/` |
 | `diagnosisBody.diagnosisCode.displayName` | `Condition.code.coding.display` | Kodverkets officiella benämning |
@@ -151,12 +151,12 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
       <ns1:extension>191212121212</ns1:extension>
     </ns1:patientId>
     <ns1:sourceSystemHSAId>SE2321000016-4HK5</ns1:sourceSystemHSAId>
-    <ns1:documentTime>20230601120000</ns1:documentTime>
     <ns1:accountableHealthcareProfessional>
       <ns1:personId>
         <ns1:root>1.2.752.129.2.1.4.1</ns1:root>
         <ns1:extension>SE2321000016-DOK</ns1:extension>
       </ns1:personId>
+      <ns1:authorTime>20230601120000</ns1:authorTime>
     </ns1:accountableHealthcareProfessional>
     <ns1:legalAuthenticator>
       <ns1:hcProfessional>
@@ -269,7 +269,7 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
 - `category[diagnostyp].coding.code = HD` – `diagnosisType = HD` (Huvuddiagnos) mappas direkt till Ineras kv_diagnostyp-kod
 - `code.coding.system = https://www.icd10.se/` – OID `1.2.752.116.1.1.1.1.3` konverteras till ICD-10-SE URI
 - `subject.identifier.system = http://electronichealth.se/identifier/personnummer` – OID `1.2.752.129.2.1.3.1` konverteras till kanonisk URI (HL7 Sweden basprofiler)
-- `recordedDate` – `20230601120000` konverteras till `2023-06-01T12:00:00`
+- `recordedDate` – `accountableHealthcareProfessional.authorTime` = `20230601120000` konverteras till `2023-06-01T12:00:00`
 - `onsetDateTime` – `20230601` konverteras till `2023-06-01`
 - `meta.source = urn:oid:1.2.752.129.2.1.4.1#SE2321000016-4HK5` – källsystemets HSA-id som URI
 - `recorder` – `accountableHealthcareProfessional.personId` mappas till logisk PractitionerRole-referens
@@ -289,6 +289,7 @@ Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver f
 Valfria fält (0..1) som sätts när källdata finns:
 
 - `recorder` – sätts om `accountableHealthcareProfessional` finns i RIVTA-svaret
+- `recordedDate` – sätts om `accountableHealthcareProfessional.authorTime` finns i RIVTA-svaret
 - `asserter` – sätts om `legalAuthenticator` finns i RIVTA-svaret
 - `extension[assertedDate]` – sätts om `legalAuthenticator.signatureDate` finns
 - `onsetDateTime` – sätts om `diagnosisTimePeriod.start` finns
@@ -304,8 +305,14 @@ För varje Condition skapas en Provenance-resurs som inkluderas i sökbundlen me
 | `author` | `diagnosisHeader.careUnitHSAId` | Informationsägare vårdenhet |
 | `assembler` | `EHDS_BRIDGE_HSA_ID` (env-variabel) | EHDS-bryggan som sammansatte FHIR-bundlen |
 
-`Provenance.recorded` sätts till `diagnosisHeader.documentTime` (konverterad till ISO 8601 + UTC).
-Om `documentTime` saknas används aktuell systemtid.
+`Provenance.recorded` sätts till `diagnosisHeader.accountableHealthcareProfessional.authorTime`
+(konverterad till ISO 8601 + UTC) – samma källa som `Condition.recordedDate`. `documentTime` används
+inte eftersom fältet har kardinalitet 0..0 för GetDiagnosis. Om `authorTime` saknas används aktuell
+systemtid.
+
+`Provenance.recorded` återanvänds även som jämförelsetidpunkt (`comparisonTime`, "CheckBlocks-tid")
+i anropet till spärrtjänsten, se [Säkerhetstjänsten (Spärr)](architecture.html#sakerhetstjansten-sparr)
+i arkitekturdokumentationen.
 
 Provenance-resursen refererar Condition via `Provenance.target = urn:uuid:{Condition.id}`.
 

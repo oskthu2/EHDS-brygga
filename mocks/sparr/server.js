@@ -9,7 +9,11 @@ app.use(express.json());
 
 /**
  * POST /check
- * Body: { patientSystem, patientId, careProviderHsaId }
+ * Body: { patientSystem, patientId, careProviderHsaId, careUnitHsaId?, comparisonTime? }
+ *
+ * comparisonTime (CheckBlocks-tid) är jämförelsetidpunkten för spärrkontrollen, t.ex.
+ * accountableHealthcareProfessional.authorTime för GetDiagnosis. Mocken kräver den inte
+ * men tar emot den för att spegla det riktiga anropet.
  *
  * Returns whether the patient has blocked the given careProviderHsaId (organisationsnivå).
  * Special case: patientId "000000000000" is fully blocked.

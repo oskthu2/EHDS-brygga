@@ -327,7 +327,7 @@ Nyckeltyper (gemensamma för alla kontrakt):
 | `CVType` | CV (Coded Value) | `code`, `codeSystem` (OID), `displayName` |
 | `DatePeriodType` | DatePeriod | `start`, `end` (YYYYMMDD eller YYYYMMDDHHmmss) |
 | `DiagnosisHeader` | DiagnosisHeader | `patientId`, `sourceSystemHSAId`, `documentTime`, `careUnitHSAId`, `careProviderHSAId` |
-| `DiagnosisBody` | DiagnosisBody | `diagnosisCode`, `diagnosisType`, `diagnosisTimePeriod`, `chronicCondition`, `assertedDate` |
+| `DiagnosisBody` | DiagnosisBody | `diagnosisCode`, `diagnosisType`, `diagnosisTimePeriod`, `chronicCondition`, `relatedDiagnosis`, `assertedDate` |
 
 **Datumsformat:** RIVTA använder heltalssträngar. Mapparen konverterar:
 - `YYYYMMDD` → `YYYY-MM-DD`

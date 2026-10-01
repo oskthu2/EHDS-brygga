@@ -22,6 +22,8 @@ public class GetDiagnosisMapper {
     private static final String CLIN_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-clinical";
     private static final String VER_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-ver-status";
     private static final String EXT_ASSERTED_DATE = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
+    private static final String EXT_CHRONIC_CONDITION = CANONICAL_BASE + "/StructureDefinition/ext-chronic-condition";
+    private static final String EXT_RELATED_CONDITION = CANONICAL_BASE + "/StructureDefinition/ext-related-condition";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-condition";
     private static final String PROFILE_URL_EU_EPS =
             "http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps";
@@ -80,6 +82,20 @@ public class GetDiagnosisMapper {
                         body.getDiagnosisType(),
                         body.getDiagnosisType()));
         c.addCategory(codeableWithDisplay(cat.getTargetSystem(), cat.getTargetCode(), cat.getDisplay()));
+
+        // chronicCondition: extension[chronicDiagnosis] med boolean
+        if (body.getChronicCondition() != null) {
+            c.addExtension(new Extension(EXT_CHRONIC_CONDITION)
+                    .setValue(new BooleanType(body.getChronicCondition())));
+        }
+
+        // relatedDiagnosis.documentId: extension[relatedCondition] med logisk referens
+        RelatedDiagnosis related = body.getRelatedDiagnosis();
+        if (related != null && related.getDocumentId() != null) {
+            Reference relatedRef = new Reference()
+                    .setIdentifier(new Identifier().setValue(related.getDocumentId()));
+            c.addExtension(new Extension(EXT_RELATED_CONDITION).setValue(relatedRef));
+        }
 
         // code: ICD-10-SE (or other coding system)
         CVType dc = body.getDiagnosisCode();

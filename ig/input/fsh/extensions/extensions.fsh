@@ -16,6 +16,41 @@ Skiljer sig från recordedDate (systemtidsstämpel) och onsetDateTime (klinisk d
 * value[x] only dateTime
 * valueDateTime ^short = "Administrativt datum för diagnosregistrering (YYYYMMDD → YYYY-MM-DD)"
 
+Extension: ExtChronicCondition
+Id: ext-chronic-condition
+Title: "Chronic Condition"
+Description: """
+Anger om diagnosen är klassad som kronisk. Mappas från diagnosisBody.chronicCondition i GetDiagnosis.
+"""
+* ^url = "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition"
+* ^version = "0.1.0"
+* ^status = #draft
+* ^experimental = true
+* ^context[+].type = #element
+* ^context[=].expression = "Condition"
+
+* value[x] only boolean
+* valueBoolean ^short = "true om diagnosen är klassad som kronisk i källsystemet"
+
+Extension: ExtRelatedCondition
+Id: ext-related-condition
+Title: "Related Condition"
+Description: """
+Logisk referens till ett dokument som beskriver en relaterad diagnos.
+Mappas från diagnosisBody.relatedDiagnosis.documentId i GetDiagnosis. Källsystemets
+dokumentid bevaras oförändrat som identifierarvärde eftersom dokumentet inte är
+tillgängligt som en egen FHIR-resurs i bryggan.
+"""
+* ^url = "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition"
+* ^version = "0.1.0"
+* ^status = #draft
+* ^experimental = true
+* ^context[+].type = #element
+* ^context[=].expression = "Condition"
+
+* value[x] only Reference
+* valueReference ^short = "Logisk referens till relaterad diagnos, identifierad via källsystemets documentId"
+
 Extension: ExtBlockComparisonTime
 Id: ext-block-comparison-time
 Title: "Block Comparison Time"

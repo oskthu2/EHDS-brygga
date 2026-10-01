@@ -28,6 +28,8 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 | `diagnosisHeader.accountableHealthcareProfessional` | `Condition.recorder` (Reference(PractitionerRole)) | Ansvarig hälso- och sjukvårdspersonal – logisk referens via HSA-id |
 | `diagnosisHeader.legalAuthenticator` | `Condition.asserter` (Reference(PractitionerRole)) | Rättslig äkthetsintygsgivare – logisk referens via HSA-id |
 | `diagnosisHeader.legalAuthenticator` (datum) | `Condition.extension[assertedDate]` | Administrativt intygsgivningsdatum (YYYYMMDD → YYYY-MM-DD) |
+| `diagnosisBody.chronicCondition` | `Condition.extension[chronicDiagnosis]` | Boolean – om diagnosen är klassad som kronisk |
+| `diagnosisBody.relatedDiagnosis.documentId` | `Condition.extension[relatedCondition]` | Logisk referens (Identifier) till relaterad diagnos via källsystemets dokumentid |
 | `diagnosisHeader.careProviderHSAId` | `Provenance.agent[custodian]` | Juridiskt ansvarig vårdgivare – används för Sparr |
 | `diagnosisHeader.careUnitHSAId` | `Provenance.agent[author]` | Informationsägare vårdenhet |
 | `diagnosisHeader.documentTime` | `Provenance.recorded` | Tidsstämpel för Provenance |
@@ -294,6 +296,8 @@ Valfria fält (0..1) som sätts när källdata finns:
 - `extension[assertedDate]` – sätts om `legalAuthenticator.signatureDate` finns
 - `onsetDateTime` – sätts om `diagnosisTimePeriod.start` finns
 - `abatementDateTime` – sätts om `diagnosisTimePeriod.end` finns
+- `extension[chronicDiagnosis]` – sätts om `diagnosisBody.chronicCondition` finns (true eller false)
+- `extension[relatedCondition]` – sätts om `diagnosisBody.relatedDiagnosis.documentId` finns
 
 ## Provenance
 

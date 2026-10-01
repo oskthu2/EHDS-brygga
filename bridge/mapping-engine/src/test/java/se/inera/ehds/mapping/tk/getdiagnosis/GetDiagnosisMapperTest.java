@@ -1,7 +1,10 @@
 package se.inera.ehds.mapping.tk.getdiagnosis;
 
+import org.hl7.fhir.r4.model.BooleanType;
 import org.hl7.fhir.r4.model.Condition;
+import org.hl7.fhir.r4.model.Extension;
 import org.hl7.fhir.r4.model.Provenance;
+import org.hl7.fhir.r4.model.Reference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -143,6 +146,78 @@ class GetDiagnosisMapperTest {
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
             assertEquals("XX", c.getCategoryFirstRep().getCodingFirstRep().getCode());
+        }
+    }
+
+    @Nested
+    class KronikerOchRelateradDiagnos {
+        @Test
+        void chronicCondition_true_ger_extension_chronicDiagnosis_true() {
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisBody().setChronicCondition(true);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            Extension ext = c.getExtensionByUrl(
+                    "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition");
+            assertNotNull(ext);
+            assertTrue(((BooleanType) ext.getValue()).booleanValue());
+        }
+
+        @Test
+        void chronicCondition_false_ger_extension_chronicDiagnosis_false() {
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisBody().setChronicCondition(false);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            Extension ext = c.getExtensionByUrl(
+                    "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition");
+            assertNotNull(ext);
+            assertFalse(((BooleanType) ext.getValue()).booleanValue());
+        }
+
+        @Test
+        void saknad_chronicCondition_ger_ingen_extension() {
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(minimalDiagnosis()), ctx);
+            Condition c = result.get(0).condition();
+            assertNull(c.getExtensionByUrl(
+                    "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition"));
+        }
+
+        @Test
+        void relatedDiagnosis_documentId_ger_extension_relatedCondition_med_logisk_referens() {
+            Diagnosis diag = minimalDiagnosis();
+            RelatedDiagnosis related = new RelatedDiagnosis();
+            related.setDocumentId("DOC-12345");
+            diag.getDiagnosisBody().setRelatedDiagnosis(related);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            Extension ext = c.getExtensionByUrl(
+                    "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition");
+            assertNotNull(ext);
+            Reference ref = (Reference) ext.getValue();
+            assertEquals("DOC-12345", ref.getIdentifier().getValue());
+        }
+
+        @Test
+        void saknad_relatedDiagnosis_ger_ingen_extension() {
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(minimalDiagnosis()), ctx);
+            Condition c = result.get(0).condition();
+            assertNull(c.getExtensionByUrl(
+                    "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition"));
+        }
+
+        @Test
+        void relatedDiagnosis_utan_documentId_ger_ingen_extension() {
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisBody().setRelatedDiagnosis(new RelatedDiagnosis());
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertNull(c.getExtensionByUrl(
+                    "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition"));
         }
     }
 

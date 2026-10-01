@@ -6,13 +6,14 @@ import jakarta.xml.bind.annotation.XmlType;
 
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "DiagnosisBody", propOrder = {
-    "diagnosisCode", "diagnosisType", "diagnosisTimePeriod", "chronicCondition"
+    "diagnosisCode", "diagnosisType", "diagnosisTimePeriod", "chronicCondition", "relatedDiagnosis"
 })
 public class DiagnosisBody {
     private CVType diagnosisCode;
     private String diagnosisType;
     private DatePeriodType diagnosisTimePeriod;
     private Boolean chronicCondition;
+    private RelatedDiagnosis relatedDiagnosis;
 
     public CVType getDiagnosisCode() { return diagnosisCode; }
     public void setDiagnosisCode(CVType diagnosisCode) { this.diagnosisCode = diagnosisCode; }
@@ -22,4 +23,6 @@ public class DiagnosisBody {
     public void setDiagnosisTimePeriod(DatePeriodType diagnosisTimePeriod) { this.diagnosisTimePeriod = diagnosisTimePeriod; }
     public Boolean getChronicCondition() { return chronicCondition; }
     public void setChronicCondition(Boolean chronicCondition) { this.chronicCondition = chronicCondition; }
+    public RelatedDiagnosis getRelatedDiagnosis() { return relatedDiagnosis; }
+    public void setRelatedDiagnosis(RelatedDiagnosis relatedDiagnosis) { this.relatedDiagnosis = relatedDiagnosis; }
 }

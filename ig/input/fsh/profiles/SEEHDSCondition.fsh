@@ -30,6 +30,12 @@ Profilen säkerställer att:
 * extension contains ExtAssertedDate named assertedDate 0..1 MS
 * extension[assertedDate] ^short = "Administrativt intygsgivningsdatum för legalAuthenticator (YYYYMMDD → YYYY-MM-DD)"
 
+* extension contains ExtChronicCondition named chronicDiagnosis 0..1 MS
+* extension[chronicDiagnosis] ^short = "Anger om diagnosen är klassad som kronisk (diagnosisBody.chronicCondition)"
+
+* extension contains ExtRelatedCondition named relatedCondition 0..1 MS
+* extension[relatedCondition] ^short = "Logisk referens till relaterad diagnos via källsystemets documentId (diagnosisBody.relatedDiagnosis.documentId)"
+
 * clinicalStatus 1..1 MS
 * clinicalStatus ^short = "Klinisk status: active om inget slutdatum, resolved om slutdatum finns"
 * clinicalStatus from $conditionClinical (required)

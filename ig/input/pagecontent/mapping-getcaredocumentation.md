@@ -111,6 +111,31 @@ förutsättningar bryggan litar på att producenten uppfyller. Mappern själv va
 strikt: den använder `clinicalDocumentNoteText` om den finns, annars `multimediaEntry` — vilket
 respekterar XOR i den lyckade vägen utan att avvisa en malformad post.
 
+### clinicalDocumentNoteText — entity-kodad XML, inte base64 (DOC-004)
+
+`clinicalDocumentNoteText` är av typen `string`. När innehållet är DocBook är det alltså
+inte base64-kodad binärdata (till skillnad från `multimediaEntry.value`, se nedan) — det är
+vanlig XML som, eftersom den ligger inuti ett annat XML-element, entity-kodas enligt XML-standard
+(`<` → `&lt;`, `>` → `&gt;` osv.):
+
+```xml
+<clinicalDocumentNoteText>
+  &lt;?xml version="1.0" encoding="utf-8"?&gt;
+  &lt;article&gt;
+    &lt;section&gt;
+      &lt;title&gt;Bedömning&lt;/title&gt;
+      &lt;para&gt;Patienten mår bra.&lt;/para&gt;
+    &lt;/section&gt;
+  &lt;/article&gt;
+</clinicalDocumentNoteText>
+```
+
+Entity-avkodningen sker automatiskt av XML-parsern (JAXB) vid inläsning av SOAP-svaret, innan
+`GetCareDocumentationMapper` någonsin ser strängen — mappern får redan avkodad DocBook-XML som
+vanlig text. Ingen separat base64- eller entity-avkodningslogik behövs i bryggan. Den enda
+logik mappern behöver är den befintliga heuristiken (`looksLikeDocBook`, se nedan) för att
+avgöra om den avkodade strängen är DocBook-XML eller ren fritext.
+
 ### Composition.section — Strategy B (DOC-004)
 
 När `clinicalDocumentNoteText` innehåller DocBook-XML mappas den, utöver den platta
@@ -190,9 +215,12 @@ mappningskod refererar bara URL:en som den är given.
 och indikerar att ytterligare data kan hämtas via `hasMore[i].logicalAddress` och
 `hasMore[i].reference`. Det finns inget FHIR-ekvivalent för detta pagineringsmönster.
 
-**Ej mappat.** Se [DOC-001](#öppna-frågor) — mappern läser inte `hasMore` alls i den här
-PoC:n; en konsument som behöver fullständig data för en patient med många anteckningar måste
-själv hantera paginering på RIVTA-nivå (vilket bryggan idag inte gör åt den).
+**Stöds inte.** Se [DOC-001](#öppna-frågor) — mappern läser inte `hasMore` alls och det finns
+ingen FHIR-motsvarighet att mappa till. Detta är inte en IG-/profilfråga utan adapterlogik:
+om `hasMore` förekommer i ett svar måste anropande system (bryggans adapterlager, utanför denna
+IG) självt upptäcka det och hämta resterande sidor via `hasMore[i].logicalAddress` och
+`hasMore[i].reference` innan resultatet sammanställs till FHIR — bryggan presenterar annars bara
+den första sidan utan att indikera att mer data finns.
 
 ## result (tekniska svarsfält)
 
@@ -241,10 +269,10 @@ nästlat block) — se [DES-005](#bakgrund) ovan.
 
 | ID | Fråga | Status i denna PoC |
 |---|---|---|
-| DOC-001 | `hasMore 0..*` saknar FHIR-ekvivalent. | Ej mappat — pagineringen hanteras inte alls; se [hasMore](#hasmore-paginering) |
+| DOC-001 | `hasMore 0..*` saknar FHIR-ekvivalent. | Stöds inte — ej mappat och mappas inte heller framöver inom denna IG. Hantering är adapterlogik utanför IG:n: anropande system måste självt hämta alla sidor (`hasMore[i].logicalAddress`/`reference`) innan FHIR-mappning; se [hasMore](#hasmore-paginering) |
 | DOC-002 | `author.timestamp` saknar källa om `author` helt saknas. | Löst: `Provenance.recorded` faller tillbaka på `record.timestamp` |
-| DOC-003 | `signature.timestamp` är valfri, till skillnad från PatientSummaryHeader-konventionens obligatoriska `signatureTime`. | Mappas till `extension[ext-signature-time]` när den finns; ingen ersättning när den saknas |
-| DOC-004 | Är `clinicalDocumentNoteText` redan entity-encodad DocBook-text som base64-kodas, eller ska den avkodas först? | Delvis löst: `GetCareDocumentationMapper` avgör med en enkel heuristik (innehållet börjar med `<`) om texten är DocBook-XML. Om ja transformeras den via `DocBookToNarrativeTransformer` till **både** `content.attachment` med `contentType: text/html` (Strategy A — direkt XHTML) **och** en separat `Composition` med `Composition.section` per DocBook-sektion (Strategy B — se [Composition.section — Strategy B](#compositionsection--strategy-b-doc-004) ovan). Om nej skickas texten som `text/plain` precis som tidigare. Heuristiken (innehållet börjar med `<`) är fortfarande inte spec-fastställd — RIVTA-fältet ger ingen egen typindikation |
+| DOC-003 | `signature.timestamp` är valfri, till skillnad från PatientSummaryHeader-konventionens obligatoriska `signatureTime`. | Löst: mappas till `extension[ext-signature-time]` när den finns; när den saknas sätts ingen ersättning (medvetet — källdatat ger ingen annan tidskälla att falla tillbaka på) |
+| DOC-004 | Är `clinicalDocumentNoteText` base64-kodad DocBook-text som ska avkodas, eller något annat? | Löst: `clinicalDocumentNoteText` är av typen `string`. När DocBook används innehåller fältet XML som, eftersom den ligger inuti ett annat XML-element, entity-kodas enligt XML-standard — inte base64. Entity-avkodningen sker automatiskt av XML-parsern (JAXB) innan mappern ser strängen, se [clinicalDocumentNoteText — entity-kodad XML, inte base64](#clinicaldocumentnotetext--entity-kodad-xml-inte-base64-doc-004). `GetCareDocumentationMapper` avgör därefter med en enkel heuristik (innehållet börjar med `<`) om den avkodade texten är DocBook-XML; om ja transformeras den via `DocBookToNarrativeTransformer` till **både** `content.attachment` med `contentType: text/html` (Strategy A) **och** en separat `Composition` (Strategy B, se [Composition.section — Strategy B](#compositionsection--strategy-b-doc-004)); om nej skickas texten som `text/plain` |
 | PDL-001 | `approvedForPatient` saknar ett standardiserat FHIR-kodsystem för `meta.security`. | Ej mappat — kräver ett gemensamt beslut om kodsystem innan det kan implementeras |
 | GENERAL-001 | RIVTA-tidsstämplar saknar tidszon; FHIR kräver ISO 8601 med tidszon. | Samma kända PoC-begränsning som gäller `GetDiagnosis` — se `README.md`s PoC-begränsningstabell ("Lokal tidzon") |
 

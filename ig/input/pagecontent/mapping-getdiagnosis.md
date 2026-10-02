@@ -15,7 +15,7 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 |---|---|---|
 | `diagnosisHeader.patientId.extension` | `Condition.subject.identifier.value` | Personnummer eller samordningsnummer – subject är SEEHDSPatient |
 | `diagnosisHeader.patientId.root` | `Condition.subject.identifier.system` | OID konverteras till URI, se tabell nedan |
-| `diagnosisHeader.sourceSystemHSAId` | `Condition.meta.source` | Källsystemets HSA-id som URI (urn:oid:{OID}#{hsaId}) |
+| `diagnosisHeader.sourceSystemHSAId` | `Condition.meta.source` | Källsystemets Endpoint i tjänstekatalogen (https://tjanstekatalogen.inera.se/Endpoint/{hsaId}) |
 | `diagnosisHeader.accountableHealthcareProfessional.authorTime` | `Condition.recordedDate` | Format YYYYMMDDHHMMSS → ISO 8601 (`documentTime` har kardinalitet 0..0 och används inte) |
 | `diagnosisBody.diagnosisCode.code` | `Condition.code.coding.code` | ICD-10-SE kod, t.ex. `J18.9` |
 | `diagnosisBody.diagnosisCode.codeSystem` | `Condition.code.coding.system` | OID `1.2.752.116.1.1.1.1.3` → `https://www.icd10.se/` |
@@ -191,7 +191,7 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
   "resourceType": "Condition",
   "id": "example-pneumoni",
   "meta": {
-    "source": "urn:oid:1.2.752.129.2.1.4.1#SE2321000016-4HK5",
+    "source": "https://tjanstekatalogen.inera.se/Endpoint/SE2321000016-4HK5",
     "profile": [
       "https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition",
       "http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps"
@@ -273,7 +273,7 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
 - `subject.identifier.system = http://electronichealth.se/identifier/personnummer` – OID `1.2.752.129.2.1.3.1` konverteras till kanonisk URI (HL7 Sweden basprofiler)
 - `recordedDate` – `accountableHealthcareProfessional.authorTime` = `20230601120000` konverteras till `2023-06-01T12:00:00`
 - `onsetDateTime` – `20230601` konverteras till `2023-06-01`
-- `meta.source = urn:oid:1.2.752.129.2.1.4.1#SE2321000016-4HK5` – källsystemets HSA-id som URI
+- `meta.source = https://tjanstekatalogen.inera.se/Endpoint/SE2321000016-4HK5` – källsystemets Endpoint i tjänstekatalogen
 - `recorder` – `accountableHealthcareProfessional.personId` mappas till logisk PractitionerRole-referens
 - `asserter` – `legalAuthenticator.hcProfessional.personId` mappas till logisk PractitionerRole-referens
 - `extension[assertedDate]` – `legalAuthenticator.signatureDate` konverteras till `2023-06-01`
@@ -321,6 +321,23 @@ i arkitekturdokumentationen.
 Provenance-resursen refererar Condition via `Provenance.target = urn:uuid:{Condition.id}`.
 
 ## PoC-begränsningar
+
+### GENERAL-002: Patientreferens – logisk referens istället för bundlad Patient
+
+`Condition.subject` är en **logisk referens** (`subject.identifier` med personnummer/
+samordningsnummer) — bryggan sätter aldrig `subject.reference` och bundlar aldrig en
+`Patient`-resurs tillsammans med `Condition`en. `SEEHDSCondition` ärver från
+`$ipsCondition`, och IPS:s normalfall förutsätter att dokumentet är en självständig
+`Bundle` där `Patient` är en riktig, medskickad resurs som andra resurser pekar på via en
+literal `subject.reference`.
+
+**Medvetet avsteg (PoC-scope):** Varje TK-anrop (`GetDiagnosis`/`GetCareDocumentation`)
+mappas idag till fristående resurser, inte en komplett IPS-`Bundle` med patient inkluderad.
+Att börja bygga och bundla en fullständig `Patient`-resurs per anrop är en större ändring
+(ny mapper-logik + Bundle-hantering) som inte är gjord i denna PoC. `SEEHDSPatient`-profilen
+finns och används som typ för referensen (`Reference($seEhdsPatient)`), men själva
+instansen bundlas inte — endast identifieraren bärs vidare. Samma avsteg gäller
+`DocumentReference.subject` i `mapping-getcaredocumentation.md` (GENERAL-002 där).
 
 ### Spärr: inre och yttre
 EHDS-bryggan är avsedd för cross-border och ska applicera alla spärrar. Sparrkontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med Ineras spärrtjänst som beskrivs på [Ineras konfluensida](https://inera.atlassian.net/wiki/spaces/PIS/pages/3435203724/).

@@ -1,19 +1,19 @@
 CodeSystem: DiagnosisTypeCS
 Id: DiagnosisType
-Title: "Diagnos Typ"
+Title: "Diagnos Typ (kv_diagnostyp)"
 Description: """
-Kodsystem för svenska diagnosklassifikationer som inte täcks av FHIR-standarden.
-Används för att ange om en diagnos är huvud- eller bidiagnos enligt svenska journalsystem
-och Ineras RIVTA-tjänstekontrakt.
+Fragment av Ineras kv_diagnostyp-kodverk på terminologitjänsten: de två koder
+(HD/BY) som RIVTA-tjänstekontraktet GetDiagnosis faktiskt kan returnera i
+diagnosisBody.diagnosisType. Kodsystemet ägs av Inera; detta är enbart den
+delmängd EHDS-bryggan behöver för att kunna lösa upp sin egen required binding
+lokalt (^content = #fragment, inte en fullständig kopia av kv_diagnostyp).
 """
-* ^url = "https://ehds-brygga.inera.se/fhir/CodeSystem/DiagnosisType"
+* ^url = "https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp"
 * ^version = "0.1.0"
 * ^status = #draft
 * ^experimental = true
 * ^caseSensitive = true
-* ^content = #complete
+* ^content = #fragment
 
 * #HD "Huvuddiagnos" "Huvuddiagnos (HD) – primär diagnos satt vid ett vårdtillfälle (RIVTA diagnosType HD)"
 * #BY "Bidiagnos" "Bidiagnos (BY) – sekundär diagnos satt vid ett vårdtillfälle (RIVTA diagnosType BY)"
-* #huvud-diagnos "Huvuddiagnos (FHIR)" "FHIR-alias för RIVTA Huvuddiagnos, mappas till encounter-diagnosis"
-* #bi-diagnos "Bidiagnos (FHIR)" "FHIR-alias för RIVTA Bidiagnos"

@@ -544,7 +544,8 @@ class GetCareDocumentationMapperTest {
             entry.getHeader().getRecord().setTimestamp("20240315090000");
 
             Provenance p = mapper.map(responseWith(entry), ctx).get(0).provenance();
-            assertEquals("2024-01-01T12:00:00Z", p.getRecordedElement().asStringValue());
+            // 20240101120000 = 12:00 svensk lokal tid (CET, +01:00) → 11:00 UTC
+            assertEquals("2024-01-01T11:00:00Z", p.getRecordedElement().asStringValue());
         }
 
         @Test
@@ -554,7 +555,8 @@ class GetCareDocumentationMapperTest {
             entry.getHeader().getRecord().setTimestamp("20240315090000");
 
             Provenance p = mapper.map(responseWith(entry), ctx).get(0).provenance();
-            assertEquals("2024-03-15T09:00:00Z", p.getRecordedElement().asStringValue());
+            // 20240315090000 = 09:00 svensk lokal tid (CET, +01:00) → 08:00 UTC
+            assertEquals("2024-03-15T08:00:00Z", p.getRecordedElement().asStringValue());
         }
     }
 

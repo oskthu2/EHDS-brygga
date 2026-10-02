@@ -10,9 +10,13 @@ Mappas från Ineras RIVTA-tjänstekontrakt GetDiagnosis
 
 Profilen säkerställer att:
 - Diagnoskod (ICD-10-SE) är angiven
-- Patient är identifierad med personnummer eller samordningsnummer (SEEHDSPatient)
+- Patient är identifierad med personnummer eller samordningsnummer (SEEHDSPatient) via en
+  logisk referens (subject.identifier) – se GENERAL-002 i mapping-getdiagnosis.html för
+  det medvetna avsteget från IPS:s normala mönster med en bundlad Patient-resurs och
+  literal subject.reference
 - Diagnostyp (HD/BY) är angiven som ett namngivet snitt i category
-- Källsystem identifieras via meta.source (urn:oid:{HSA_OID}#{hsaId})
+- Källsystem identifieras via meta.source som källsystemets Endpoint i tjänstekatalogen
+  (https://tjanstekatalogen.inera.se/Endpoint/{hsaId})
 - Ansvarig hälso- och sjukvårdspersonal anges som recorder (SEBasePractitionerRole)
 - Rättslig äkthetsintygsgivare anges som asserter (SEBasePractitionerRole)
 - Ansvarig vårdgivare bärs av Provenance.agent[role=custodian] (inte inne i resursen)
@@ -25,7 +29,7 @@ Profilen säkerställer att:
 * note MS
 
 * meta.source MS
-* meta.source ^short = "HSA-id för källsystemet, format: urn:oid:1.2.752.129.2.1.4.1#{hsaId}"
+* meta.source ^short = "Källsystemets Endpoint i tjänstekatalogen, format: https://tjanstekatalogen.inera.se/Endpoint/{hsaId}"
 
 * extension contains ExtAssertedDate named assertedDate 0..1 MS
 * extension[assertedDate] ^short = "Administrativt intygsgivningsdatum för legalAuthenticator (YYYYMMDD → YYYY-MM-DD)"
@@ -51,6 +55,7 @@ Profilen säkerställer att:
 * category ^short = "Diagnostyp: måste innehålla minst ett snitt med kod från Ineras kv_diagnostyp"
 * category contains diagnostyp 1..1 MS
 * category[diagnostyp] ^short = "Diagnostyp (HD=Huvuddiagnos, BY=Bidiagnos) från Ineras terminologitjänst"
+* category[diagnostyp].coding.system = $diagnosisTypeCS (exactly)
 * category[diagnostyp] from SEDiagnosisTypeVS (required)
 
 * code 1..1 MS

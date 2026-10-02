@@ -20,12 +20,20 @@ jurisdiction: urn:iso:std:iso:3166#SE "Sweden"
 language: sv
 
 dependencies:
-  # International Patient Summary – basis för EURIDICE
-  hl7.fhir.uv.ips: current
-  # HL7 Europe Patient Summary (EPS) – condition-obl-eu-eps
-  hl7.fhir.eu.eps: current
-  # EU Health Data API – Resource Access Provider capability
-  hl7.fhir.eu.health-data-api: current
+  # International Patient Summary – basis för EURIDICE. Senaste publicerade
+  # release (inte en ballot) – pinnad för reproducerbarhet.
+  hl7.fhir.uv.ips: 2.0.0
+  # HL7 Europe Patient Summary (EPS) – condition-obl-eu-eps. Ingen stabil
+  # release ännu (endast ballot) – pinnad till senaste publicerade ballot
+  # istället för "current" (rörlig CI-byggpekare) för reproducerbarhet.
+  hl7.fhir.eu.eps: 1.0.0-ballot
+  # EU Health Data API – Resource Access Provider capability. Samma läge
+  # som hl7.fhir.eu.eps: endast ballot publicerad ännu.
+  hl7.fhir.eu.health-data-api: 1.0.0-ballot
+  # Obligation-extensionen som condition-obl-eu-eps (en obligations-profil)
+  # bygger på. SUSHI auto-hämtade tidigare detta implicit som "latest";
+  # deklareras nu explicit och pinnat för reproducerbarhet.
+  hl7.fhir.uv.extensions.r4: 5.3.0
   # HL7 Sweden basprofiler – SEBasePractitionerRole m.fl.
   hl7se.fhir.base: 1.1.0
 

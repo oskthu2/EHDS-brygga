@@ -19,6 +19,9 @@ public class GetDiagnosisMapper {
 
     private static final String CANONICAL_BASE = "https://ehds-brygga.inera.se/fhir";
     private static final String HSA_OID_INERA = "1.2.752.129.2.1.4.1";
+    private static final String DIAGNOSIS_TYPE_CS =
+            "https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp";
+    private static final String TJANSTEKATALOG_BASE = "https://tjanstekatalogen.inera.se";
     private static final String CLIN_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-clinical";
     private static final String VER_STATUS_SYS = "http://terminology.hl7.org/CodeSystem/condition-ver-status";
     private static final String EXT_ASSERTED_DATE = CANONICAL_BASE + "/StructureDefinition/ext-asserted-date";
@@ -74,11 +77,11 @@ public class GetDiagnosisMapper {
         // verificationStatus: always confirmed for RIVTA-sourced data
         c.setVerificationStatus(codeable(VER_STATUS_SYS, "confirmed"));
 
-        // category: HD → encounter-diagnosis, BY → bi-diagnos via ConceptMap
+        // category: diagnosisType (HD/BY) via ConceptMap mot kv_diagnostyp
         ConceptMapEntry cat = conceptMaps.translateDiagnosisType(body.getDiagnosisType())
                 .orElseGet(() -> new ConceptMapEntry(
                         body.getDiagnosisType(),
-                        CANONICAL_BASE + "/CodeSystem/DiagnosisType",
+                        DIAGNOSIS_TYPE_CS,
                         body.getDiagnosisType(),
                         body.getDiagnosisType()));
         c.addCategory(codeableWithDisplay(cat.getTargetSystem(), cat.getTargetCode(), cat.getDisplay()));
@@ -132,10 +135,11 @@ public class GetDiagnosisMapper {
 
         String hsaSystem = namingSystem.oidToUri(HSA_OID_INERA);
 
-        // meta.source: sourceSystemHSAId as URI (urn:oid:{HSA_OID}#{hsaId})
+        // meta.source: källsystemets HSA-id som Endpoint i tjänstekatalogen
+        // (urn:oid:...#hsaId är ingen giltig OID – kan inte bära ett HSA-id som fragment)
         String sourceHsaId = header.getSourceSystemHSAId();
         if (sourceHsaId != null) {
-            c.getMeta().setSource(hsaSystem + "#" + sourceHsaId);
+            c.getMeta().setSource(TJANSTEKATALOG_BASE + "/Endpoint/" + sourceHsaId);
         }
 
         // recorder: accountableHealthcareProfessional → PractitionerRole (logical reference)

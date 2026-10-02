@@ -39,10 +39,9 @@ public final class ProvenanceBuilder {
         p.addTarget(new Reference("urn:uuid:" + targetId));
 
         if (documentTime != null) {
-            String iso = RivDateParser.parse(documentTime);
-            if (iso != null) {
-                p.setRecordedElement(new InstantType(
-                        iso.length() == 10 ? iso + "T00:00:00Z" : iso + "Z"));
+            String instant = RivDateParser.parseInstant(documentTime);
+            if (instant != null) {
+                p.setRecordedElement(new InstantType(instant));
             } else {
                 p.setRecorded(new Date());
             }

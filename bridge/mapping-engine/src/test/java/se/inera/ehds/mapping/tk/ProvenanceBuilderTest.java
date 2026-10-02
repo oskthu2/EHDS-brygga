@@ -31,11 +31,11 @@ class ProvenanceBuilderTest {
         }
 
         @Test
-        void datumstrang_atta_tecken_ger_recorded_med_tid() {
+        void datumstrang_atta_tecken_ger_recorded_som_verklig_utc_instant() {
             Provenance p = ProvenanceBuilder.build("x", "SE111-A", "SE222-B", "20240315", HSA_SYSTEM, ctx);
             assertNotNull(p.getRecorded());
-            // YYYYMMDD → recorded sätts till midnatt UTC
-            assertTrue(p.getRecordedElement().getValueAsString().startsWith("2024-03-15"));
+            // YYYYMMDD → midnatt svensk lokal tid (CET, +01:00), konverterat till verklig UTC
+            assertEquals("2024-03-14T23:00:00Z", p.getRecordedElement().getValueAsString());
         }
 
         @Test

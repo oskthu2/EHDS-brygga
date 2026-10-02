@@ -42,6 +42,7 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
 
     private static final String CANONICAL_BASE = "https://ehds-brygga.inera.se/fhir";
     private static final String HSA_OID = "1.2.752.129.2.1.4.1";
+    private static final String TJANSTEKATALOG_BASE = "https://tjanstekatalogen.inera.se";
     private static final String PROFILE_URL = CANONICAL_BASE + "/StructureDefinition/se-ehds-document-reference";
     private static final String EXT_BLOCK_COMPARISON_TIME = CANONICAL_BASE + "/StructureDefinition/ext-block-comparison-time";
     private static final String EXT_SIGNATURE_TIME = CANONICAL_BASE + "/StructureDefinition/ext-signature-time";
@@ -99,17 +100,18 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
             dr.setMasterIdentifier(new Identifier().setValue(record.getRecordId()));
         }
 
-        // date: record.timestamp
+        // date: record.timestamp (verklig UTC-instant, konverterad från svensk lokal tid)
         if (record != null && record.getTimestamp() != null) {
-            String iso = RivDateParser.parse(record.getTimestamp());
-            if (iso != null) {
-                dr.setDateElement(new InstantType(iso.length() == 10 ? iso + "T00:00:00Z" : iso + "Z"));
+            String instant = RivDateParser.parseInstant(record.getTimestamp());
+            if (instant != null) {
+                dr.setDateElement(new InstantType(instant));
             }
         }
 
-        // meta.source: sourceSystemId as URI (urn:oid:{HSA_OID}#{hsaId})
+        // meta.source: källsystemets HSA-id som Endpoint i tjänstekatalogen
+        // (urn:oid:...#hsaId är ingen giltig OID – kan inte bära ett HSA-id som fragment)
         if (header.getSourceSystemId() != null) {
-            dr.getMeta().setSource(hsaSystem + "#" + header.getSourceSystemId());
+            dr.getMeta().setSource(TJANSTEKATALOG_BASE + "/Endpoint/" + header.getSourceSystemId());
         }
 
         if (ach != null) {

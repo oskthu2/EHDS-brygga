@@ -37,7 +37,7 @@ Varje `careDocumentation`-post i svaret ger upphov till exakt en `DocumentRefere
 
 | RIVTA-element | FHIR-element | Kommentar |
 |---|---|---|
-| `header.sourceSystemId` | `DocumentReference.meta.source` | Format `urn:oid:1.2.752.129.2.1.4.1#{hsaId}` |
+| `header.sourceSystemId` | `DocumentReference.meta.source` | Format `https://tjanstekatalogen.inera.se/Endpoint/{hsaId}` |
 | `header.record.recordId` | `DocumentReference.masterIdentifier.value` | Källsystemets primärnyckel |
 | `header.record.timestamp` | `DocumentReference.date` | Journalpostens skapandetid; YYYYMMDDHHMMSS → ISO 8601 |
 | `header.author.authorId` | `DocumentReference.author[0]` (Reference(PractitionerRole)) | Logisk referens via HSA-id |
@@ -235,7 +235,7 @@ bara `resultCode`/`resultText` — ingen `logId`.
 |---|---|---|
 | `1.2.752.129.2.1.3.1` | `http://electronichealth.se/identifier/personnummer` | Personnummer |
 | `1.2.752.129.2.1.3.3` | `http://electronichealth.se/identifier/samordningsnummer` | Samordningsnummer |
-| `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id (Inera NTjP) — author, authenticator, meta.source, Provenance |
+| `1.2.752.129.2.1.4.1` | `urn:oid:1.2.752.129.2.1.4.1` | HSA-id (Inera NTjP) — author, authenticator, Provenance (meta.source använder istället tjänstekatalogens Endpoint-URL, se ovan) |
 
 `clinicalDocumentNoteCode.codeSystem` (OID `1.2.752.129.2.2.2.11`, ClinicalDocumentNoteCodeCS)
 har ingen känd URI-mappning och bevaras som `urn:oid:1.2.752.129.2.2.2.11` av
@@ -274,9 +274,22 @@ nästlat block) — se [DES-005](#bakgrund) ovan.
 | DOC-003 | `signature.timestamp` är valfri, till skillnad från PatientSummaryHeader-konventionens obligatoriska `signatureTime`. | Löst: mappas till `extension[ext-signature-time]` när den finns; när den saknas sätts ingen ersättning (medvetet — källdatat ger ingen annan tidskälla att falla tillbaka på) |
 | DOC-004 | Är `clinicalDocumentNoteText` base64-kodad DocBook-text som ska avkodas, eller något annat? | Löst: `clinicalDocumentNoteText` är av typen `string`. När DocBook används innehåller fältet XML som, eftersom den ligger inuti ett annat XML-element, entity-kodas enligt XML-standard — inte base64. Entity-avkodningen sker automatiskt av XML-parsern (JAXB) innan mappern ser strängen, se [clinicalDocumentNoteText — entity-kodad XML, inte base64](#clinicaldocumentnotetext--entity-kodad-xml-inte-base64-doc-004). `GetCareDocumentationMapper` avgör därefter med en enkel heuristik (innehållet börjar med `<`) om den avkodade texten är DocBook-XML; om ja transformeras den via `DocBookToNarrativeTransformer` till **både** `content.attachment` med `contentType: text/html` (Strategy A) **och** en separat `Composition` (Strategy B, se [Composition.section — Strategy B](#compositionsection--strategy-b-doc-004)); om nej skickas texten som `text/plain` |
 | PDL-001 | `approvedForPatient` saknar ett standardiserat FHIR-kodsystem för `meta.security`. | Ej mappat — kräver ett gemensamt beslut om kodsystem innan det kan implementeras |
-| GENERAL-001 | RIVTA-tidsstämplar saknar tidszon; FHIR kräver ISO 8601 med tidszon. | Samma kända PoC-begränsning som gäller `GetDiagnosis` — se `README.md`s PoC-begränsningstabell ("Lokal tidzon") |
+| GENERAL-001 | RIVTA-tidsstämplar saknar tidszon; FHIR kräver ISO 8601 med tidszon. | Löst: `RivDateParser` tolkar RIVTA-tidsstämplar som lokal tid i `Europe/Stockholm` (DST-medveten) och returnerar `dateTime` med explicit offset (`+01:00`/`+02:00`). `instant`-fälten (`DocumentReference.date`, `Provenance.recorded`) konverteras till en riktig UTC-instant istället för att klistra på `Z` på den otolkade strängen |
+| GENERAL-002 | `DocumentReference.subject` är en logisk referens (`subject.identifier`), ingen bundlad `Patient`-resurs eller literal `subject.reference`. | Medvetet avsteg i denna PoC — se "GENERAL-002: Patientreferens" under PoC-begränsningar nedan |
 
 ## PoC-begränsningar
+
+### GENERAL-002: Patientreferens – logisk referens istället för bundlad Patient
+
+`DocumentReference.subject` är en **logisk referens** (`subject.identifier` med
+personnummer/samordningsnummer) — bryggan sätter aldrig `subject.reference` och bundlar
+aldrig en `Patient`-resurs tillsammans med `DocumentReference`en. Samma avsteg gäller
+`Condition.subject` i `mapping-getdiagnosis.md` (GENERAL-002 där).
+
+**Medvetet avsteg (PoC-scope):** Varje TK-anrop mappas idag till fristående resurser, inte
+en komplett Bundle med patient inkluderad. `SEEHDSPatient`-profilen finns och används som
+typ för referensen (`Reference($seEhdsPatient)`), men själva instansen bundlas inte —
+endast identifieraren bärs vidare.
 
 ### Binär dokumentdata
 `multimediaEntry.value` avkodas och skickas vidare som `attachment.data` — det är alltså

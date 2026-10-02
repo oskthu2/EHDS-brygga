@@ -111,6 +111,10 @@ baserat på förekomsten av slutdatum i diagnosperiodens tidsintervall:
 `Condition.verificationStatus` sätts alltid till `confirmed` vid mappning från RIVTA,
 eftersom RIVTA-svar representerar bekräftade journaluppgifter.
 
+Eftersom härledningen enbart baseras på förekomsten av ett datum (inte på ett fristående
+statusvärde från TK) kan `clinicalStatus` aldrig bli tvetydig eller omappbar – fallet
+"statusvärde som inte kan mappas entydigt" kan inte uppstå med dagens `GetDiagnosis:2`-kontrakt.
+
 ## Hantering av diagnosTyp
 
 RIVTA-koden för diagnostyp (`diagnosisType`) används för att sätta `Condition.category`.
@@ -126,8 +130,10 @@ Profilen kräver exakt ett `category[diagnostyp]`-snitt med en kod från Ineras 
 Ytterligare `category`-poster (t.ex. `encounter-diagnosis` från standard-FHIR) kan läggas till av konsumenten
 men hanteras inte av denna profil.
 
-**Fallback:** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` loggas ett varningsmeddelande.
-Condition inkluderas alltid i svaret.
+**Fallback:** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` återanvänds den råa
+RIVTA-koden oförändrad som både `category.coding.code` och `category.coding.display`, med
+`kv_diagnostyp` som system. Ingen loggning sker idag. Condition inkluderas alltid i svaret –
+mappningen kastar aldrig undantag på grund av en okänd diagnostyp.
 
 ## Datumsformat
 
@@ -338,6 +344,23 @@ Att börja bygga och bundla en fullständig `Patient`-resurs per anrop är en st
 finns och används som typ för referensen (`Reference($seEhdsPatient)`), men själva
 instansen bundlas inte — endast identifieraren bärs vidare. Samma avsteg gäller
 `DocumentReference.subject` i `mapping-getcaredocumentation.md` (GENERAL-002 där).
+
+### DIAG-001: Saknat personnummer ger Condition utan subject
+
+Om `diagnosisHeader.patientId` helt saknas i TK-svaret sätter bryggan inte `Condition.subject`
+alls – mappningen kastar inget undantag och Condition inkluderas ändå i svaret, trots att
+`SEEHDSCondition` kräver `subject.identifier` (kardinalitet 1..1). **Medvetet avsteg (PoC-scope):**
+att filtrera bort hela Condition-posten vid saknad patientidentifierare bedöms vara ett sämre
+beteende för en diagnosbrygga (att tyst tappa en patients diagnosinformation) än att leverera en
+post som avviker från profilen; konsumenten får själv upptäcka avvikelsen vid profilvalidering.
+
+### DIAG-002: Personnummerformat valideras inte
+
+Bryggan validerar inte formatet på `patientId.extension` – värdet skickas vidare oförändrat till
+`Condition.subject.identifier.value`, oavsett om det ser ut som ett giltigt personnummer/
+samordningsnummer eller inte. Detta är samma avsteg som anges i tabellen ovan: MVP 3 gör ingen
+PU-slagning och har därmed inget facit att validera mot. En framtida PU-integration skulle kunna
+lägga till formatvalidering/normalisering innan mappning.
 
 ### Spärr: inre och yttre
 EHDS-bryggan är avsedd för cross-border och ska applicera alla spärrar. Sparrkontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med Ineras spärrtjänst som beskrivs på [Ineras konfluensida](https://inera.atlassian.net/wiki/spaces/PIS/pages/3435203724/).

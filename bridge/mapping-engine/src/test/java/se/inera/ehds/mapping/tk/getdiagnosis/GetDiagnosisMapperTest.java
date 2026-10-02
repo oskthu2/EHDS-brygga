@@ -538,6 +538,90 @@ class GetDiagnosisMapperTest {
         }
     }
 
+    @Nested
+    class NegativaAcceptanskriterier {
+        // Testfall från acceptanskriterierna (Del A: GetDiagnosis → Condition),
+        // de gulmarkerade negativa fallen utöver null/tomt indata och icke-OK ResultCode
+        // som redan täcks av NullOchTomIndata ovan.
+
+        @Test
+        void diagnoskod_fran_kodverk_utan_oid_mappning_ger_urn_oid_fallback() {
+            Diagnosis diag = minimalDiagnosis();
+            CVType cv = new CVType();
+            cv.setCode("XYZ-99");
+            cv.setCodeSystem("1.2.3.4.5.999999"); // okänt kodverk, saknas i naming-systems.yaml
+            cv.setDisplayName("Okänt kodverk");
+            diag.getDiagnosisBody().setDiagnosisCode(cv);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertEquals("urn:oid:1.2.3.4.5.999999", c.getCode().getCodingFirstRep().getSystem());
+            assertEquals("XYZ-99", c.getCode().getCodingFirstRep().getCode());
+        }
+
+        @Test
+        void diagnostyp_utan_konceptmappning_mappas_till_raw_kod_utan_undantag() {
+            // Se mapping-getdiagnosis.md: Fallback vid okänd diagnosisType är att den råa
+            // RIVTA-koden återanvänds som både kod och text i stället för kv_diagnostyp.
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisBody().setDiagnosisType("OKÄND-TYP");
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertEquals("OKÄND-TYP", c.getCategoryFirstRep().getCodingFirstRep().getCode());
+            assertEquals("https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp",
+                    c.getCategoryFirstRep().getCodingFirstRep().getSystem());
+        }
+
+        @Test
+        void saknat_personnummer_ger_condition_utan_subject_men_inget_undantag() {
+            // DIAG-001 (dokumenterad i mapping-getdiagnosis.md): om patientId helt saknas i
+            // TK-svaret sätts ingen subject – Condition mappas ändå, kastar inget undantag.
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisHeader().setPatientId(null);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            assertEquals(1, result.size());
+            Condition c = result.get(0).condition();
+            assertFalse(c.hasSubject());
+        }
+
+        @Test
+        void personnummer_i_fel_format_passerar_oforandrat_utan_validering() {
+            // DIAG-002 (dokumenterad i mapping-getdiagnosis.md): bryggan validerar inte
+            // personnummerformat i MVP 3 (ingen PU-slagning) – värdet skickas vidare som det är.
+            Diagnosis diag = minimalDiagnosis();
+            PersonIdType pid = new PersonIdType();
+            pid.setRoot("1.2.752.129.2.1.3.1");
+            pid.setExtension("inte-ett-personnummer");
+            diag.getDiagnosisHeader().setPatientId(pid);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertEquals("inte-ett-personnummer", c.getSubject().getIdentifier().getValue());
+        }
+
+        @Test
+        void diagnospost_med_null_diagnosisHeader_filtreras_bort_men_paverkar_inte_ovriga() {
+            Diagnosis utanHeader = minimalDiagnosis();
+            utanHeader.setDiagnosisHeader(null);
+
+            List<MappedDiagnosisEntry> result =
+                    mapper.map(responseWith(utanHeader, minimalDiagnosis()), ctx);
+            assertEquals(1, result.size());
+        }
+
+        @Test
+        void diagnospost_med_null_diagnosisBody_filtreras_bort_men_paverkar_inte_ovriga() {
+            Diagnosis utanBody = minimalDiagnosis();
+            utanBody.setDiagnosisBody(null);
+
+            List<MappedDiagnosisEntry> result =
+                    mapper.map(responseWith(utanBody, minimalDiagnosis()), ctx);
+            assertEquals(1, result.size());
+        }
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private Diagnosis minimalDiagnosis() {

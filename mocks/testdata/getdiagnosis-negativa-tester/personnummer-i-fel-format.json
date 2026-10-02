@@ -1,0 +1,24 @@
+{
+  "_testfall": "diagnosisHeader.patientId.extension är inte ett giltigt personnummer",
+  "_forvantat": "Värdet 'inte-ett-personnummer' skickas vidare oförändrat, ingen formatvalidering (se DIAG-002)",
+  "result": { "resultCode": "OK" },
+  "diagnosis": [
+    {
+      "diagnosisHeader": {
+        "patientId": { "root": "1.2.752.129.2.1.3.1", "extension": "inte-ett-personnummer" },
+        "sourceSystemHSAId": "SE2321000016-1K2W",
+        "careUnitHSAId": "SE2321000016-1K2W",
+        "careProviderHSAId": "SE2321000016-1K2W"
+      },
+      "diagnosisBody": {
+        "diagnosisCode": {
+          "code": "J18.9",
+          "codeSystem": "1.2.752.116.1.1.1.1.3",
+          "displayName": "Pneumoni, ospecificerad"
+        },
+        "diagnosisType": "HD",
+        "diagnosisTimePeriod": { "start": "20240101" }
+      }
+    }
+  ]
+}

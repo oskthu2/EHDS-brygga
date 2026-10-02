@@ -1,0 +1,24 @@
+{
+  "_testfall": "Diagnoskod från kodverk utan OID-mappning i naming-systems.yaml",
+  "_forvantat": "Condition.code.coding.system = urn:oid:1.9.9.9.9.9 (fallback)",
+  "result": { "resultCode": "OK" },
+  "diagnosis": [
+    {
+      "diagnosisHeader": {
+        "patientId": { "root": "1.2.752.129.2.1.3.1", "extension": "191212121212" },
+        "sourceSystemHSAId": "SE2321000016-2769",
+        "careUnitHSAId": "SE2321000016-2769",
+        "careProviderHSAId": "SE2321000016-2769"
+      },
+      "diagnosisBody": {
+        "diagnosisCode": {
+          "code": "XYZ-99",
+          "codeSystem": "1.9.9.9.9.9",
+          "displayName": "Okänt kodverk (Aleris lokalt kodverk, exempel)"
+        },
+        "diagnosisType": "HD",
+        "diagnosisTimePeriod": { "start": "20240101" }
+      }
+    }
+  ]
+}

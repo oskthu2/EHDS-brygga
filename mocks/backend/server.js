@@ -108,51 +108,58 @@ function buildSoapResponse(patientId, diagnoses) {
   const diagnosisBlocks = diagnoses
     .map((d) => {
       const periodEnd = d.periodEnd
-        ? `\n            <ns1:end>${d.periodEnd}</ns1:end>`
+        ? `\n            <core:end>${d.periodEnd}</core:end>`
         : '';
 
       const assertedDateEl = d.assertedDate
-        ? `\n            <ns1:assertedDate>${d.assertedDate}</ns1:assertedDate>`
+        ? `\n            <core:assertedDate>${d.assertedDate}</core:assertedDate>`
         : '';
 
       return `
       <ns1:diagnosis>
-        <ns1:diagnosisHeader>
-          <ns1:patientId>
-            <ns1:root>1.2.752.129.2.1.3.1</ns1:root>
-            <ns1:extension>${patientId}</ns1:extension>
-          </ns1:patientId>
-          <ns1:sourceSystemHSAId>${d.sourceSystemHSAId}</ns1:sourceSystemHSAId>
-          <ns1:documentTime>${d.documentTime}</ns1:documentTime>
-          <ns1:careUnitHSAId>${d.careUnitHSAId}</ns1:careUnitHSAId>
-          <ns1:careProviderHSAId>${d.careProviderHSAId}</ns1:careProviderHSAId>
-        </ns1:diagnosisHeader>
-        <ns1:diagnosisBody>
-          <ns1:diagnosisCode>
-            <ns1:code>${d.diagnosisCode}</ns1:code>
-            <ns1:codeSystem>${d.codeSystem}</ns1:codeSystem>
-            <ns1:displayName>${d.displayName}</ns1:displayName>
-          </ns1:diagnosisCode>
-          <ns1:diagnosisType>${d.diagnosisType}</ns1:diagnosisType>
-          <ns1:diagnosisTimePeriod>
-            <ns1:start>${d.periodStart}</ns1:start>${periodEnd}
-          </ns1:diagnosisTimePeriod>${assertedDateEl}
-        </ns1:diagnosisBody>
+        <core:diagnosisHeader>
+          <core:patientId>
+            <core:root>1.2.752.129.2.1.3.1</core:root>
+            <core:extension>${patientId}</core:extension>
+          </core:patientId>
+          <core:sourceSystemHSAId>${d.sourceSystemHSAId}</core:sourceSystemHSAId>
+          <core:documentTime>${d.documentTime}</core:documentTime>
+          <core:careUnitHSAId>${d.careUnitHSAId}</core:careUnitHSAId>
+          <core:careProviderHSAId>${d.careProviderHSAId}</core:careProviderHSAId>
+        </core:diagnosisHeader>
+        <core:diagnosisBody>
+          <core:diagnosisCode>
+            <core:code>${d.diagnosisCode}</core:code>
+            <core:codeSystem>${d.codeSystem}</core:codeSystem>
+            <core:displayName>${d.displayName}</core:displayName>
+          </core:diagnosisCode>
+          <core:diagnosisType>${d.diagnosisType}</core:diagnosisType>
+          <core:diagnosisTimePeriod>
+            <core:start>${d.periodStart}</core:start>${periodEnd}
+          </core:diagnosisTimePeriod>${assertedDateEl}
+        </core:diagnosisBody>
       </ns1:diagnosis>`;
     })
     .join('');
 
   const logId = `mock-log-id-${Date.now()}`;
 
+  // Namespace split mirrors the confirmed pattern on GetCareDocumentationResponder:3:
+  // the Responder schema only wraps GetDiagnosis/GetDiagnosisResponse/diagnosis; nested
+  // content (diagnosisHeader, diagnosisBody, result) belongs to the domain's own
+  // core-components schema. The exact core namespace below is inferred (see
+  // se.inera.ehds.mapping.rivta.CoreNamespace) — the official
+  // clinicalprocess:activity:conditions:2 XSD could not be located in this session.
   return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                  xmlns:ns1="urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2">
+                  xmlns:ns1="urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2"
+                  xmlns:core="urn:riv:clinicalprocess:activity:conditions:2">
   <soapenv:Body>
-    <ns1:GetDiagnosisResponse>
+    <ns1:GetDiagnosisResponse>${diagnosisBlocks}
       <ns1:result>
-        <ns1:resultCode>OK</ns1:resultCode>
-        <ns1:logId>${logId}</ns1:logId>
-      </ns1:result>${diagnosisBlocks}
+        <core:resultCode>OK</core:resultCode>
+        <core:logId>${logId}</core:logId>
+      </ns1:result>
     </ns1:GetDiagnosisResponse>
   </soapenv:Body>
 </soapenv:Envelope>`;
@@ -162,74 +169,81 @@ function buildSoapResponse(patientId, diagnoses) {
  * Builds a SOAP GetCareDocumentationResponse envelope from an array of care documentation
  * objects (JoL-header v2.2 — see mapping-getcaredocumentation.md).
  */
+// HSA-id root OID (Inera NTjP/RIVTA) — see naming-systems.yaml.
+const HSA_ROOT = '1.2.752.129.2.1.4.1';
+
+function iiType(ns, tag, root, extension) {
+  if (!extension) return '';
+  return `
+          <${ns}:${tag}>
+            <${ns}:root>${root}</${ns}:root>
+            <${ns}:extension>${extension}</${ns}:extension>
+          </${ns}:${tag}>`;
+}
+
 function buildCareDocumentationSoapResponse(patientId, documents) {
   const careDocumentationBlocks = documents
     .map((d) => {
       const authorBlock = d.authorId
         ? `
-          <ns1:author>
-            <ns1:authorId>${d.authorId}</ns1:authorId>
-            <ns1:name>${d.authorName || ''}</ns1:name>
-            <ns1:timestamp>${d.authorTimestamp}</ns1:timestamp>
-          </ns1:author>`
+          <core:author>${iiType('core', 'id', HSA_ROOT, d.authorId)}
+            <core:name>${d.authorName || ''}</core:name>
+            <core:timestamp>${d.authorTimestamp}</core:timestamp>
+          </core:author>`
         : '';
 
       const signatureBlock = d.signatureId
         ? `
-          <ns1:signature>
-            <ns1:signatureId>${d.signatureId}</ns1:signatureId>
-            <ns1:name>${d.signatureName || ''}</ns1:name>
-            <ns1:timestamp>${d.signatureTimestamp || ''}</ns1:timestamp>
-          </ns1:signature>`
+          <core:signature>${iiType('core', 'id', HSA_ROOT, d.signatureId)}
+            <core:name>${d.signatureName || ''}</core:name>
+            <core:timestamp>${d.signatureTimestamp || ''}</core:timestamp>
+          </core:signature>`
         : '';
 
       const bodyContentBlock = d.noteText
-        ? `<ns1:clinicalDocumentNoteText>${d.noteText}</ns1:clinicalDocumentNoteText>`
-        : `<ns1:multimediaEntry>
-            <ns1:mediaType>${d.multimediaType}</ns1:mediaType>
-            ${d.multimediaValue ? `<ns1:value>${d.multimediaValue}</ns1:value>` : `<ns1:reference>${d.multimediaReference}</ns1:reference>`}
-          </ns1:multimediaEntry>`;
+        ? `<core:clinicalDocumentNoteText>${d.noteText}</core:clinicalDocumentNoteText>`
+        : `<core:multimediaEntry>
+            <core:mediaType>${d.multimediaType}</core:mediaType>
+            ${d.multimediaValue ? `<core:value>${d.multimediaValue}</core:value>` : `<core:reference>${d.multimediaReference}</core:reference>`}
+          </core:multimediaEntry>`;
 
       return `
       <ns1:careDocumentation>
-        <ns1:header>
-          <ns1:accessControlHeader>
-            <ns1:patientId>
-              <ns1:root>1.2.752.129.2.1.3.1</ns1:root>
-              <ns1:extension>${patientId}</ns1:extension>
-            </ns1:patientId>
-            <ns1:accountableHealthcareProvider>${d.accountableHealthcareProvider}</ns1:accountableHealthcareProvider>
-            <ns1:accountableCareUnit>${d.accountableCareUnit}</ns1:accountableCareUnit>
-            <ns1:blockComparisonTime>${d.blockComparisonTime}</ns1:blockComparisonTime>
-            <ns1:approvedForPatient>${d.approvedForPatient}</ns1:approvedForPatient>
-          </ns1:accessControlHeader>
-          <ns1:sourceSystemId>${d.sourceSystemHSAId}</ns1:sourceSystemId>
-          <ns1:record>
-            <ns1:recordId>${d.recordId}</ns1:recordId>
-            <ns1:timestamp>${d.recordTimestamp}</ns1:timestamp>
-          </ns1:record>${authorBlock}${signatureBlock}
-        </ns1:header>
-        <ns1:body>
-          <ns1:clinicalDocumentNoteCode>
-            <ns1:code>${d.noteCode}</ns1:code>
-            <ns1:codeSystem>${d.noteCodeSystem}</ns1:codeSystem>
-            <ns1:displayName>${d.noteDisplayName}</ns1:displayName>
-          </ns1:clinicalDocumentNoteCode>
-          <ns1:clinicalDocumentNoteTitle>${d.noteTitle}</ns1:clinicalDocumentNoteTitle>
+        <core:header>
+          <core:accessControlHeader>${iiType('core', 'accountableHealthcareProvider', HSA_ROOT, d.accountableHealthcareProvider)}${iiType('core', 'accountableCareUnit', HSA_ROOT, d.accountableCareUnit)}
+            <core:patientId>
+              <core:root>1.2.752.129.2.1.3.1</core:root>
+              <core:extension>${patientId}</core:extension>
+            </core:patientId>
+            <core:blockComparisonTime>${d.blockComparisonTime}</core:blockComparisonTime>
+            <core:approvedForPatient>${d.approvedForPatient}</core:approvedForPatient>
+          </core:accessControlHeader>${iiType('core', 'sourceSystemId', HSA_ROOT, d.sourceSystemHSAId)}
+          <core:record>${iiType('core', 'id', d.sourceSystemHSAId, d.recordId)}
+            <core:timestamp>${d.recordTimestamp}</core:timestamp>
+          </core:record>${authorBlock}${signatureBlock}
+        </core:header>
+        <core:body>
+          <core:clinicalDocumentNoteCode>
+            <core:code>${d.noteCode}</core:code>
+            <core:codeSystem>${d.noteCodeSystem}</core:codeSystem>
+            <core:displayName>${d.noteDisplayName}</core:displayName>
+          </core:clinicalDocumentNoteCode>
+          <core:clinicalDocumentNoteTitle>${d.noteTitle}</core:clinicalDocumentNoteTitle>
           ${bodyContentBlock}
-        </ns1:body>
+        </core:body>
       </ns1:careDocumentation>`;
     })
     .join('');
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                  xmlns:ns1="urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3">
+                  xmlns:ns1="urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3"
+                  xmlns:core="urn:riv:clinicalprocess:healthcond:description:3">
   <soapenv:Body>
-    <ns1:GetCareDocumentationResponse>
+    <ns1:GetCareDocumentationResponse>${careDocumentationBlocks}
       <ns1:result>
-        <ns1:resultCode>OK</ns1:resultCode>
-      </ns1:result>${careDocumentationBlocks}
+        <core:resultCode>OK</core:resultCode>
+      </ns1:result>
     </ns1:GetCareDocumentationResponse>
   </soapenv:Body>
 </soapenv:Envelope>`;

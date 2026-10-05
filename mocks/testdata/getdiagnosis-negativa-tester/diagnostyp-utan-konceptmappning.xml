@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Testfall: Diagnostyp saknar post i concept-maps/diagnosis-type.yaml
+  Forvantat: category[diagnostyp] fylls inte i med en gissad kod - extension[data-absent-reason] = unknown satts i stallet, inget undantag (se DIAG-003)
+-->
+<ns2:GetDiagnosisResponse xmlns="urn:riv:clinicalprocess:activity:conditions:2" xmlns:ns2="urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2">
+    <ns2:diagnosis>
+        <diagnosisHeader>
+            <patientId>
+                <root>1.2.752.129.2.1.3.1</root>
+                <extension>191212121212</extension>
+            </patientId>
+            <sourceSystemHSAId>SE2321000016-1K2W</sourceSystemHSAId>
+            <careUnitHSAId>SE2321000016-1K2W</careUnitHSAId>
+            <careProviderHSAId>SE2321000016-1K2W</careProviderHSAId>
+        </diagnosisHeader>
+        <diagnosisBody>
+            <diagnosisCode>
+                <code>J18.9</code>
+                <codeSystem>1.2.752.116.1.1.1.1.3</codeSystem>
+                <displayName>Pneumoni, ospecificerad</displayName>
+            </diagnosisCode>
+            <diagnosisType>OKÄND-TYP</diagnosisType>
+            <diagnosisTimePeriod>
+                <start>20240101</start>
+            </diagnosisTimePeriod>
+        </diagnosisBody>
+    </ns2:diagnosis>
+    <ns2:result>
+        <resultCode>OK</resultCode>
+    </ns2:result>
+</ns2:GetDiagnosisResponse>

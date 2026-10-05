@@ -17,21 +17,67 @@ Syftet var att svara på en konkret fråga: kan [FHIR Mapping Language](https://
 
 Ett nytt Maven-modul, `bridge/fml-mapping-poc`, med:
 
-- `get-diagnosis-to-condition.map` – en FML-översättning av `GetDiagnosisMapper` (delmängd:
-  personnummer→subject, diagnostyp→category via ConceptMap, diagnoskod→code med OID→URI-slagning,
-  onset/abatement, meta.source, clinicalStatus/verificationStatus).
-- Två `ConceptMap`-resurser (`diagnosis-type`, `codesystem-oid`) som motsvarar de YAML-filer
+- `get-diagnosis-to-condition.map` – GetDiagnosis → `Condition`: personnummer→subject (DIAG-001),
+  diagnostyp→category via ConceptMap (DIAG-003), diagnoskod→code med OID→URI-slagning och
+  urn:oid-fallback, onset/abatement, meta.source, clinicalStatus/verificationStatus, recorder/
+  recordedDate, asserter/assertedDate-extension, chronicCondition-extension,
+  relatedDiagnosis-extension.
+- `get-diagnosis-to-provenance.map` – GetDiagnosis → `Provenance` (tre agenter: custodian/author/
+  assembler), som en **separat** StructureMap – se "Fjärde begränsningen" nedan för varför den
+  inte kunde vara en andra target i samma grupp.
+- `get-caredocumentation-to-documentreference.map` – GetCareDocumentation → `DocumentReference`:
+  status, masterIdentifier, date, meta.source, subject, context.related (careProcessId),
+  blockComparisonTime-extension, type (clinicalDocumentNoteCode), description, fritext-innehåll
+  (bara den icke-DocBook-grenen, se "Vad som INTE täcks" nedan), author, authenticator +
+  signatureTime-extension.
+- Tre `ConceptMap`-resurser (`diagnosis-type`, `codesystem-oid`, ...) som motsvarar de YAML-filer
   Java-mapparna redan läser (`concept-maps/diagnosis-type.yaml`, `naming-systems.yaml`).
 - `FmlEngine` – kör `org.hl7.fhir.r4.utils.StructureMapUtilities` offline (ingen
-  packages.fhir.org-åtkomst krävs, se "Driftsfynd" nedan).
-- `RivtaDiagnosisParametersAdapter` – plattar ut de RIVTA-fält som används till en FHIR
-  `Parameters`-resurs (se "Källdata är inte FHIR" nedan för varför).
-- `GetDiagnosisFmlComparisonTest` – fyra jämförande tester som körs genom **både** den riktiga
-  Java-mappern och FML-motorn på samma indata och jämför resultatet: en happy path, samt de tre
-  beslutade negativtest-beteendena från PR #38 (DIAG-001 ogiltigt personnummer, DIAG-003 okänd
-  diagnostyp, OID-fallback för okänt kodverk). Alla fyra är gröna.
+  packages.fhir.org-åtkomst krävs, se "Driftsfynd" nedan); en metod per målresurstyp
+  (`transformDiagnosis`, `transformDiagnosisProvenance`, `transformCareDocumentation`).
+- `RivtaDiagnosisParametersAdapter` / `RivtaCareDocumentationParametersAdapter` – plattar ut de
+  RIVTA-fält som används till en FHIR `Parameters`-resurs (se "Källdata är inte FHIR" nedan för
+  varför).
+- `GetDiagnosisFmlComparisonTest` (7 tester) och `GetCareDocumentationFmlComparisonTest`
+  (2 tester) – jämförande tester som körs genom **både** den riktiga Java-mappern och FML-motorn
+  på samma indata och jämför resultatet fält för fält. Alla 9 är gröna.
 
 Kör dem med `cd bridge && mvn test -pl fml-mapping-poc -am`.
+
+## Täckning – vad är faktiskt översatt till FML
+
+Siffrorna nedan räknar fält/regler, inte rader kod, och är avstämda mot de nuvarande
+Java-mapparna (`GetDiagnosisMapper.java`, `GetCareDocumentationMapper.java`) på denna grens
+startpunkt.
+
+**GetDiagnosis → Condition + Provenance: 15 av 15 fält/regler översatta (100 %).**
+clinicalStatus, verificationStatus, category (inkl. DIAG-003), code (inkl. OID-fallback), subject
+(inkl. DIAG-001), onset, abatement, meta.source, recorder, recordedDate, asserter, assertedDate,
+chronicCondition, relatedDiagnosis, och Provenance (tre agenter). Den enda posten som inte är en
+"regel" i vanlig mening är VG-scope-filtret (`requestedVgHsaId`) – se "Fjärde begränsningen" nedan;
+det är en semantisk gräns i motorn (stoppa en hel post), inte ett fält som saknar en regel.
+
+**GetCareDocumentation → DocumentReference: 11 av ~16 fält/regler översatta (cirka 70 %).**
+Översatt: status, masterIdentifier, date, meta.source, subject, context.related,
+blockComparisonTime, type, description, fritext-content (icke-DocBook), author, authenticator,
+signatureTime (räknas som 11 grupper av regler, några med flera delfält). **Explicit INTE
+översatt** (se nästa avsnitt för varför och hur allvarligt varje fall är):
+
+| Fält/regel | Status | Orsak |
+|---|---|---|
+| DocBook→narrative (`text/html`-attachment) | Kan inte uttryckas i FML | kräver anropet till `DocBookToNarrativeTransformer`, egen Java-logik |
+| Composition "Strategy B" (sektionsträd) | Kan inte uttryckas i FML | samma skäl – bygger på samma transformer |
+| `multimediaEntry` (andra hälften av content-XOR) | Inte påbörjad i denna omgång | ingen artarkitektur-begränsning – samma mönster som attachment-regeln ovan, bara inte hunnet |
+| `dissentingOpinion[]` → extension | Inte påbörjad i denna omgång | repeterande struktur; `Parameters`-plattningen i denna PoC bär bara ental-fält, se adapterns klasskommentar |
+| `approvedForPatient` (PDL-001) | Öppen fråga även i Java | inget beslutat FHIR-kodverk ännu – ingenting att jämföra mot |
+
+Av dessa fem är de två första (DocBook-narrativ, Composition Strategy B) **genuint
+arkitektoniskt blockerade**: de kräver att en godtycklig Java-funktion anropas mitt i en
+mappningsregel, vilket FML inte har någon mekanism för (ingen extension-punkt för
+användardefinierade transformer användes eller hittades i denna motorversion). De tre sista är
+avgränsningar av tid/scope i den här PoC-omgången, inte avgränsningar av vad FML klarar av –
+`multimediaEntry` och `dissentingOpinion` följer samma mönster som redan fungerande regler
+(attachment/extension), och skulle kunna läggas till utan nya fynd.
 
 ## Källdata är inte FHIR – den första friktionspunkten
 
@@ -83,6 +129,19 @@ duplicerad negation av villkoret snarare än ett riktigt "annars"-grenval. Det t
 StructureMap-anropet, precis som i dag. Att "styra felhantering via konfiguration" blir därför
 en delvis sanning: två av tre fall flyttar in i `.map`-filen, det tredje stannar i Java oavsett.
 
+### Fjärde begränsningen (upptäckt när Provenance lades till): en `transform()` tar bara EN target
+
+`StructureMapUtilities.transform(appInfo, source, map, target)` tar en enda `target`-parameter,
+och `getInputName()` kastar `This engine does not support multiple source inputs` (texten nämner
+bara "source" men gäller identiskt för `target`-moden) så snart en grupp deklarerar mer än en
+input av samma mode. Att producera två målresurser (`Condition` + `Provenance`) från samma
+källpost med ETT `transform()`-anrop går alltså inte – lösningen här var två helt separata
+`StructureMap`-filer (`get-diagnosis-to-condition.map` och `get-diagnosis-to-provenance.map`),
+körda med två separata `transform()`-anrop från samma källdata. Det här är ytterligare en punkt
+där "konfiguration" har en hård gräns: att orkestrera FLERA målresurser per källpost (vilket varje
+TK-mappning i den här bryggan gör – Condition+Provenance, DocumentReference+Provenance+eventuell
+Composition) måste ligga i anropande kod, inte i en enda `.map`-fil.
+
 ## 2. Dokumentutbyte vs resursorienterat API
 
 Dessa är redan två skilda spår i FML:s egen modell, inte något som behöver uppfinnas:
@@ -105,6 +164,32 @@ paketeringsmappningar (Bundle/Composition respektive enskild resurs). Den här u
 är dock lika lätt (eller svår) att göra med dagens Java-mappers-arkitektur – `GetDiagnosisMapper`
 och `GetCareDocumentationMapper` är redan skilda från hur `fhir-server` serverar resultatet.
 FML:s bidrag här är inte en ny förmåga, bara att samma idé uttrycks deklarativt.
+
+## GENERAL-reglerna (tidszon, meta.source, patientreferens)
+
+De tvärgående GENERAL-besluten (se teamminnet: GENERAL-001 tidszon, meta.source-konstruktionen,
+patientreferens-som-logisk-identifierare) är redan övade av de fält som översatts ovan, inte en
+separat uppgift:
+
+- **GENERAL-001 (tidszon):** RIVTA-tidssträngarna (`YYYYMMDD[HHmmss]`, svensk lokal tid) måste
+  konverteras till ISO 8601 med explicit offset INNAN de når FML – `RivDateParser.parse(...)`/
+  `parseInstant(...)` körs i adapterlagret (`RivtaDiagnosisParametersAdapter`,
+  `RivtaCareDocumentationParametersAdapter`), inte i någon FML-regel. Det är i sig ett fynd: FML
+  har ingen inbyggd funktion för att parsa en RIVTA-specifik datumsträng med svensk lokal
+  tidszonsoffset – all sådan tolkning måste ske innan källdatat blir en `Parameters`-resurs, dvs.
+  i Java. FML-reglerna (`onset`, `recordedDate`, `date`, `blockComparisonTime`, `signatureTime`
+  m.fl.) kopierar bara redan-konverterade strängar rakt av.
+- **meta.source:** samma `TJÄNSTEKATALOG_BASE + "/Endpoint/" + hsaId`-konstruktion som i Java,
+  översatt rakt av med FHIRPath-strängkonkatenering (`&`) i både `get-diagnosis-to-condition.map`
+  och `get-caredocumentation-to-documentreference.map` – en beräknad sträng, ingen slagning, så
+  den är enkel att uttrycka och redan verifierad av båda jämförande testsviterna.
+- **Patientreferens som logisk identifierare:** `subject`/`patientId` byggs i båda `.map`-filerna
+  som en `Reference.identifier` (system+value), aldrig en direkt resursreferens – samma mönster
+  som Java. Den enda förenklingen mot Java: identifier-systemet hårdkodas till personnummer-URI:n
+  direkt i FML-regeln i stället för att slå upp `patientId.root` via `NamingSystemRegistry`
+  (samma typ av förenkling som gjordes för HSA-systemet, se kommentarerna i `.map`-filerna) –
+  rimligt för en PoC eftersom root-OID:t i praktiken alltid är samma värde i testdatan, men en
+  riktig produktionsöversättning skulle behöva en `translate()`/ConceptMap-slagning här också.
 
 ## 3. Lägga till nya resurser (Encounter, Observation, ...) ovanpå andra tjänstekontrakt
 
@@ -154,6 +239,35 @@ Dessa upptäcktes genom att faktiskt köra `org.hl7.fhir.r4` (hapi-fhir-validati
    `system`-fält (`cdg.system = translate(..., 'system')`) kastar
    `Unable to convert a Coding to a Uri`. Lösning: låt `translate()`s resultat bli hela
    Coding-variabeln (`cat.coding = translate(...) as cdg then {...}`), inte ett delfält av den.
+
+4. **Att skapa ett nästlat `BackboneElement` (t.ex. `Provenance.agent`, `DocumentReference.content`,
+   `DocumentReference.context`) med `create('Typnamn')` kraschar med `Unknown Resource or Type
+   Name`.** `create()` slår upp typnamnet som en egen `StructureDefinition`
+   (`ResourceFactory.createResourceOrType`), men ett `BackboneElement` som bara finns nästlat
+   inuti en annan resurstyp (t.ex. "Provenance.agent") har ingen egen `StructureDefinition` i
+   `profiles-resources.xml` – bara toppnivåresursen "Provenance" har en. Lösning: hoppa över
+   `create(...)` helt för den typen av fält (`tgt.agent as custAgent then {...}`, ingen
+   `= create(...)` alls) – motorn skapar då backbone-elementet via sin egen
+   `dest.makeProperty(...)`-reflektion i stället, vilket fungerar för både 0..1- och
+   0..*-element.
+5. **Ett FHIRPath-booleanlitteral (`true`/`false`, utan citattecken) som tilldelas ett
+   `boolean`-elements `.value` kraschar med `Invalid boolean string: 'BooleanType[true]'`.**
+   `PrimitiveType.setProperty()` gör `setValueAsString(value.toString())`; `StringType`
+   override:ar `toString()` till att returnera själva textvärdet, men `BooleanType` gör det INTE
+   (ärver `PrimitiveType`s standard-`toString()`, `"ClassName[värde]"`), så literalen
+   `"BooleanType[true]"` skickas in rakt av i stället för `"true"`. En citerad strängliteral
+   (`'true'`/`'false'`) fungerar dock utmärkt, eftersom en `StringType`s `toString()` ger rätt
+   råtext och motorns `fromStringValue()` parsar `"true"`/`"false"` till ett booleanvärde oavsett
+   källtyp.
+6. **En sträng kan inte tilldelas direkt till ett `base64Binary`-fält som är en EGENSKAP på en
+   komplex typ (t.ex. `Attachment.data`) – men fungerar fint om fältet är en EGEN,
+   skapad `base64Binary`-variabel.** `Attachment.setProperty("data", value)` gör
+   `Base.castToBase64Binary(value)`, som kastar `Unable to convert a StringType to a
+   Base64Binary` om `value` är en `StringType` i stället för en redan färdig
+   `Base64BinaryType`. Lösning: samma bind-mönster som för `dateTime`/`boolean` ovan –
+   `att.data = create('base64Binary') as dataEl then { v -> dataEl.value = v; }` – eftersom det
+   bygger en riktig `Base64BinaryType` och tilldelar den, i stället för att försöka casta en
+   `StringType` direkt.
 
 Ingen av dessa är dokumenterade begränsningar i FML-specen – de är beteenden hos just denna
 Java-implementation av motorn, upptäckta genom att köra den. En annan StructureMap-motor

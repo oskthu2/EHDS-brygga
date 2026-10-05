@@ -1,0 +1,75 @@
+/// FML-utvärdering: GetDiagnosis (RIVTA) -> Provenance.
+///
+/// Egen StructureMap, inte en andra "target" i GetDiagnosisToCondition.map: motorns
+/// StructureMapUtilities.transform(appInfo, source, map, target)-API tar bara EN source och EN
+/// target-variabel (se StructureMapUtilities.getInputName(), som kastar
+/// "This engine does not support multiple source inputs" så snart en grupp deklarerar mer än
+/// en input av samma mode - källkodskommentaren nämner bara source men gäller identiskt för
+/// target). Att producera flera målresurser (Condition + Provenance) från samma källpost kräver
+/// alltså antingen flera separata StructureMap-anrop (som här) eller egen orkestrerande kod runt
+/// motorn - en konkret gräns för hur långt "konfiguration" kan bära utan Java-kod, se
+/// fml-evaluation.md.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToProvenance" = "GetDiagnosisToProvenance"
+
+uses "http://hl7.org/fhir/StructureDefinition/Parameters" alias RivtaDiagnosis as source
+uses "http://hl7.org/fhir/StructureDefinition/Provenance" alias Provenance as target
+
+group GetDiagnosisToProvenance(source src : RivtaDiagnosis, target tgt : Provenance) {
+
+  src.parameter as ri where name = 'recorderAuthorInstant' -> tgt.recorded = create('instant') as recEl then {
+    ri.value as v -> recEl.value = v "recorded-value";
+  } "recorded";
+
+  // Tre agenter (custodian/author/assembler) - samma mönster som ProvenanceBuilder.addAgent(),
+  // men upprepat tre gånger eftersom FML inte har något sätt att loopa över en
+  // (roll, hsaId)-lista deklarativt; varje agent är en egen regel.
+  src.parameter as cp where name = 'careProviderHsaId' -> tgt.agent as custAgent then {
+    cp -> custAgent.type = create('CodeableConcept') as custType then {
+      cp -> custType.coding = create('Coding') as custCoding then {
+        cp -> custCoding.system = 'http://terminology.hl7.org/CodeSystem/provenance-participant-type' "cust-cs-system";
+        cp -> custCoding.code = 'custodian' "cust-cs-code";
+      } "cust-coding";
+    } "cust-type";
+    cp -> custAgent.who = create('Reference') as custWho then {
+      cp -> custWho.identifier = create('Identifier') as custId then {
+        cp -> custId.system = 'urn:oid:1.2.752.129.2.1.4.1' "cust-id-system";
+        cp.value as v -> custId.value = v "cust-id-value";
+      } "cust-id";
+    } "cust-who";
+  } "agent-custodian";
+
+  src.parameter as cu where name = 'careUnitHsaId' -> tgt.agent as authAgent then {
+    cu -> authAgent.type = create('CodeableConcept') as authType then {
+      cu -> authType.coding = create('Coding') as authCoding then {
+        cu -> authCoding.system = 'http://terminology.hl7.org/CodeSystem/provenance-participant-type' "auth-cs-system";
+        cu -> authCoding.code = 'author' "auth-cs-code";
+      } "auth-coding";
+    } "auth-type";
+    cu -> authAgent.who = create('Reference') as authWho then {
+      cu -> authWho.identifier = create('Identifier') as authId then {
+        cu -> authId.system = 'urn:oid:1.2.752.129.2.1.4.1' "auth-id-system";
+        cu.value as v -> authId.value = v "auth-id-value";
+      } "auth-id";
+    } "auth-who";
+  } "agent-author";
+
+  // assembler (EHDS-bryggan): MapperContext.bridgeHsaId finns inte i källdatat (det är en
+  // bryggkonfigurationsparameter, inte ett RIVTA-fält) - skickas in som en egen parameter av
+  // testkoden, se RivtaDiagnosisParametersAdapter. Detta är samma typ av "bryggkonfiguration
+  // utanför själva meddelandet"-begränsning som noterats för code-/meta.source-reglerna.
+  src.parameter as br where name = 'bridgeHsaId' -> tgt.agent as asmAgent then {
+    br -> asmAgent.type = create('CodeableConcept') as asmType then {
+      br -> asmType.coding = create('Coding') as asmCoding then {
+        br -> asmCoding.system = 'http://terminology.hl7.org/CodeSystem/provenance-participant-type' "asm-cs-system";
+        br -> asmCoding.code = 'assembler' "asm-cs-code";
+      } "asm-coding";
+    } "asm-type";
+    br -> asmAgent.who = create('Reference') as asmWho then {
+      br -> asmWho.identifier = create('Identifier') as asmId then {
+        br -> asmId.system = 'urn:oid:1.2.752.129.2.1.4.1' "asm-id-system";
+        br.value as v -> asmId.value = v "asm-id-value";
+      } "asm-id";
+    } "asm-who";
+  } "agent-assembler";
+
+}

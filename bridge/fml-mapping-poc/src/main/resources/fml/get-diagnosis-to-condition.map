@@ -105,4 +105,72 @@ group GetDiagnosisToCondition(source src : RivtaDiagnosis, target tgt : Conditio
     sh.value as v -> m.source = ('https://tjanstekatalogen.inera.se/Endpoint/' & v) "meta-source";
   } "meta";
 
+  // recorder/recordedDate: accountableHealthcareProfessional -> PractitionerRole (logisk
+  // referens). Förenkling mot Java: identifier.system hårdkodas till HSA-fallback-URI:n
+  // (urn:oid:1.2.752.129.2.1.4.1) i stället för att slå upp personId.root via
+  // NamingSystemRegistry - samma typ av förenkling som redan gjorts för personnummer-systemet
+  // ovan, se fml-evaluation.md.
+  src.parameter as rp where name = 'recorderPersonId' -> tgt.recorder = create('Reference') as rref then {
+    rp -> rref.type = 'PractitionerRole' "recorder-type";
+    rp -> rref.identifier = create('Identifier') as rid then {
+      rp -> rid.system = 'urn:oid:1.2.752.129.2.1.4.1' "recorder-id-system";
+      rp.value as v -> rid.value = v "recorder-id-value";
+    } "recorder-id";
+  } "recorder";
+  src.parameter as rd where name = 'recorderAuthorTime' -> tgt.recordedDate = create('dateTime') as rdEl then {
+    rd.value as v -> rdEl.value = v "recordedDate-value";
+  } "recordedDate";
+
+  // asserter/assertedDate: legalAuthenticator -> PractitionerRole + extension[assertedDate].
+  src.parameter as ap where name = 'asserterPersonId' -> tgt.asserter = create('Reference') as aref then {
+    ap -> aref.type = 'PractitionerRole' "asserter-type";
+    ap -> aref.identifier = create('Identifier') as aid then {
+      ap -> aid.system = 'urn:oid:1.2.752.129.2.1.4.1' "asserter-id-system";
+      ap.value as v -> aid.value = v "asserter-id-value";
+    } "asserter-id";
+  } "asserter";
+  src.parameter as ad where name = 'assertedDate' -> tgt.extension = create('Extension') as adExt then {
+    ad -> adExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date' "assertedDate-url";
+    ad -> adExt.value = create('dateTime') as adEl then {
+      ad.value as v -> adEl.value = v "assertedDate-value";
+    } "assertedDate-el";
+  } "assertedDate-ext";
+
+  // chronicCondition: extension[chronicDiagnosis] med boolean. Käll-parametern bärs som
+  // StringType ("true"/"false") av samma skäl som onset-datumen ovan (valueBoolean går inte att
+  // läsa generiskt via Parameters.parameter i denna motorversion).
+  //
+  // OBS: ett bokstavligt FHIRPath-booleanvärde (true/false, utan citattecken) på target-sidan
+  // ("ccEl.value = true") kraschar med "Invalid boolean string: 'BooleanType[true]'" - motorns
+  // PrimitiveType.setProperty() gör setValueAsString(value.toString()), och till skillnad från
+  // StringType (som override:ar toString() till att returnera själva värdet) override:ar
+  // BooleanType INTE toString() alls, så Java-standardens "BooleanType[true]" skickas in rakt
+  // av. En fjärde, separat variant av samma typkonverteringsproblem som dc.value/translate()-
+  // fallen ovan - men den här går att undvika: en CITERAD strängliteral ('true'/'false') har en
+  // StringType.toString() som ger rätt råtext, och parsas korrekt av ett boolean-elements
+  // fromStringValue(). Löst genom att, precis som för category-mapped/-absent, dela upp i två
+  // ömsesidigt uteslutande regler med en citerad strängliteral på target-sidan.
+  src.parameter as cc1 where name = 'chronicCondition' and value = 'true' -> tgt.extension = create('Extension') as ccExt1 then {
+    cc1 -> ccExt1.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition' "chronic-url-true";
+    cc1 -> ccExt1.value = create('boolean') as ccEl1 then {
+      cc1 -> ccEl1.value = 'true' "chronic-value-true";
+    } "chronic-el-true";
+  } "chronicCondition-true";
+  src.parameter as cc2 where name = 'chronicCondition' and value = 'false' -> tgt.extension = create('Extension') as ccExt2 then {
+    cc2 -> ccExt2.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition' "chronic-url-false";
+    cc2 -> ccExt2.value = create('boolean') as ccEl2 then {
+      cc2 -> ccEl2.value = 'false' "chronic-value-false";
+    } "chronic-el-false";
+  } "chronicCondition-false";
+
+  // relatedDiagnosis.documentId: extension[relatedCondition] med en logisk Identifier-referens.
+  src.parameter as rel where name = 'relatedDiagnosisDocumentId' -> tgt.extension = create('Extension') as relExt then {
+    rel -> relExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition' "related-url";
+    rel -> relExt.value = create('Reference') as relRef then {
+      rel -> relRef.identifier = create('Identifier') as relId then {
+        rel.value as v -> relId.value = v "related-id-value";
+      } "related-id";
+    } "related-ref";
+  } "relatedDiagnosis";
+
 }

@@ -8,7 +8,10 @@ import se.inera.ehds.mapping.rivta.DatePeriodType;
 import se.inera.ehds.mapping.rivta.Diagnosis;
 import se.inera.ehds.mapping.rivta.DiagnosisBody;
 import se.inera.ehds.mapping.rivta.DiagnosisHeader;
+import se.inera.ehds.mapping.rivta.HealthcareProfessionalType;
+import se.inera.ehds.mapping.rivta.LegalAuthenticatorType;
 import se.inera.ehds.mapping.rivta.PersonIdType;
+import se.inera.ehds.mapping.rivta.RelatedDiagnosis;
 import se.inera.ehds.mapping.tk.RivDateParser;
 
 /**
@@ -24,8 +27,15 @@ public final class RivtaDiagnosisParametersAdapter {
     private RivtaDiagnosisParametersAdapter() {}
 
     public static Parameters toParameters(Diagnosis diag) {
+        return toParameters(diag, null);
+    }
+
+    public static Parameters toParameters(Diagnosis diag, String bridgeHsaId) {
         Parameters p = new Parameters();
         if (diag == null) return p;
+        if (bridgeHsaId != null) {
+            p.addParameter().setName("bridgeHsaId").setValue(new StringType(bridgeHsaId));
+        }
         DiagnosisHeader header = diag.getDiagnosisHeader();
         DiagnosisBody body = diag.getDiagnosisBody();
 
@@ -36,6 +46,38 @@ public final class RivtaDiagnosisParametersAdapter {
             }
             if (header.getSourceSystemHSAId() != null) {
                 p.addParameter().setName("sourceHsaId").setValue(new StringType(header.getSourceSystemHSAId()));
+            }
+            if (header.getCareProviderHSAId() != null) {
+                p.addParameter().setName("careProviderHsaId").setValue(new StringType(header.getCareProviderHSAId()));
+            }
+            if (header.getCareUnitHSAId() != null) {
+                p.addParameter().setName("careUnitHsaId").setValue(new StringType(header.getCareUnitHSAId()));
+            }
+            HealthcareProfessionalType ahp = header.getAccountableHealthcareProfessional();
+            if (ahp != null) {
+                if (ahp.getPersonId() != null && ahp.getPersonId().getExtension() != null) {
+                    p.addParameter().setName("recorderPersonId").setValue(new StringType(ahp.getPersonId().getExtension()));
+                }
+                if (ahp.getAuthorTime() != null) {
+                    p.addParameter().setName("recorderAuthorTime").setValue(new StringType(RivDateParser.parse(ahp.getAuthorTime())));
+                    // Provenance.recorded uses the RIVTA date string as-is (true-UTC instant), not
+                    // the local-offset variant used for recordedDate above - see fml-evaluation.md.
+                    String instant = RivDateParser.parseInstant(ahp.getAuthorTime());
+                    if (instant != null) {
+                        p.addParameter().setName("recorderAuthorInstant").setValue(new StringType(instant));
+                    }
+                }
+            }
+            LegalAuthenticatorType la = header.getLegalAuthenticator();
+            if (la != null) {
+                if (la.getHcProfessional() != null && la.getHcProfessional().getPersonId() != null
+                        && la.getHcProfessional().getPersonId().getExtension() != null) {
+                    p.addParameter().setName("asserterPersonId")
+                            .setValue(new StringType(la.getHcProfessional().getPersonId().getExtension()));
+                }
+                if (la.getSignatureDate() != null) {
+                    p.addParameter().setName("assertedDate").setValue(new StringType(RivDateParser.parse(la.getSignatureDate())));
+                }
             }
         }
 
@@ -54,6 +96,14 @@ public final class RivtaDiagnosisParametersAdapter {
                 if (dc.getDisplayName() != null) {
                     p.addParameter().setName("diagnosisCodeDisplay").setValue(new StringType(dc.getDisplayName()));
                 }
+            }
+            if (body.getChronicCondition() != null) {
+                p.addParameter().setName("chronicCondition")
+                        .setValue(new StringType(body.getChronicCondition().toString()));
+            }
+            RelatedDiagnosis related = body.getRelatedDiagnosis();
+            if (related != null && related.getDocumentId() != null) {
+                p.addParameter().setName("relatedDiagnosisDocumentId").setValue(new StringType(related.getDocumentId()));
             }
             DatePeriodType period = body.getDiagnosisTimePeriod();
             String start = period != null ? period.getStart() : null;

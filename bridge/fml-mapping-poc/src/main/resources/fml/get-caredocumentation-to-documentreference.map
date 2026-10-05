@@ -1,0 +1,132 @@
+/// FML-utvärdering: GetCareDocumentation (RIVTA) -> DocumentReference.
+///
+/// Täcker de "raka" fälten (status, masterIdentifier, date, meta.source, subject,
+/// context.related, blockComparisonTime-extension, type, description, fritext-innehåll utan
+/// DocBook-struktur, author, authenticator+signaturtid). Se
+/// RivtaCareDocumentationParametersAdapter och fml-evaluation.md för en uttrycklig lista på vad
+/// som INTE är med och varför (DocBook->narrative, Composition "Strategy B", multimediaEntry,
+/// dissentingOpinion, approvedForPatient).
+map "http://ehds-brygga.inera.se/fhir/StructureMap/GetCareDocumentationToDocumentReference" = "GetCareDocumentationToDocumentReference"
+
+uses "http://hl7.org/fhir/StructureDefinition/Parameters" alias RivtaCareDocumentation as source
+uses "http://hl7.org/fhir/StructureDefinition/DocumentReference" alias DocumentReference as target
+
+group GetCareDocumentationToDocumentReference(source src : RivtaCareDocumentation, target tgt : DocumentReference) {
+
+  // status: RIVTA-body saknar statusfält helt - källsystemet antas bara returnera aktiva
+  // anteckningar, se Java-kommentaren i GetCareDocumentationMapper. Ovillkorlig regel, inget
+  // källfält att villkora på.
+  src -> tgt.status = 'current' "status";
+
+  src.parameter as rid where name = 'recordId' -> tgt.masterIdentifier = create('Identifier') as mid then {
+    rid.value as v -> mid.value = v "masterIdentifier-value";
+  } "masterIdentifier";
+
+  src.parameter as rt where name = 'recordTimestampInstant' -> tgt.date = create('instant') as dateEl then {
+    rt.value as v -> dateEl.value = v "date-value";
+  } "date";
+
+  src.parameter as sh where name = 'sourceSystemId' -> tgt.meta = create('Meta') as m then {
+    sh.value as v -> m.source = ('https://tjanstekatalogen.inera.se/Endpoint/' & v) "meta-source";
+  } "meta";
+
+  // subject: patientId. Systemet hårdkodas till personnummer-URI:n - samma förenkling som i
+  // get-diagnosis-to-condition.map (patientId.root slås egentligen upp via
+  // NamingSystemRegistry i Java, men root är i praktiken alltid samma OID här).
+  src.parameter as pid where name = 'patientId' -> tgt.subject = create('Reference') as subjRef then {
+    pid -> subjRef.identifier = create('Identifier') as subjId then {
+      pid -> subjId.system = 'http://electronichealth.se/identifier/personnummer' "subject-system";
+      pid.value as v -> subjId.value = v "subject-value";
+    } "subject-id";
+  } "subject";
+
+  // context.related: careProcessId, inget system - bara värde, precis som i Java.
+  src.parameter as cpid where name = 'careProcessId' -> tgt.context as ctxEl then {
+    cpid -> ctxEl.related = create('Reference') as relRef then {
+      cpid -> relRef.identifier = create('Identifier') as relId then {
+        cpid.value as v -> relId.value = v "related-value";
+      } "related-id";
+    } "related-ref";
+  } "context-related";
+
+  // extension[blockComparisonTime]
+  src.parameter as bct where name = 'blockComparisonTime' -> tgt.extension = create('Extension') as bctExt then {
+    bct -> bctExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-block-comparison-time' "bct-url";
+    bct -> bctExt.value = create('dateTime') as bctEl then {
+      bct.value as v -> bctEl.value = v "bct-value";
+    } "bct-el";
+  } "blockComparisonTime";
+
+  // type: clinicalDocumentNoteCode. Samma urn:oid-fallback som diagnoskoden utan känd
+  // ConceptMap-mappning i get-diagnosis-to-condition.map - OID:n för ClinicalDocumentNoteCodeCS
+  // (1.2.752.129.2.2.2.11) saknar en egen NamingSystemRegistry-post, så Java returnerar
+  // urn:oid:<oid> här också; ingen särbehandling behövs alltså i FML.
+  src.parameter as nc where name = 'noteCodeSystemOid' -> tgt.type = create('CodeableConcept') as typeCC then {
+    nc.value as oid -> typeCC.coding = create('Coding') as typeCoding then {
+      oid -> typeCoding.system = ('urn:oid:' & oid) "type-system";
+      src.parameter as ncc where name = 'noteCodeCode' then {
+        ncc.value as v -> typeCoding.code = v "type-code";
+      } "type-code-bind";
+      src.parameter as ncd where name = 'noteCodeDisplay' then {
+        ncd.value as v -> typeCoding.display = v "type-display";
+      } "type-display-bind";
+    } "type-coding";
+    src.parameter as nct where name = 'noteCodeText' then {
+      nct.value as v -> typeCC.text = v "type-text";
+    } "type-text-bind";
+  } "type";
+
+  src.parameter as nt where name = 'noteTitle' then {
+    nt.value as v -> tgt.description = v "description-value";
+  } "description";
+
+  // content: bara fritext-grenen av XOR:en (ingen DocBook-struktur, ingen multimediaEntry -
+  // se adaptern/fml-evaluation.md). attachment.data tar emot en REDAN base64-kodad sträng
+  // (RivtaCareDocumentationParametersAdapter kodar om fritexten till base64 innan den läggs i
+  // Parameters) - ett base64Binary-elements .value-property avkodar strängen på samma sätt
+  // oavsett om den kommer från FML eller från Java-mappern, så själva base64-steget behövde
+  // inte göras i FML (och FHIRPath i denna motorversion saknar en inbyggd .encode('base64')
+  // att göra det med ändå). attachment.title sätts bara när noteTitle finns, precis som i Java.
+  src.parameter as txt where name = 'noteTextPlainBase64' -> tgt.content as contentEl then {
+    txt -> contentEl.attachment = create('Attachment') as att then {
+      txt -> att.contentType = 'text/plain; charset=utf-8' "content-type";
+      txt -> att.data = create('base64Binary') as dataEl then {
+        txt.value as v -> dataEl.value = v "content-data-value";
+      } "content-data";
+      src.parameter as nt2 where name = 'noteTitle' then {
+        nt2.value as v -> att.title = v "content-title";
+      } "content-title-bind";
+    } "content-attachment";
+  } "content-plain";
+
+  // author: header.author.authorId -> PractitionerRole (logisk referens).
+  src.parameter as aid where name = 'authorId' -> tgt.author = create('Reference') as authorRef then {
+    aid -> authorRef.type = 'PractitionerRole' "author-type";
+    aid -> authorRef.identifier = create('Identifier') as authorId then {
+      aid -> authorId.system = 'urn:oid:1.2.752.129.2.1.4.1' "author-id-system";
+      aid.value as v -> authorId.value = v "author-id-value";
+    } "author-id";
+    src.parameter as anm where name = 'authorName' then {
+      anm.value as v -> authorRef.display = v "author-display";
+    } "author-display-bind";
+  } "author";
+
+  // authenticator: header.signature.signatureId -> PractitionerRole + extension[signatureTime].
+  src.parameter as sid where name = 'signatureId' -> tgt.authenticator = create('Reference') as authnRef then {
+    sid -> authnRef.type = 'PractitionerRole' "authn-type";
+    sid -> authnRef.identifier = create('Identifier') as authnId then {
+      sid -> authnId.system = 'urn:oid:1.2.752.129.2.1.4.1' "authn-id-system";
+      sid.value as v -> authnId.value = v "authn-id-value";
+    } "authn-id";
+    src.parameter as snm where name = 'signatureName' then {
+      snm.value as v -> authnRef.display = v "authn-display";
+    } "authn-display-bind";
+  } "authenticator";
+  src.parameter as st where name = 'signatureTimestamp' -> tgt.extension = create('Extension') as sigExt then {
+    st -> sigExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-signature-time' "sig-url";
+    st -> sigExt.value = create('dateTime') as sigEl then {
+      st.value as v -> sigEl.value = v "sig-value";
+    } "sig-el";
+  } "signatureTime";
+
+}

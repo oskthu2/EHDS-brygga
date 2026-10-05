@@ -3,6 +3,8 @@ package se.inera.ehds.fml;
 import org.hl7.fhir.r4.model.CodeableConcept;
 import org.hl7.fhir.r4.model.Condition;
 import org.hl7.fhir.r4.model.Parameters;
+import org.hl7.fhir.r4.model.Provenance;
+import org.hl7.fhir.r4.model.Reference;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import se.inera.ehds.mapping.concept.ConceptMapRegistry;
@@ -57,6 +59,97 @@ class GetDiagnosisFmlComparisonTest {
                 fmlResult.getCategoryFirstRep().getCodingFirstRep().getCode());
         assertEquals("resolved", javaResult.getClinicalStatus().getCodingFirstRep().getCode());
         assertEquals("resolved", fmlResult.getClinicalStatus().getCodingFirstRep().getCode());
+    }
+
+    @Test
+    void recorderOchAsserter_matchar_java() {
+        Diagnosis d = diagnosis("190101011234", "HD", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", "20240601");
+        withRecorderAndAsserter(d);
+
+        Condition javaResult = runJava(d);
+        Condition fmlResult = runFml(d);
+
+        assertEquals(javaResult.getRecorder().getIdentifier().getValue(),
+                fmlResult.getRecorder().getIdentifier().getValue());
+        assertEquals(javaResult.getRecordedDateElement().getValueAsString(),
+                fmlResult.getRecordedDateElement().getValueAsString());
+        assertEquals(javaResult.getAsserter().getIdentifier().getValue(),
+                fmlResult.getAsserter().getIdentifier().getValue());
+        assertEquals(javaResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date")
+                        .getValue().primitiveValue(),
+                fmlResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date")
+                        .getValue().primitiveValue());
+    }
+
+    @Test
+    void chronicConditionOchRelatedDiagnosis_matchar_java() {
+        Diagnosis d = diagnosis("190101011234", "HD", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", null);
+        d.getDiagnosisBody().setChronicCondition(Boolean.TRUE);
+        RelatedDiagnosis related = new RelatedDiagnosis();
+        related.setDocumentId("doc-123");
+        d.getDiagnosisBody().setRelatedDiagnosis(related);
+
+        Condition javaResult = runJava(d);
+        Condition fmlResult = runFml(d);
+
+        assertEquals(
+                javaResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition")
+                        .getValue().primitiveValue(),
+                fmlResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition")
+                        .getValue().primitiveValue());
+        Reference javaRelated = (Reference) javaResult
+                .getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition")
+                .getValue();
+        Reference fmlRelated = (Reference) fmlResult
+                .getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition")
+                .getValue();
+        assertEquals(javaRelated.getIdentifier().getValue(), fmlRelated.getIdentifier().getValue());
+    }
+
+    @Test
+    void provenance_treAgenter_matchar_java() {
+        Diagnosis d = diagnosis("190101011234", "HD", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", "20240601");
+        withRecorderAndAsserter(d);
+
+        List<MappedDiagnosisEntry> javaEntries = javaMapper.map(okResponse(d), ctx);
+        assertEquals(1, javaEntries.size());
+        Provenance javaProv = javaEntries.get(0).provenance();
+
+        Parameters source = RivtaDiagnosisParametersAdapter.toParameters(d, ctx.getBridgeHsaId());
+        Provenance fmlProv = fml.transformDiagnosisProvenance(source);
+
+        assertEquals(javaProv.getRecordedElement().getValueAsString(), fmlProv.getRecordedElement().getValueAsString());
+        // Fixturen sätter inget careUnitHSAId, så "author"-agenten uteblir i båda - precis
+        // som ProvenanceBuilder.addAgent() hoppar över en roll med null-värde.
+        assertEquals(javaProv.getAgent().size(), fmlProv.getAgent().size());
+        assertEquals(agentHsaId(javaProv, "custodian"), agentHsaId(fmlProv, "custodian"));
+        assertEquals(agentHsaId(javaProv, "assembler"), agentHsaId(fmlProv, "assembler"));
+    }
+
+    private String agentHsaId(Provenance prov, String role) {
+        return prov.getAgent().stream()
+                .filter(a -> a.getType().getCodingFirstRep().getCode().equals(role))
+                .findFirst()
+                .map(a -> a.getWho().getIdentifier().getValue())
+                .orElse(null);
+    }
+
+    private void withRecorderAndAsserter(Diagnosis d) {
+        se.inera.ehds.mapping.rivta.HealthcareProfessionalType ahp = new se.inera.ehds.mapping.rivta.HealthcareProfessionalType();
+        PersonIdType recorderId = new PersonIdType();
+        recorderId.setExtension("SE2321000016-REC");
+        ahp.setPersonId(recorderId);
+        ahp.setAuthorTime("20240101120000");
+        d.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
+
+        se.inera.ehds.mapping.rivta.LegalAuthenticatorType la = new se.inera.ehds.mapping.rivta.LegalAuthenticatorType();
+        se.inera.ehds.mapping.rivta.HealthcareProfessionalType asserterHcp = new se.inera.ehds.mapping.rivta.HealthcareProfessionalType();
+        PersonIdType asserterId = new PersonIdType();
+        asserterId.setExtension("SE2321000016-ASS");
+        asserterHcp.setPersonId(asserterId);
+        la.setHcProfessional(asserterHcp);
+        la.setSignatureDate("20240102120000");
+        d.getDiagnosisHeader().setLegalAuthenticator(la);
     }
 
     @Test

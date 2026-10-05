@@ -3,7 +3,9 @@ package se.inera.ehds.fml;
 import org.hl7.fhir.r4.context.SimpleWorkerContext;
 import org.hl7.fhir.r4.model.ConceptMap;
 import org.hl7.fhir.r4.model.Condition;
+import org.hl7.fhir.r4.model.DocumentReference;
 import org.hl7.fhir.r4.model.Parameters;
+import org.hl7.fhir.r4.model.Provenance;
 import org.hl7.fhir.r4.model.StructureMap;
 import org.hl7.fhir.r4.utils.StructureMapUtilities;
 
@@ -38,6 +40,8 @@ public final class FmlEngine {
     private final SimpleWorkerContext ctx;
     private final StructureMapUtilities smu;
     private final StructureMap map;
+    private final StructureMap provenanceMap;
+    private final StructureMap careDocMap;
 
     public FmlEngine() throws IOException {
         this.ctx = SimpleWorkerContext.fromDefinitions(loadCoreDefinitions());
@@ -48,6 +52,12 @@ public final class FmlEngine {
         this.smu = new StructureMapUtilities(ctx);
         this.map = smu.parse(readResource("/fml/get-diagnosis-to-condition.map"),
                 "GetDiagnosisToCondition");
+        // Separat StructureMap för Provenance - transform() stödjer bara en target per anrop,
+        // se kommentaren i get-diagnosis-to-provenance.map.
+        this.provenanceMap = smu.parse(readResource("/fml/get-diagnosis-to-provenance.map"),
+                "GetDiagnosisToProvenance");
+        this.careDocMap = smu.parse(readResource("/fml/get-caredocumentation-to-documentreference.map"),
+                "GetCareDocumentationToDocumentReference");
     }
 
     public String render() {
@@ -57,6 +67,18 @@ public final class FmlEngine {
     public Condition transformDiagnosis(Parameters source) {
         Condition target = new Condition();
         smu.transform(null, source, map, target);
+        return target;
+    }
+
+    public Provenance transformDiagnosisProvenance(Parameters source) {
+        Provenance target = new Provenance();
+        smu.transform(null, source, provenanceMap, target);
+        return target;
+    }
+
+    public DocumentReference transformCareDocumentation(Parameters source) {
+        DocumentReference target = new DocumentReference();
+        smu.transform(null, source, careDocMap, target);
         return target;
     }
 

@@ -1,6 +1,0 @@
-{
-  "_testfall": "Tomt diagnosis-fält i TK-svaret (motsvarar även ett helt null-svar/null-diagnosis i Java-testerna)",
-  "_forvantat": "Mapper returnerar tom lista, kastar inget undantag",
-  "result": { "resultCode": "OK" },
-  "diagnosis": []
-}

@@ -19,12 +19,16 @@ import java.util.List;
         "clinicalDocumentNoteText", "multimediaEntry", "dissentingOpinion"
 })
 public class Body {
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private CVType clinicalDocumentNoteCode;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String clinicalDocumentNoteTitle;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String clinicalDocumentNoteText;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private MultimediaEntry multimediaEntry;
 
-    @XmlElement(name = "dissentingOpinion")
+    @XmlElement(name = "dissentingOpinion", namespace = CoreNamespace.VALUE)
     private List<DissentingOpinion> dissentingOpinion = new ArrayList<>();
 
     public CVType getClinicalDocumentNoteCode() { return clinicalDocumentNoteCode; }

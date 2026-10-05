@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+ Licensed to the Apache Software Foundation (ASF) under one
+ or more contributor license agreements. See the NOTICE file
+ distributed with this work for additional information
+ regarding copyright ownership. Sveriges Kommuner och Landsting licenses this file
+ to you under the Apache License, Version 2.0 (the
+ "License"); you may not use this file except in compliance
+ with the License. You may obtain a copy of the License at
+
+ http://www.apache.org/licenses/LICENSE-2.0
+
+ Unless required by applicable law or agreed to in writing,
+ software distributed under the License is distributed on an
+ "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ KIND, either express or implied. See the License for the
+ specific language governing permissions and limitations
+ under the License.
+ -->
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+           xmlns:tns="urn:riv:clinicalprocess:healthcond:description:3"
+           xmlns:codes="urn:riv:clinicalprocess:healthcond:description:enums:3"
+           targetNamespace="urn:riv:clinicalprocess:healthcond:description:3"
+           elementFormDefault="qualified"
+           attributeFormDefault="unqualified"
+           version="3.0">
+
+    <xs:import schemaLocation="./clinicalprocess_healthcond_description_enum_3.0.xsd"
+               namespace="urn:riv:clinicalprocess:healthcond:description:enums:3"/>
+
+    <!--
+         Below: Types used exclusively by service contract GetCareDocumentation
+    -->
+
+    <xs:complexType name="CareDocumentationType">
+        <xs:sequence>
+            <xs:element name="header" type="tns:HeaderType"/>
+            <xs:element name="body" type="tns:CareDocumentationBodyType"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="CareDocumentationBodyType">
+        <xs:sequence>
+            <xs:element name="clinicalDocumentNoteCode" type="tns:CVType"/>
+            <xs:element name="clinicalDocumentNoteTitle" type="xs:string" minOccurs="0"/>
+            <xs:element name="clinicalDocumentNoteText" type="xs:string" minOccurs="0"/>
+            <xs:element name="multimediaEntry" type="tns:MultimediaType" minOccurs="0"/>
+            <xs:element name="dissentingOpinion" type="tns:DissentingOpinionType" minOccurs="0" maxOccurs="unbounded"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="DissentingOpinionType">
+        <xs:sequence>
+            <xs:element name="opinionId" type="tns:IIType" minOccurs="0"/>
+            <xs:element name="authorTime" type="tns:TimeStampType"/>
+            <xs:element name="opinion" type="xs:string"/>
+            <xs:element name="personId" type="tns:IIType"/>
+            <xs:element name="personName" type="xs:string"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!--
+        Below: Common header used in service contracts for JoL (Journal- och Läkemedel).
+
+        Version: JoL Header Fältregler_v2.2
+    -->
+
+    <xs:complexType name="HeaderType">
+        <xs:sequence>
+            <xs:element name="accessControlHeader" type="tns:AccessControlHeaderType"/>
+            <xs:element name="sourceSystemId" type="tns:IIType"/>
+            <xs:element name="record" type="tns:RecordType"/>
+            <xs:element name="author" type="tns:AuthorType" minOccurs="0"/>
+            <xs:element name="signature" type="tns:SignatureType" minOccurs="0"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="AccessControlHeaderType">
+        <xs:sequence>
+            <xs:element name="accountableHealthcareProvider" type="tns:IIType" minOccurs="0"/>
+            <xs:element name="accountableCareUnit" type="tns:IIType" minOccurs="0"/>
+            <xs:element name="patientId" type="tns:IIType"/>
+            <xs:element name="careProcessId" type="tns:IIType" minOccurs="0"/>
+            <xs:element name="blockComparisonTime" type="tns:TimeStampType"/>
+            <xs:element name="approvedForPatient" type="xs:boolean"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="RecordType">
+        <xs:sequence>
+            <xs:element name="id" type="tns:IIType"/>
+            <xs:element name="timestamp" type="tns:TimeStampType"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="AuthorType">
+        <xs:sequence>
+            <xs:element name="id" type="tns:IIType" minOccurs="0"/>
+            <xs:element name="name" type="xs:string" minOccurs="0"/>
+            <xs:element name="timestamp" type="tns:TimeStampType"/>
+            <xs:element name="byRole" type="tns:CVType" minOccurs="0"/>
+            <xs:element name="orgUnit" type="tns:OrgUnitType" minOccurs="0"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="SignatureType">
+        <xs:sequence>
+            <xs:element name="id" type="tns:IIType" minOccurs="0"/>
+            <xs:element name="name" type="xs:string" minOccurs="0"/>
+            <xs:element name="timestamp" type="tns:TimeStampType"/>
+            <xs:element name="byRole" type="tns:CVType" minOccurs="0"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <!-- 
+        Below: only helper types allowed.
+        
+        A helper type is a type used in one ore more of the domain schema common types.
+        It can also be a type used in two or more service schemas.
+
+        Types are defined in version 17 of "De facto-konventioner för datatyper".
+    -->
+
+    <xs:complexType name="DatePeriodType">
+        <xs:annotation>
+            <xs:documentation>
+                Används för att specificera ett datumintervall
+                med hjälp av start- och slutdatum.
+
+                start:
+                Startdatum på formatet ÅÅÅÅMMDD
+                end:
+                Slutdatum på formatet ÅÅÅÅMMDD
+            </xs:documentation>
+        </xs:annotation>
+        <xs:sequence>
+            <xs:element name="start" type="tns:DateType"/>
+            <xs:element name="end" type="tns:DateType"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:simpleType name="DateType">
+        <xs:annotation>
+            <xs:documentation>
+                Formatet är ÅÅÅÅMMDD
+            </xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:pattern value="(19|20)\d\d(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:complexType name="MultimediaType">
+        <xs:sequence>
+            <xs:element name="mediaType" type="xs:string"/>
+            <xs:element name="value" type="xs:base64Binary" minOccurs="0"/>
+            <xs:element name="reference" type="xs:anyURI" minOccurs="0"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:simpleType name="TimeStampType">
+        <xs:annotation>
+            <xs:documentation>
+                A quantity specifying a point on the axis of natural time.
+                A point in time is most often represented as a calendar
+                expression.
+
+                The time has the format YYYYMMDDhhmmss
+            </xs:documentation>
+        </xs:annotation>
+        <xs:restriction base="xs:string">
+            <xs:pattern value="(19|20)\d\d(0[1-9]|1[012])(0[1-9]|[12][0-9]|3[01])(0[0-9]|1[0-9]|2[0123])([0-5])([0-9])([0-5])([0-9])"/>
+        </xs:restriction>
+    </xs:simpleType>
+
+    <xs:complexType name="CVType">
+        <xs:sequence>
+            <xs:element name="code" type="xs:string" minOccurs="0"/>
+            <xs:element name="codeSystem" type="xs:string" minOccurs="0"/>
+            <xs:element name="codeSystemName" type="xs:string" minOccurs="0"/>
+            <xs:element name="codeSystemVersion" type="xs:string" minOccurs="0"/>
+            <xs:element name="displayName" type="xs:string" minOccurs="0"/>
+            <xs:element name="originalText" type="xs:string" minOccurs="0"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="IIType">
+        <xs:sequence>
+            <xs:element name="root" type="xs:string"/>
+            <xs:element name="extension" type="xs:string" minOccurs="0"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="ResultType">
+        <xs:sequence>
+            <xs:element name="resultCode" type="codes:ResultCodeEnum" minOccurs="1" maxOccurs="1" />
+            <xs:element name="resultText" type="xs:string" minOccurs="0" maxOccurs="1" />
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:complexType name="OrgUnitType">
+        <xs:sequence>
+            <xs:element name="orgUnitHSAId" type="tns:HSAIdType" minOccurs="0"/>
+            <xs:element name="orgUnitName" type="xs:string" minOccurs="0"/>
+            <xs:element name="orgUnitTelecom" type="xs:string" minOccurs="0"/>
+            <xs:element name="orgUnitEmail" type="xs:string" minOccurs="0"/>
+            <xs:element name="orgUnitAddress" type="xs:string" minOccurs="0"/>
+            <xs:element name="orgUnitLocation" type="xs:string" minOccurs="0"/>
+            <xs:any namespace="##other" processContents="lax" minOccurs="0" maxOccurs="unbounded"/>
+        </xs:sequence>
+    </xs:complexType>
+
+    <xs:simpleType name="HSAIdType">
+        <xs:restriction base="xs:string"/>
+    </xs:simpleType>
+
+</xs:schema>

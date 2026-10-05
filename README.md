@@ -316,18 +316,22 @@ Java-subpackage per XML-namespace (eftersom JAXB-namespace är paketglobalt via 
 
 | Package | XML-namespace | Kontrakt |
 |---|---|---|
-| `mapping/rivta/` | `urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2` | GetDiagnosis |
+| `mapping/rivta/` | `urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2` | GetDiagnosis |
 | `mapping/rivta/caredocumentation/` | `urn:riv:clinicalprocess:healthcond:description:GetCareDocumentationResponder:3` | GetCareDocumentation |
 
-Nyckeltyper (gemensamma för alla kontrakt):
+GetDiagnosis och GetCareDocumentation ligger alltså i samma RIVTA-domän
+(`healthcond.description`), bara olika core-komponentversioner (2.1 resp. 3.0) — inte i
+`activity.conditions` som en tidigare, overifierad version av modellen antog.
+
+Nyckeltyper (per kontrakt, inte gemensamma — `PersonIdType` har olika form i varje paket):
 
 | Java-klass | RIVTA-typ | Fält |
 |---|---|---|
-| `PersonIdType` | PersonId | `root` (OID), `extension` (identifierarvärde) |
-| `CVType` | CV (Coded Value) | `code`, `codeSystem` (OID), `displayName` |
-| `DatePeriodType` | DatePeriod | `start`, `end` (YYYYMMDD eller YYYYMMDDHHmmss) |
-| `DiagnosisHeader` | DiagnosisHeader | `patientId`, `sourceSystemHSAId`, `documentTime`, `careUnitHSAId`, `careProviderHSAId` |
-| `DiagnosisBody` | DiagnosisBody | `diagnosisCode`, `diagnosisType`, `diagnosisTimePeriod`, `chronicCondition`, `relatedDiagnosis`, `assertedDate` |
+| `rivta.PersonIdType` (GetDiagnosis) | PersonIdType | `id` (identifierarvärde), `type` (OID/schema) |
+| `rivta.caredocumentation.PersonIdType` (GetCareDocumentation) | IIType | `root` (OID), `extension` (identifierarvärde) |
+| `CVType` | CV (Coded Value) | `code`, `codeSystem` (OID), `codeSystemName`, `codeSystemVersion`, `displayName`, `originalText` |
+| `DiagnosisHeader` | PatientSummaryHeaderType | `documentId`, `sourceSystemHSAId`, `patientId`, `accountableHealthcareProfessional`, `legalAuthenticator`, `approvedForPatient`, `careContactId` — inga `careUnitHSAId`/`careProviderHSAId`-fält |
+| `DiagnosisBody` | DiagnosisBodyType | `typeOfDiagnosis` (`"Huvuddiagnos"`/`"Bidiagnos"`), `chronicDiagnosis`, `diagnosisTime` (enda tidpunkt, inget intervall), `diagnosisCode`, `relatedDiagnosis` (lista) |
 
 **Datumsformat:** RIVTA använder heltalssträngar. Mapparen konverterar:
 - `YYYYMMDD` → `YYYY-MM-DD`
@@ -423,17 +427,16 @@ En konkret klass per tjänstekontrakt:
 
 | RIVTA-element | FHIR-element | Logik |
 |---|---|---|
-| `diagnosisHeader.patientId.root/extension` | `subject.identifier.system/value` | OID→URI via lager 2a |
-| `diagnosisHeader.sourceSystemHSAId` | `Condition.meta.source` | `urn:oid:{HSA_OID}#{hsaId}` — spårbarhet |
-| `diagnosisHeader.careProviderHSAId` | `Provenance.agent[custodian]` | Juridiskt ansvarig — yttre Sparr-nyckel |
-| `diagnosisHeader.careUnitHSAId` | `Provenance.agent[author]` | Informationsägare vårdenhet — inre Sparr-nyckel |
-| `diagnosisHeader.documentTime` | `recordedDate` + `Provenance.recorded` | Datumkonvertering |
+| `diagnosisHeader.patientId.type/id` | `subject.identifier.system/value` | OID→URI via lager 2a |
+| `diagnosisHeader.sourceSystemHSAId` | `Condition.meta.source` | Endpoint i tjänstekatalogen — spårbarhet |
+| `diagnosisHeader.accountableHealthcareProfessional.healthcareProfessionalCareGiverHSAId` | `Provenance.agent[custodian]` | Juridiskt ansvarig — yttre Sparr-nyckel (headern har inget eget `careProviderHSAId`-fält) |
+| `diagnosisHeader.accountableHealthcareProfessional.healthcareProfessionalCareUnitHSAId` | `Provenance.agent[author]` | Informationsägare vårdenhet — inre Sparr-nyckel |
+| `diagnosisHeader.accountableHealthcareProfessional.authorTime` | `recordedDate` + `Provenance.recorded` | Datumkonvertering (`documentTime` har kardinalitet 0..0 och används inte) |
 | `diagnosisBody.diagnosisCode` | `code.coding` | OID→URI via lager 2a |
-| `diagnosisBody.diagnosisType` | `category` | Kod→kod via lager 2b (DiagnosisType-karta) |
-| `diagnosisBody.diagnosisTimePeriod.start` | `onsetDateTime` | Datumkonvertering |
-| `diagnosisBody.diagnosisTimePeriod.end` | `abatementDateTime` | Om satt → `clinicalStatus=resolved`, annars `active` |
-| `diagnosisBody.assertedDate` *(EPS)* | `ext-asserted-date` | Administrativt datum, skiljer sig från `recordedDate` |
-| *(härledd)* | `clinicalStatus` | `active` om inget slutdatum, `resolved` om slutdatum finns |
+| `diagnosisBody.typeOfDiagnosis` (`"Huvuddiagnos"`/`"Bidiagnos"`) | `category` | Kod→kod via lager 2b (DiagnosisType-karta) |
+| `diagnosisBody.diagnosisTime` | `onsetDateTime` | Datumkonvertering — enda tidpunkt, inget intervall |
+| `diagnosisHeader.legalAuthenticator.signatureTime` *(EPS)* | `ext-asserted-date` | Administrativt datum, skiljer sig från `recordedDate` |
+| *(konstant)* | `clinicalStatus` | Alltid `active` — schemat har inget slutdatum/period-fält att härleda `resolved` från |
 | *(konstant)* | `verificationStatus` | Alltid `confirmed` |
 | `bridgeHsaId` från `MapperContext` | `Provenance.agent[assembler]` | Bryggan som sammansättande aktör |
 

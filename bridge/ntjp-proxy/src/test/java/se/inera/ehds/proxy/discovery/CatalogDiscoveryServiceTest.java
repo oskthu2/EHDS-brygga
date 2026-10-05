@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 class CatalogDiscoveryServiceTest {
 
     private static final String VG_HSA_ID = "SE2321000016-4HK5";
-    private static final String NAMESPACE = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2";
+    private static final String NAMESPACE = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2";
 
     private RestTemplate rest;
     private CatalogDiscoveryService service;

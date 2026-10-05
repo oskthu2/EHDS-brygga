@@ -6,12 +6,13 @@ import java.util.List;
 
 @XmlRootElement(name = "GetDiagnosisResponse")
 @XmlAccessorType(XmlAccessType.FIELD)
-@XmlType(name = "GetDiagnosisResponseType", propOrder = {"result", "diagnosis"})
+@XmlType(name = "GetDiagnosisResponseType", propOrder = {"diagnosis", "result"})
 public class GetDiagnosisResponse {
-    private ResultType result;
 
     @XmlElement(name = "diagnosis")
     private List<Diagnosis> diagnosis = new ArrayList<>();
+
+    private ResultType result;
 
     public ResultType getResult() { return result; }
     public void setResult(ResultType result) { this.result = result; }

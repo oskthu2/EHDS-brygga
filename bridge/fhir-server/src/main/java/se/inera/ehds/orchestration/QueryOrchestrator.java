@@ -32,7 +32,7 @@ public class QueryOrchestrator {
     private static final Logger log = LoggerFactory.getLogger(QueryOrchestrator.class);
 
     /** RIVTA-tjänstekontraktet som EI:s engagemangsuppslag filtrerar på för Condition. */
-    private static final String NS_RIV = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2";
+    private static final String NS_RIV = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2";
 
     private final FhirProxyClient fhirClient;
     private final SparrFilterService sparr;

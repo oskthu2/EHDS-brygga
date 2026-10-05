@@ -2,6 +2,7 @@ package se.inera.ehds.mapping.rivta;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 @XmlAccessorType(XmlAccessType.FIELD)
@@ -11,12 +12,19 @@ import jakarta.xml.bind.annotation.XmlType;
     "accountableHealthcareProfessional", "legalAuthenticator"
 })
 public class DiagnosisHeader {
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private PersonIdType patientId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String sourceSystemHSAId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String documentTime;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String careUnitHSAId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String careProviderHSAId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private HealthcareProfessionalType accountableHealthcareProfessional;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private LegalAuthenticatorType legalAuthenticator;
 
     public PersonIdType getPatientId() { return patientId; }

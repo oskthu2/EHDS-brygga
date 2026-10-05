@@ -2,6 +2,7 @@ package se.inera.ehds.mapping.rivta;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 @XmlAccessorType(XmlAccessType.FIELD)
@@ -9,10 +10,15 @@ import jakarta.xml.bind.annotation.XmlType;
     "diagnosisCode", "diagnosisType", "diagnosisTimePeriod", "chronicCondition", "relatedDiagnosis"
 })
 public class DiagnosisBody {
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private CVType diagnosisCode;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String diagnosisType;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private DatePeriodType diagnosisTimePeriod;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private Boolean chronicCondition;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private RelatedDiagnosis relatedDiagnosis;
 
     public CVType getDiagnosisCode() { return diagnosisCode; }

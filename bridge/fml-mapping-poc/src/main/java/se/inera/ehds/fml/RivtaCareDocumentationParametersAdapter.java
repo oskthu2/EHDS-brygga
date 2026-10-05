@@ -9,7 +9,9 @@ import se.inera.ehds.mapping.rivta.caredocumentation.Author;
 import se.inera.ehds.mapping.rivta.caredocumentation.Body;
 import se.inera.ehds.mapping.rivta.caredocumentation.CareDocumentation;
 import se.inera.ehds.mapping.rivta.caredocumentation.CVType;
+import se.inera.ehds.mapping.rivta.caredocumentation.DissentingOpinion;
 import se.inera.ehds.mapping.rivta.caredocumentation.Header;
+import se.inera.ehds.mapping.rivta.caredocumentation.MultimediaEntry;
 import se.inera.ehds.mapping.rivta.caredocumentation.PersonIdType;
 import se.inera.ehds.mapping.rivta.caredocumentation.RecordType;
 import se.inera.ehds.mapping.rivta.caredocumentation.Signature;
@@ -20,15 +22,20 @@ import se.inera.ehds.mapping.tk.RivDateParser;
  * FHIR Parameters resource - same adapter-layer approach as RivtaDiagnosisParametersAdapter, and
  * the same caveat applies: this is NOT how the production Java mapper reads the RIVTA tree.
  *
- * Explicitly NOT flattened here because the corresponding FML rules were judged to be either
- * impossible or out of scope for this PoC - see fml-evaluation.md:
+ * Explicitly NOT flattened here because the corresponding FML rules were judged to be
+ * architecturally impossible to express in FML - see fml-evaluation.md:
  *   - clinicalDocumentNoteText when it is DocBook-XML (the heuristic + DocBookToNarrativeTransformer
  *     call that produces the XHTML narrative) - requires custom Java logic, not expressible in FML.
  *   - the DocBook-to-Composition "Strategy B" section tree (same reason).
- *   - multimediaEntry (the other half of the body content XOR).
- *   - dissentingOpinion[] (a repeating structure; the Parameters-flattening approach used here
- *     only carries single-valued fields, see fml-evaluation.md "Källdata är inte FHIR").
  *   - approvedForPatient (PDL-001 is an open question in the Java mapper too - nothing to compare).
+ *
+ * dissentingOpinion[] is a repeating structure; this Parameters-flattening only carries the
+ * FIRST entry (named dissentX below, no index) since a generic repeat-N-times convention was
+ * judged out of scope for this PoC - a real translation would need either an indexed naming
+ * convention (dissent0OpinionId, dissent1OpinionId, ...) or a proper logical model with real
+ * cardinality, not single-valued Parameters entries. This is a scope limitation of the
+ * Parameters adapter, not of FML's extension-building rules themselves (which are demonstrated
+ * correctly for the single-entry case).
  */
 public final class RivtaCareDocumentationParametersAdapter {
 
@@ -123,6 +130,44 @@ public final class RivtaCareDocumentationParametersAdapter {
                 String base64 = Base64.getEncoder().encodeToString(
                         body.getClinicalDocumentNoteText().getBytes(StandardCharsets.UTF_8));
                 p.addParameter().setName("noteTextPlainBase64").setValue(new StringType(base64));
+            }
+
+            MultimediaEntry media = body.getMultimediaEntry();
+            if (media != null) {
+                if (media.getMediaType() != null) {
+                    p.addParameter().setName("multimediaType").setValue(new StringType(media.getMediaType()));
+                }
+                // value/reference är en XOR i källan (samma invariant som Java-mappern litar på) -
+                // media.getValue() är redan base64-kodad RIVTA-text, precis som
+                // Attachment.setData(Base64.getDecoder().decode(media.getValue())) i Java förutsätter.
+                if (media.getValue() != null) {
+                    p.addParameter().setName("multimediaValueBase64").setValue(new StringType(media.getValue()));
+                } else if (media.getReference() != null) {
+                    p.addParameter().setName("multimediaReference").setValue(new StringType(media.getReference()));
+                }
+            }
+
+            if (!body.getDissentingOpinion().isEmpty()) {
+                DissentingOpinion dissent = body.getDissentingOpinion().get(0);
+                if (dissent.getOpinionId() != null) {
+                    p.addParameter().setName("dissentOpinionId").setValue(new StringType(dissent.getOpinionId()));
+                }
+                if (dissent.getAuthorTime() != null) {
+                    String iso = RivDateParser.parse(dissent.getAuthorTime());
+                    if (iso != null) {
+                        p.addParameter().setName("dissentAuthorTime").setValue(new StringType(iso));
+                    }
+                }
+                if (dissent.getOpinion() != null) {
+                    p.addParameter().setName("dissentOpinion").setValue(new StringType(dissent.getOpinion()));
+                }
+                if (dissent.getPersonId() != null && dissent.getPersonId().getExtension() != null) {
+                    p.addParameter().setName("dissentPersonId")
+                            .setValue(new StringType(dissent.getPersonId().getExtension()));
+                }
+                if (dissent.getPersonName() != null) {
+                    p.addParameter().setName("dissentPersonName").setValue(new StringType(dissent.getPersonName()));
+                }
             }
         }
         return p;

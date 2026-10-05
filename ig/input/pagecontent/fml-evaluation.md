@@ -27,9 +27,11 @@ Ett nytt Maven-modul, `bridge/fml-mapping-poc`, med:
   inte kunde vara en andra target i samma grupp.
 - `get-caredocumentation-to-documentreference.map` – GetCareDocumentation → `DocumentReference`:
   status, masterIdentifier, date, meta.source, subject, context.related (careProcessId),
-  blockComparisonTime-extension, type (clinicalDocumentNoteCode), description, fritext-innehåll
-  (bara den icke-DocBook-grenen, se "Vad som INTE täcks" nedan), author, authenticator +
-  signatureTime-extension.
+  blockComparisonTime-extension, type (clinicalDocumentNoteCode), description, innehåll
+  (fritext icke-DocBook, samt båda multimediaEntry-grenarna: värde och referens), author,
+  authenticator, signatureTime-extension, dissentingOpinion[0]-extension (se "Vad som INTE
+  täcks" nedan för DocBook-narrativet/Composition, och varför bara post 0 av
+  dissentingOpinion-listan tas med).
 - Tre `ConceptMap`-resurser (`diagnosis-type`, `codesystem-oid`, ...) som motsvarar de YAML-filer
   Java-mapparna redan läser (`concept-maps/diagnosis-type.yaml`, `naming-systems.yaml`).
 - `FmlEngine` – kör `org.hl7.fhir.r4.utils.StructureMapUtilities` offline (ingen
@@ -39,8 +41,8 @@ Ett nytt Maven-modul, `bridge/fml-mapping-poc`, med:
   RIVTA-fält som används till en FHIR `Parameters`-resurs (se "Källdata är inte FHIR" nedan för
   varför).
 - `GetDiagnosisFmlComparisonTest` (7 tester) och `GetCareDocumentationFmlComparisonTest`
-  (2 tester) – jämförande tester som körs genom **både** den riktiga Java-mappern och FML-motorn
-  på samma indata och jämför resultatet fält för fält. Alla 9 är gröna.
+  (5 tester) – jämförande tester som körs genom **både** den riktiga Java-mappern och FML-motorn
+  på samma indata och jämför resultatet fält för fält. Alla 12 är gröna.
 
 Kör dem med `cd bridge && mvn test -pl fml-mapping-poc -am`.
 
@@ -57,27 +59,28 @@ chronicCondition, relatedDiagnosis, och Provenance (tre agenter). Den enda poste
 "regel" i vanlig mening är VG-scope-filtret (`requestedVgHsaId`) – se "Fjärde begränsningen" nedan;
 det är en semantisk gräns i motorn (stoppa en hel post), inte ett fält som saknar en regel.
 
-**GetCareDocumentation → DocumentReference: 11 av ~16 fält/regler översatta (cirka 70 %).**
+**GetCareDocumentation → DocumentReference: 13 av 15 fält/regler översatta (cirka 87 %).**
 Översatt: status, masterIdentifier, date, meta.source, subject, context.related,
-blockComparisonTime, type, description, fritext-content (icke-DocBook), author, authenticator,
-signatureTime (räknas som 11 grupper av regler, några med flera delfält). **Explicit INTE
-översatt** (se nästa avsnitt för varför och hur allvarligt varje fall är):
+blockComparisonTime, type, description, content (fritext icke-DocBook + båda
+multimediaEntry-grenarna, räknas som en post), author, authenticator, signatureTime,
+dissentingOpinion[0]-extension. **Explicit INTE översatt** (se nästa avsnitt för varför och hur
+allvarligt varje fall är):
 
 | Fält/regel | Status | Orsak |
 |---|---|---|
 | DocBook→narrative (`text/html`-attachment) | Kan inte uttryckas i FML | kräver anropet till `DocBookToNarrativeTransformer`, egen Java-logik |
 | Composition "Strategy B" (sektionsträd) | Kan inte uttryckas i FML | samma skäl – bygger på samma transformer |
-| `multimediaEntry` (andra hälften av content-XOR) | Inte påbörjad i denna omgång | ingen artarkitektur-begränsning – samma mönster som attachment-regeln ovan, bara inte hunnet |
-| `dissentingOpinion[]` → extension | Inte påbörjad i denna omgång | repeterande struktur; `Parameters`-plattningen i denna PoC bär bara ental-fält, se adapterns klasskommentar |
 | `approvedForPatient` (PDL-001) | Öppen fråga även i Java | inget beslutat FHIR-kodverk ännu – ingenting att jämföra mot |
 
-Av dessa fem är de två första (DocBook-narrativ, Composition Strategy B) **genuint
-arkitektoniskt blockerade**: de kräver att en godtycklig Java-funktion anropas mitt i en
-mappningsregel, vilket FML inte har någon mekanism för (ingen extension-punkt för
-användardefinierade transformer användes eller hittades i denna motorversion). De tre sista är
-avgränsningar av tid/scope i den här PoC-omgången, inte avgränsningar av vad FML klarar av –
-`multimediaEntry` och `dissentingOpinion` följer samma mönster som redan fungerande regler
-(attachment/extension), och skulle kunna läggas till utan nya fynd.
+De två första är **genuint arkitektoniskt blockerade**: de kräver att en godtycklig
+Java-funktion anropas mitt i en mappningsregel, vilket FML inte har någon mekanism för (ingen
+extension-punkt för användardefinierade transformer användes eller hittades i denna
+motorversion). `multimediaEntry` (båda grenarna) och `dissentingOpinion[0]` – som i en tidigare
+version av denna sida stod som "inte påbörjade" – är nu översatta och verifierade med egna
+jämförande tester; det enda kvarstående undantaget för `dissentingOpinion` är att bara den FÖRSTA
+posten i listan bärs genom `Parameters`-adaptern (se adapterns klasskommentar) – en begränsning i
+PoC:ns platta mellanrepresentation, inte i FML:s regel-mekanik, som fungerar identiskt för varje
+ytterligare post om adaptern byggde ut dem (t.ex. med ett index i parameternamnet).
 
 ## Källdata är inte FHIR – den första friktionspunkten
 

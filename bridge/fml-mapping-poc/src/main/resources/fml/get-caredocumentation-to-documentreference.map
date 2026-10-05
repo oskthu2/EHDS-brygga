@@ -80,13 +80,14 @@ group GetCareDocumentationToDocumentReference(source src : RivtaCareDocumentatio
     nt.value as v -> tgt.description = v "description-value";
   } "description";
 
-  // content: bara fritext-grenen av XOR:en (ingen DocBook-struktur, ingen multimediaEntry -
-  // se adaptern/fml-evaluation.md). attachment.data tar emot en REDAN base64-kodad sträng
-  // (RivtaCareDocumentationParametersAdapter kodar om fritexten till base64 innan den läggs i
-  // Parameters) - ett base64Binary-elements .value-property avkodar strängen på samma sätt
-  // oavsett om den kommer från FML eller från Java-mappern, så själva base64-steget behövde
-  // inte göras i FML (och FHIRPath i denna motorversion saknar en inbyggd .encode('base64')
-  // att göra det med ändå). attachment.title sätts bara när noteTitle finns, precis som i Java.
+  // content: XOR enligt körtidsdatat (precis som i Java, FSH-invarianten
+  // getcaredocumentation-body-xor garanterar att bara en av de två grenarna ger en parameter).
+  // attachment.data tar emot en REDAN base64-kodad sträng (RivtaCareDocumentationParametersAdapter
+  // kodar om fritexten till base64 innan den läggs i Parameters, och media.getValue() ÄR redan
+  // base64 i RIVTA-källan) - ett base64Binary-elements .value-property avkodar strängen på samma
+  // sätt oavsett om den kommer från FML eller från Java-mappern, så själva base64-steget behövde
+  // inte göras i FML (och FHIRPath i denna motorversion saknar en inbyggd .encode('base64') att
+  // göra det med ändå). attachment.title sätts bara när noteTitle finns, precis som i Java.
   src.parameter as txt where name = 'noteTextPlainBase64' -> tgt.content as contentEl then {
     txt -> contentEl.attachment = create('Attachment') as att then {
       txt -> att.contentType = 'text/plain; charset=utf-8' "content-type";
@@ -98,6 +99,79 @@ group GetCareDocumentationToDocumentReference(source src : RivtaCareDocumentatio
       } "content-title-bind";
     } "content-attachment";
   } "content-plain";
+
+  // multimediaEntry (värde-grenen): base64-data + mediaType.
+  src.parameter as mv where name = 'multimediaValueBase64' -> tgt.content as mContentEl then {
+    mv -> mContentEl.attachment = create('Attachment') as mAtt then {
+      mv -> mAtt.data = create('base64Binary') as mDataEl then {
+        mv.value as v -> mDataEl.value = v "media-data-value";
+      } "media-data";
+      src.parameter as mt where name = 'multimediaType' then {
+        mt.value as v -> mAtt.contentType = v "media-type";
+      } "media-type-bind";
+      src.parameter as nt3 where name = 'noteTitle' then {
+        nt3.value as v -> mAtt.title = v "media-title";
+      } "media-title-bind";
+    } "media-attachment";
+  } "content-media-value";
+
+  // multimediaEntry (referens-grenen): url + mediaType, ingen data.
+  src.parameter as mr where name = 'multimediaReference' -> tgt.content as rContentEl then {
+    mr -> rContentEl.attachment = create('Attachment') as rAtt then {
+      mr.value as v -> rAtt.url = v "media-url";
+      src.parameter as mt2 where name = 'multimediaType' then {
+        mt2.value as v -> rAtt.contentType = v "media-ref-type";
+      } "media-ref-type-bind";
+      src.parameter as nt4 where name = 'noteTitle' then {
+        nt4.value as v -> rAtt.title = v "media-ref-title";
+      } "media-ref-title-bind";
+    } "media-ref-attachment";
+  } "content-media-reference";
+
+  // dissentingOpinion[0] -> extension[dissentingOpinion] (bara FÖRSTA posten - se adapterns
+  // klasskommentar om varför en repeterande lista inte flattas generellt i denna PoC).
+  src.parameter as doid where name = 'dissentOpinionId' -> tgt.extension = create('Extension') as dissExt then {
+    doid -> dissExt.url = 'https://fhir.inera.se/StructureDefinition/dissenting-opinion' "diss-url";
+    doid -> dissExt.extension = create('Extension') as doidExt then {
+      doid -> doidExt.url = 'opinionId' "diss-opinionid-url";
+      doid -> doidExt.value = create('string') as doidEl then {
+        doid.value as v -> doidEl.value = v "diss-opinionid-value";
+      } "diss-opinionid-el";
+    } "diss-opinionid-ext";
+    src.parameter as dat where name = 'dissentAuthorTime' then {
+      dat -> dissExt.extension = create('Extension') as datExt then {
+        dat -> datExt.url = 'authorTime' "diss-authortime-url";
+        dat -> datExt.value = create('dateTime') as datEl then {
+          dat.value as v -> datEl.value = v "diss-authortime-value";
+        } "diss-authortime-el";
+      } "diss-authortime-ext";
+    } "diss-authortime-bind";
+    src.parameter as dop where name = 'dissentOpinion' then {
+      dop -> dissExt.extension = create('Extension') as dopExt then {
+        dop -> dopExt.url = 'opinion' "diss-opinion-url";
+        dop -> dopExt.value = create('string') as dopEl then {
+          dop.value as v -> dopEl.value = v "diss-opinion-value";
+        } "diss-opinion-el";
+      } "diss-opinion-ext";
+    } "diss-opinion-bind";
+    src.parameter as dpid where name = 'dissentPersonId' then {
+      dpid -> dissExt.extension = create('Extension') as dpidExt then {
+        dpid -> dpidExt.url = 'personId' "diss-personid-url";
+        dpid -> dpidExt.value = create('Identifier') as dpidEl then {
+          dpid -> dpidEl.system = 'urn:oid:1.2.752.129.2.1.4.1' "diss-personid-system";
+          dpid.value as v -> dpidEl.value = v "diss-personid-value";
+        } "diss-personid-el";
+      } "diss-personid-ext";
+    } "diss-personid-bind";
+    src.parameter as dpn where name = 'dissentPersonName' then {
+      dpn -> dissExt.extension = create('Extension') as dpnExt then {
+        dpn -> dpnExt.url = 'personName' "diss-personname-url";
+        dpn -> dpnExt.value = create('string') as dpnEl then {
+          dpn.value as v -> dpnEl.value = v "diss-personname-value";
+        } "diss-personname-el";
+      } "diss-personname-ext";
+    } "diss-personname-bind";
+  } "dissentingOpinion";
 
   // author: header.author.authorId -> PractitionerRole (logisk referens).
   src.parameter as aid where name = 'authorId' -> tgt.author = create('Reference') as authorRef then {

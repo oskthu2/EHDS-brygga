@@ -102,6 +102,77 @@ class GetCareDocumentationFmlComparisonTest {
         assertFalse(fmlResult.hasContent(), "FML-adaptern skickar inte vidare DocBook-fritext - se fml-evaluation.md");
     }
 
+    @Test
+    void multimediaEntry_varde_matchar_java() {
+        CareDocumentation entry = fullEntry(null);
+        MultimediaEntry media = new MultimediaEntry();
+        media.setMediaType("image/png");
+        media.setValue(java.util.Base64.getEncoder().encodeToString("en bild".getBytes()));
+        entry.getBody().setMultimediaEntry(media);
+
+        DocumentReference javaResult = runJava(entry);
+        DocumentReference fmlResult = runFml(entry);
+
+        assertEquals(javaResult.getContentFirstRep().getAttachment().getContentType(),
+                fmlResult.getContentFirstRep().getAttachment().getContentType());
+        assertArrayEquals(javaResult.getContentFirstRep().getAttachment().getData(),
+                fmlResult.getContentFirstRep().getAttachment().getData());
+        assertEquals(javaResult.getContentFirstRep().getAttachment().getTitle(),
+                fmlResult.getContentFirstRep().getAttachment().getTitle());
+    }
+
+    @Test
+    void multimediaEntry_referens_matchar_java() {
+        CareDocumentation entry = fullEntry(null);
+        MultimediaEntry media = new MultimediaEntry();
+        media.setMediaType("video/mp4");
+        media.setReference("https://example.org/video.mp4");
+        entry.getBody().setMultimediaEntry(media);
+
+        DocumentReference javaResult = runJava(entry);
+        DocumentReference fmlResult = runFml(entry);
+
+        assertEquals(javaResult.getContentFirstRep().getAttachment().getContentType(),
+                fmlResult.getContentFirstRep().getAttachment().getContentType());
+        assertEquals(javaResult.getContentFirstRep().getAttachment().getUrl(),
+                fmlResult.getContentFirstRep().getAttachment().getUrl());
+    }
+
+    @Test
+    void dissentingOpinion_forstaPosten_matchar_java() {
+        CareDocumentation entry = fullEntry("Fritext.");
+        DissentingOpinion dissent = new DissentingOpinion();
+        dissent.setOpinionId("op-1");
+        dissent.setAuthorTime("20240103120000");
+        dissent.setOpinion("Jag håller inte med.");
+        PersonIdType dissentPerson = new PersonIdType();
+        dissentPerson.setRoot("1.2.752.129.2.1.4.1");
+        dissentPerson.setExtension("SE2321000016-OPP");
+        dissent.setPersonId(dissentPerson);
+        dissent.setPersonName("Opponent Opponentsson");
+        entry.getBody().getDissentingOpinion().add(dissent);
+
+        DocumentReference javaResult = runJava(entry);
+        DocumentReference fmlResult = runFml(entry);
+
+        String url = "https://fhir.inera.se/StructureDefinition/dissenting-opinion";
+        assertEquals(
+                javaResult.getExtensionByUrl(url).getExtensionByUrl("opinionId").getValue().primitiveValue(),
+                fmlResult.getExtensionByUrl(url).getExtensionByUrl("opinionId").getValue().primitiveValue());
+        assertEquals(
+                javaResult.getExtensionByUrl(url).getExtensionByUrl("authorTime").getValue().primitiveValue(),
+                fmlResult.getExtensionByUrl(url).getExtensionByUrl("authorTime").getValue().primitiveValue());
+        assertEquals(
+                javaResult.getExtensionByUrl(url).getExtensionByUrl("opinion").getValue().primitiveValue(),
+                fmlResult.getExtensionByUrl(url).getExtensionByUrl("opinion").getValue().primitiveValue());
+        assertEquals(
+                ((org.hl7.fhir.r4.model.Identifier) javaResult.getExtensionByUrl(url).getExtensionByUrl("personId").getValue()).getValue(),
+                ((org.hl7.fhir.r4.model.Identifier) fmlResult.getExtensionByUrl(url).getExtensionByUrl("personId").getValue()).getValue());
+        assertEquals(
+                javaResult.getExtensionByUrl(url).getExtensionByUrl("personName").getValue().primitiveValue(),
+                fmlResult.getExtensionByUrl(url).getExtensionByUrl("personName").getValue().primitiveValue());
+    }
+
     private DocumentReference runJava(CareDocumentation entry) {
         GetCareDocumentationResponse response = okResponse(entry);
         List<MappedDocumentEntry> result = javaMapper.map(response, ctx);

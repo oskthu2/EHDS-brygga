@@ -111,6 +111,10 @@ baserat på förekomsten av slutdatum i diagnosperiodens tidsintervall:
 `Condition.verificationStatus` sätts alltid till `confirmed` vid mappning från RIVTA,
 eftersom RIVTA-svar representerar bekräftade journaluppgifter.
 
+Eftersom härledningen enbart baseras på förekomsten av ett datum (inte på ett fristående
+statusvärde från TK) kan `clinicalStatus` aldrig bli tvetydig eller omappbar – fallet
+"statusvärde som inte kan mappas entydigt" kan inte uppstå med dagens `GetDiagnosis:2`-kontrakt.
+
 ## Hantering av diagnosTyp
 
 RIVTA-koden för diagnostyp (`diagnosisType`) används för att sätta `Condition.category`.
@@ -126,8 +130,20 @@ Profilen kräver exakt ett `category[diagnostyp]`-snitt med en kod från Ineras 
 Ytterligare `category`-poster (t.ex. `encounter-diagnosis` från standard-FHIR) kan läggas till av konsumenten
 men hanteras inte av denna profil.
 
-**Fallback:** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` loggas ett varningsmeddelande.
-Condition inkluderas alltid i svaret.
+**Fallback (DIAG-003):** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` fylls
+`category[diagnostyp]` **inte** i med en gissad kod – att återanvända den råa RIVTA-koden som om
+den vore en giltig `kv_diagnostyp`-kod skulle ge en felaktig kodning. I stället sätts
+`category[diagnostyp]` till en `CodeableConcept` utan `coding`, med extensionen
+
+```json
+{
+  "url": "http://hl7.org/fhir/StructureDefinition/data-absent-reason",
+  "valueCode": "unknown"
+}
+```
+
+Condition inkluderas ändå i svaret – mappningen kastar aldrig undantag på grund av en okänd
+diagnostyp, men category[diagnostyp] saknar en bärande kod i detta fall.
 
 ## Datumsformat
 
@@ -284,9 +300,11 @@ Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver f
 
 - `clinicalStatus` – alltid satt (active eller resolved baserat på slutdatum)
 - `verificationStatus` – alltid satt till `confirmed`
-- `category[diagnostyp]` – exakt ett diagnostyp-snitt med kod från kv_diagnostyp
+- `category[diagnostyp]` – alltid satt; innehåller en kod från kv_diagnostyp om `diagnosisType`
+  gick att konceptmappa, annars `extension[data-absent-reason] = unknown` utan `coding` (DIAG-003)
 - `code` – diagnoskod med minst en coding
-- `subject.identifier` – patientidentifierare med system och value
+- `subject.identifier` – patientidentifierare med system och value; posten filtreras bort
+  (ingen Condition produceras) om denna inte går att sätta med ett giltigt format (DIAG-001)
 
 Valfria fält (0..1) som sätts när källdata finns:
 
@@ -338,6 +356,22 @@ Att börja bygga och bundla en fullständig `Patient`-resurs per anrop är en st
 finns och används som typ för referensen (`Reference($seEhdsPatient)`), men själva
 instansen bundlas inte — endast identifieraren bärs vidare. Samma avsteg gäller
 `DocumentReference.subject` i `mapping-getcaredocumentation.md` (GENERAL-002 där).
+
+### DIAG-001: Saknat eller felaktigt personnummer stoppar posten
+
+`SEEHDSCondition` kräver `subject.identifier` (kardinalitet 1..1) – en Condition utan en
+tillförlitlig patientidentifierare är inte bara avvikande, den är oanvändbar och riskerar att
+hamna fel om den ändå levereras. Bryggan validerar därför att `diagnosisHeader.patientId.extension`
+matchar ett personnummer/samordningsnummer utan bindestreck (`^\d{12}$`, dvs. ÅÅÅÅMMDD + 4 siffror).
+
+Om `patientId` saknas helt, eller `extension` inte matchar detta format, **filtreras hela
+diagnosposten bort** – `mapDiagnosis` returnerar `null` för just den posten, på samma sätt som vid
+ett saknat `diagnosisHeader`/`diagnosisBody`. Övriga poster i samma TK-svar påverkas inte.
+Mappningen kastar inget undantag; det är bara den enskilda posten som uteblir ur resultatet.
+
+Valideringen är ett formatkrav, inte en PU-slagning – MVP 3 gör fortfarande ingen kontroll mot
+personuppgiftsregistret (inget facit att validera mot utöver formatet). En framtida
+PU-integration skulle kunna ersätta eller komplettera formatkontrollen med en riktig uppslagning.
 
 ### Spärr: inre och yttre
 EHDS-bryggan är avsedd för cross-border och ska applicera alla spärrar. Sparrkontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med Ineras spärrtjänst som beskrivs på [Ineras konfluensida](https://inera.atlassian.net/wiki/spaces/PIS/pages/3435203724/).

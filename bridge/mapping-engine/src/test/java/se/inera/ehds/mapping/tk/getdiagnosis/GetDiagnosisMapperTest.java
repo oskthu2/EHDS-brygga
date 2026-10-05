@@ -1,6 +1,8 @@
 package se.inera.ehds.mapping.tk.getdiagnosis;
 
 import org.hl7.fhir.r4.model.BooleanType;
+import org.hl7.fhir.r4.model.CodeType;
+import org.hl7.fhir.r4.model.CodeableConcept;
 import org.hl7.fhir.r4.model.Condition;
 import org.hl7.fhir.r4.model.Extension;
 import org.hl7.fhir.r4.model.Provenance;
@@ -139,13 +141,20 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void okand_diagnostyp_anvandar_raw_kod() {
+        void okand_diagnostyp_ger_data_absent_reason_unknown_ingen_kodning() {
+            // DIAG-003: diagnosisType utan konceptmappning fyller inte category[diagnostyp]
+            // med en gissad kod – i stället anges data-absent-reason = unknown.
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisBody().setDiagnosisType("XX");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
-            assertEquals("XX", c.getCategoryFirstRep().getCodingFirstRep().getCode());
+            CodeableConcept category = c.getCategoryFirstRep();
+            assertTrue(category.getCoding().isEmpty());
+            Extension ext = category.getExtensionByUrl(
+                    "http://hl7.org/fhir/StructureDefinition/data-absent-reason");
+            assertNotNull(ext);
+            assertEquals("unknown", ((CodeType) ext.getValue()).getCode());
         }
     }
 
@@ -291,7 +300,7 @@ class GetDiagnosisMapperTest {
             Diagnosis diag = minimalDiagnosis();
             PersonIdType pid = new PersonIdType();
             pid.setRoot("9.9.9.9.9");
-            pid.setExtension("12345");
+            pid.setExtension("200001019999");
             diag.getDiagnosisHeader().setPatientId(pid);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -535,6 +544,101 @@ class GetDiagnosisMapperTest {
             diag.getDiagnosisHeader().setCareProviderHSAId(careProviderHsaId);
             diag.getDiagnosisBody().getDiagnosisCode().setCode(diagnosisCode);
             return diag;
+        }
+    }
+
+    @Nested
+    class NegativaAcceptanskriterier {
+        // Testfall från acceptanskriterierna (Del A: GetDiagnosis → Condition),
+        // de gulmarkerade negativa fallen utöver null/tomt indata och icke-OK ResultCode
+        // som redan täcks av NullOchTomIndata ovan.
+
+        @Test
+        void diagnoskod_fran_kodverk_utan_oid_mappning_ger_urn_oid_fallback() {
+            Diagnosis diag = minimalDiagnosis();
+            CVType cv = new CVType();
+            cv.setCode("XYZ-99");
+            cv.setCodeSystem("1.2.3.4.5.999999"); // okänt kodverk, saknas i naming-systems.yaml
+            cv.setDisplayName("Okänt kodverk");
+            diag.getDiagnosisBody().setDiagnosisCode(cv);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            assertEquals("urn:oid:1.2.3.4.5.999999", c.getCode().getCodingFirstRep().getSystem());
+            assertEquals("XYZ-99", c.getCode().getCodingFirstRep().getCode());
+        }
+
+        @Test
+        void diagnostyp_utan_konceptmappning_ger_data_absent_reason_ingen_undantag() {
+            // DIAG-003 (dokumenterad i mapping-getdiagnosis.md): okänd diagnosisType fyller
+            // inte category[diagnostyp] med en gissad kod – data-absent-reason=unknown anges
+            // i stället. Se även DiagnosKategori.okand_diagnostyp_ger_data_absent_reason_unknown_ingen_kodning.
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisBody().setDiagnosisType("OKÄND-TYP");
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            assertEquals(1, result.size());
+            Condition c = result.get(0).condition();
+            assertTrue(c.getCategoryFirstRep().getCoding().isEmpty());
+        }
+
+        @Test
+        void saknat_personnummer_stoppar_posten() {
+            // DIAG-001 (dokumenterad i mapping-getdiagnosis.md): saknas patientId helt i
+            // TK-svaret kastas hela diagnosposten bort – ingen Condition utan tillförlitlig
+            // patientidentifierare levereras.
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisHeader().setPatientId(null);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            assertEquals(List.of(), result);
+        }
+
+        @Test
+        void personnummer_i_fel_format_stoppar_posten() {
+            // DIAG-001: ett personnummer som inte är 12 siffror (t.ex. fritext eller fel
+            // längd) stoppar posten på samma sätt som ett helt saknat personnummer.
+            Diagnosis diag = minimalDiagnosis();
+            PersonIdType pid = new PersonIdType();
+            pid.setRoot("1.2.752.129.2.1.3.1");
+            pid.setExtension("inte-ett-personnummer");
+            diag.getDiagnosisHeader().setPatientId(pid);
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            assertEquals(List.of(), result);
+        }
+
+        @Test
+        void personnummer_stoppar_posten_men_paverkar_inte_ovriga_i_samma_svar() {
+            Diagnosis utanGiltigtPersonnummer = minimalDiagnosis();
+            PersonIdType ogiltig = new PersonIdType();
+            ogiltig.setRoot("1.2.752.129.2.1.3.1");
+            ogiltig.setExtension("123");
+            utanGiltigtPersonnummer.getDiagnosisHeader().setPatientId(ogiltig);
+
+            List<MappedDiagnosisEntry> result =
+                    mapper.map(responseWith(utanGiltigtPersonnummer, minimalDiagnosis()), ctx);
+            assertEquals(1, result.size());
+        }
+
+        @Test
+        void diagnospost_med_null_diagnosisHeader_filtreras_bort_men_paverkar_inte_ovriga() {
+            Diagnosis utanHeader = minimalDiagnosis();
+            utanHeader.setDiagnosisHeader(null);
+
+            List<MappedDiagnosisEntry> result =
+                    mapper.map(responseWith(utanHeader, minimalDiagnosis()), ctx);
+            assertEquals(1, result.size());
+        }
+
+        @Test
+        void diagnospost_med_null_diagnosisBody_filtreras_bort_men_paverkar_inte_ovriga() {
+            Diagnosis utanBody = minimalDiagnosis();
+            utanBody.setDiagnosisBody(null);
+
+            List<MappedDiagnosisEntry> result =
+                    mapper.map(responseWith(utanBody, minimalDiagnosis()), ctx);
+            assertEquals(1, result.size());
         }
     }
 

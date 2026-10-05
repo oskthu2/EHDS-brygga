@@ -1,0 +1,24 @@
+{
+  "_testfall": "diagnosisHeader.patientId saknas helt",
+  "_forvantat": "Hela diagnosposten filtreras bort, ingen Condition produceras (se DIAG-001)",
+  "result": { "resultCode": "OK" },
+  "diagnosis": [
+    {
+      "diagnosisHeader": {
+        "patientId": null,
+        "sourceSystemHSAId": "SE2321000016-2769",
+        "careUnitHSAId": "SE2321000016-2769",
+        "careProviderHSAId": "SE2321000016-2769"
+      },
+      "diagnosisBody": {
+        "diagnosisCode": {
+          "code": "J18.9",
+          "codeSystem": "1.2.752.116.1.1.1.1.3",
+          "displayName": "Pneumoni, ospecificerad"
+        },
+        "diagnosisType": "HD",
+        "diagnosisTimePeriod": { "start": "20240101" }
+      }
+    }
+  ]
+}

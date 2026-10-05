@@ -100,7 +100,7 @@ class GetCareDocumentationMapperTest {
         @Test
         void recordId_mappar_till_masterIdentifier() {
             CareDocumentation entry = minimalEntry();
-            entry.getHeader().getRecord().setRecordId("rec-001");
+            entry.getHeader().getRecord().setId(iid("SE2321000016-4HK5", "rec-001"));
             DocumentReference dr = mapper.map(responseWith(entry), ctx).get(0).documentReference();
             assertEquals("rec-001", dr.getMasterIdentifier().getValue());
         }
@@ -336,7 +336,7 @@ class GetCareDocumentationMapperTest {
             code.setCodeSystem("1.2.752.129.2.2.2.11");
             entry.getBody().setClinicalDocumentNoteCode(code);
             Author author = new Author();
-            author.setAuthorId("SE-HOS-001");
+            author.setId(iid("SE-HOS-001"));
             author.setName("Anna Andersson");
             entry.getHeader().setAuthor(author);
             entry.getBody().setClinicalDocumentNoteText("<article><para>Text.</para></article>");
@@ -386,7 +386,7 @@ class GetCareDocumentationMapperTest {
         void authorId_mappar_till_author_som_practitionerRole_referens() {
             CareDocumentation entry = minimalEntry();
             Author author = new Author();
-            author.setAuthorId("SE-HOS-001");
+            author.setId(iid("SE-HOS-001"));
             author.setName("Anna Andersson");
             entry.getHeader().setAuthor(author);
 
@@ -401,7 +401,7 @@ class GetCareDocumentationMapperTest {
         void signatureId_mappar_till_authenticator() {
             CareDocumentation entry = minimalEntry();
             Signature sig = new Signature();
-            sig.setSignatureId("SE-HOS-002");
+            sig.setId(iid("SE-HOS-002"));
             sig.setName("Bo Bengtsson");
             entry.getHeader().setSignature(sig);
 
@@ -414,7 +414,7 @@ class GetCareDocumentationMapperTest {
         void signature_timestamp_mappar_till_extension_signatureTime() {
             CareDocumentation entry = minimalEntry();
             Signature sig = new Signature();
-            sig.setSignatureId("SE-HOS-002");
+            sig.setId(iid("SE-HOS-002"));
             sig.setTimestamp("20240315113000");
             entry.getHeader().setSignature(sig);
 
@@ -448,7 +448,7 @@ class GetCareDocumentationMapperTest {
         @Test
         void careProcessId_mappar_till_context_related() {
             CareDocumentation entry = minimalEntry();
-            entry.getHeader().getAccessControlHeader().setCareProcessId("process-42");
+            entry.getHeader().getAccessControlHeader().setCareProcessId(iid("process-42"));
 
             DocumentReference dr = mapper.map(responseWith(entry), ctx).get(0).documentReference();
             assertEquals("process-42", dr.getContext().getRelatedFirstRep().getIdentifier().getValue());
@@ -462,7 +462,7 @@ class GetCareDocumentationMapperTest {
             CareDocumentation entry = minimalEntry();
             se.inera.ehds.mapping.rivta.caredocumentation.DissentingOpinion opinion =
                     new se.inera.ehds.mapping.rivta.caredocumentation.DissentingOpinion();
-            opinion.setOpinionId("op-1");
+            opinion.setOpinionId(iid("op-1"));
             opinion.setAuthorTime("20240315120000");
             opinion.setOpinion("Jag delar inte bedömningen.");
             PersonIdType personId = new PersonIdType();
@@ -501,7 +501,7 @@ class GetCareDocumentationMapperTest {
         @Test
         void sourceSystemId_satts_i_meta_source() {
             CareDocumentation entry = minimalEntry();
-            entry.getHeader().setSourceSystemId("SE2321000016-4HK5");
+            entry.getHeader().setSourceSystemId(iid("SE2321000016-4HK5"));
 
             DocumentReference dr = mapper.map(responseWith(entry), ctx).get(0).documentReference();
             assertTrue(dr.getMeta().getSource().contains("SE2321000016-4HK5"));
@@ -513,7 +513,7 @@ class GetCareDocumentationMapperTest {
         @Test
         void provenance_har_custodian_med_accountableHealthcareProvider() {
             CareDocumentation entry = minimalEntry();
-            entry.getHeader().getAccessControlHeader().setAccountableHealthcareProvider("SE111-PROV");
+            entry.getHeader().getAccessControlHeader().setAccountableHealthcareProvider(iid("SE111-PROV"));
 
             Provenance p = mapper.map(responseWith(entry), ctx).get(0).provenance();
             assertEquals("SE111-PROV", agentValue(p, "custodian"));
@@ -522,7 +522,7 @@ class GetCareDocumentationMapperTest {
         @Test
         void provenance_har_author_med_accountableCareUnit() {
             CareDocumentation entry = minimalEntry();
-            entry.getHeader().getAccessControlHeader().setAccountableCareUnit("SE222-UNIT");
+            entry.getHeader().getAccessControlHeader().setAccountableCareUnit(iid("SE222-UNIT"));
 
             Provenance p = mapper.map(responseWith(entry), ctx).get(0).provenance();
             assertEquals("SE222-UNIT", agentValue(p, "author"));
@@ -538,7 +538,7 @@ class GetCareDocumentationMapperTest {
         void provenance_recorded_anvander_author_timestamp_om_author_finns() {
             CareDocumentation entry = minimalEntry();
             Author author = new Author();
-            author.setAuthorId("SE-HOS-001");
+            author.setId(iid("SE-HOS-001"));
             author.setTimestamp("20240101120000");
             entry.getHeader().setAuthor(author);
             entry.getHeader().getRecord().setTimestamp("20240315090000");
@@ -619,8 +619,8 @@ class GetCareDocumentationMapperTest {
 
         private CareDocumentation entryFor(String accountableHealthcareProvider, String recordId) {
             CareDocumentation entry = minimalEntry();
-            entry.getHeader().getAccessControlHeader().setAccountableHealthcareProvider(accountableHealthcareProvider);
-            entry.getHeader().getRecord().setRecordId(recordId);
+            entry.getHeader().getAccessControlHeader().setAccountableHealthcareProvider(iid(accountableHealthcareProvider));
+            entry.getHeader().getRecord().setId(iid(recordId));
             return entry;
         }
     }
@@ -636,16 +636,16 @@ class GetCareDocumentationMapperTest {
 
         AccessControlHeader ach = new AccessControlHeader();
         ach.setPatientId(pid);
-        ach.setAccountableHealthcareProvider("SE2321000016-PROV");
-        ach.setAccountableCareUnit("SE2321000016-4HK5");
+        ach.setAccountableHealthcareProvider(iid("SE2321000016-PROV"));
+        ach.setAccountableCareUnit(iid("SE2321000016-4HK5"));
 
         RecordType record = new RecordType();
-        record.setRecordId("rec-default");
+        record.setId(iid("rec-default"));
         record.setTimestamp("20240315090000");
 
         Header header = new Header();
         header.setAccessControlHeader(ach);
-        header.setSourceSystemId("SE2321000016-4HK5");
+        header.setSourceSystemId(iid("SE2321000016-4HK5"));
         header.setRecord(record);
         entry.setHeader(header);
 
@@ -654,6 +654,18 @@ class GetCareDocumentationMapperTest {
         entry.setBody(body);
 
         return entry;
+    }
+
+    private PersonIdType iid(String root, String extension) {
+        PersonIdType id = new PersonIdType();
+        id.setRoot(root);
+        id.setExtension(extension);
+        return id;
+    }
+
+    /** HSA-id (Inera NTjP/RIVTA root OID) — most test fixtures only need the extension. */
+    private PersonIdType iid(String extension) {
+        return iid("1.2.752.129.2.1.4.1", extension);
     }
 
     private GetCareDocumentationResponse responseWith(CareDocumentation... entries) {

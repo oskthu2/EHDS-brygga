@@ -2,12 +2,16 @@ package se.inera.ehds.mapping.rivta.caredocumentation;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
+/** Models core_components' IIType (root + extension). */
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "PersonIdType", propOrder = {"root", "extension"})
 public class PersonIdType {
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String root;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String extension;
 
     public String getRoot() { return root; }

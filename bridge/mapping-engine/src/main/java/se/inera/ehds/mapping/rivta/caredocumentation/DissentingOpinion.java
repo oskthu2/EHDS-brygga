@@ -2,6 +2,7 @@ package se.inera.ehds.mapping.rivta.caredocumentation;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 /** careDocumentation.body.dissentingOpinion[] – avvikande mening. */
@@ -10,14 +11,19 @@ import jakarta.xml.bind.annotation.XmlType;
         "opinionId", "authorTime", "opinion", "personId", "personName"
 })
 public class DissentingOpinion {
-    private String opinionId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
+    private PersonIdType opinionId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String authorTime;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String opinion;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private PersonIdType personId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String personName;
 
-    public String getOpinionId() { return opinionId; }
-    public void setOpinionId(String opinionId) { this.opinionId = opinionId; }
+    public PersonIdType getOpinionId() { return opinionId; }
+    public void setOpinionId(PersonIdType opinionId) { this.opinionId = opinionId; }
     public String getAuthorTime() { return authorTime; }
     public void setAuthorTime(String authorTime) { this.authorTime = authorTime; }
     public String getOpinion() { return opinion; }

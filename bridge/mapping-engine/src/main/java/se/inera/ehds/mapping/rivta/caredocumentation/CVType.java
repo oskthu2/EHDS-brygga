@@ -2,14 +2,19 @@ package se.inera.ehds.mapping.rivta.caredocumentation;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "CVType", propOrder = {"code", "codeSystem", "displayName", "originalText"})
 public class CVType {
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String code;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String codeSystem;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String displayName;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String originalText;
 
     public String getCode() { return code; }

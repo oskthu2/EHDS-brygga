@@ -81,7 +81,7 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
         // VG-scopat anrop: filtrera bort poster som tillhör en annan vårdgivare än den
         // efterfrågade — skydd om bakomliggande system returnerar flera vårdgivares poster.
         if (ctx != null && ctx.getRequestedVgHsaId() != null
-                && !ctx.getRequestedVgHsaId().equals(ach != null ? ach.getAccountableHealthcareProvider() : null)) {
+                && !ctx.getRequestedVgHsaId().equals(accountableHealthcareProviderHsaId(ach))) {
             return null;
         }
 
@@ -95,9 +95,11 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
 
         String hsaSystem = namingSystem.oidToUri(HSA_OID);
 
-        // masterIdentifier: record.recordId — källsystemets primärnyckel
-        if (record != null && record.getRecordId() != null) {
-            dr.setMasterIdentifier(new Identifier().setValue(record.getRecordId()));
+        // masterIdentifier: record.id — källsystemets primärnyckel
+        if (record != null && record.getId() != null) {
+            dr.setMasterIdentifier(new Identifier()
+                    .setSystem(namingSystem.oidToUri(record.getId().getRoot()))
+                    .setValue(record.getId().getExtension()));
         }
 
         // date: record.timestamp (verklig UTC-instant, konverterad från svensk lokal tid)
@@ -110,8 +112,8 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
 
         // meta.source: källsystemets HSA-id som Endpoint i tjänstekatalogen
         // (urn:oid:...#hsaId är ingen giltig OID – kan inte bära ett HSA-id som fragment)
-        if (header.getSourceSystemId() != null) {
-            dr.getMeta().setSource(TJANSTEKATALOG_BASE + "/Endpoint/" + header.getSourceSystemId());
+        if (header.getSourceSystemId() != null && header.getSourceSystemId().getExtension() != null) {
+            dr.getMeta().setSource(TJANSTEKATALOG_BASE + "/Endpoint/" + header.getSourceSystemId().getExtension());
         }
 
         if (ach != null) {
@@ -124,10 +126,12 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
                                 .setValue(pid.getExtension())));
             }
 
-            // context.related: careProcessId — no system given in the spec, value only
+            // context.related: careProcessId
             if (ach.getCareProcessId() != null) {
                 dr.getContext().addRelated(new Reference().setIdentifier(
-                        new Identifier().setValue(ach.getCareProcessId())));
+                        new Identifier()
+                                .setSystem(namingSystem.oidToUri(ach.getCareProcessId().getRoot()))
+                                .setValue(ach.getCareProcessId().getExtension())));
             }
 
             // extension[blockComparisonTime]: tidpunkt för Sparr-jämförelse
@@ -172,16 +176,16 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
             dr.addExtension(buildDissentingOpinionExtension(dissent));
         }
 
-        // author: header.author.authorId → PractitionerRole (logical reference)
+        // author: header.author.id → PractitionerRole (logical reference)
         Author author = header.getAuthor();
-        if (author != null && author.getAuthorId() != null) {
-            dr.addAuthor(hsaRoleRef(author.getAuthorId(), author.getName(), hsaSystem));
+        if (author != null && author.getId() != null && author.getId().getExtension() != null) {
+            dr.addAuthor(hsaRoleRef(author.getId().getExtension(), author.getName(), hsaSystem));
         }
 
-        // authenticator: header.signature.signatureId → PractitionerRole (logical reference)
+        // authenticator: header.signature.id → PractitionerRole (logical reference)
         Signature signature = header.getSignature();
-        if (signature != null && signature.getSignatureId() != null) {
-            dr.setAuthenticator(hsaRoleRef(signature.getSignatureId(), signature.getName(), hsaSystem));
+        if (signature != null && signature.getId() != null && signature.getId().getExtension() != null) {
+            dr.setAuthenticator(hsaRoleRef(signature.getId().getExtension(), signature.getName(), hsaSystem));
         }
         if (signature != null && signature.getTimestamp() != null) {
             String iso = RivDateParser.parse(signature.getTimestamp());
@@ -199,8 +203,8 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
 
         Provenance prov = ProvenanceBuilder.build(
                 dr.getId(),
-                ach != null ? ach.getAccountableHealthcareProvider() : null,
-                ach != null ? ach.getAccountableCareUnit() : null,
+                accountableHealthcareProviderHsaId(ach),
+                accountableCareUnitHsaId(ach),
                 recordedTime,
                 hsaSystem,
                 ctx);
@@ -304,8 +308,8 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
 
     private Extension buildDissentingOpinionExtension(DissentingOpinion dissent) {
         Extension ext = new Extension(EXT_DISSENTING_OPINION);
-        if (dissent.getOpinionId() != null) {
-            ext.addExtension("opinionId", new StringType(dissent.getOpinionId()));
+        if (dissent.getOpinionId() != null && dissent.getOpinionId().getExtension() != null) {
+            ext.addExtension("opinionId", new StringType(dissent.getOpinionId().getExtension()));
         }
         if (dissent.getAuthorTime() != null) {
             String iso = RivDateParser.parse(dissent.getAuthorTime());
@@ -326,6 +330,16 @@ public class GetCareDocumentationMapper implements TkMapper<GetCareDocumentation
             ext.addExtension("personName", new StringType(dissent.getPersonName()));
         }
         return ext;
+    }
+
+    private static String accountableHealthcareProviderHsaId(AccessControlHeader ach) {
+        return ach != null && ach.getAccountableHealthcareProvider() != null
+                ? ach.getAccountableHealthcareProvider().getExtension() : null;
+    }
+
+    private static String accountableCareUnitHsaId(AccessControlHeader ach) {
+        return ach != null && ach.getAccountableCareUnit() != null
+                ? ach.getAccountableCareUnit().getExtension() : null;
     }
 
     private Reference hsaRoleRef(String hsaId, String displayName, String hsaSystem) {

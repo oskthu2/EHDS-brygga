@@ -30,7 +30,7 @@ public class GetDiagnosisClient {
 
     private static final String CONSUMER_HSA_HEADER = "x-rivta-original-serviceconsumer-hsaid";
     private static final String AUTHORIZATION_HEADER = "Authorization";
-    private static final String NS_RIV = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2";
+    private static final String NS_RIV = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2";
 
     private final JaxWsProxyFactoryBean factory;
     private final String bridgeHsaId;

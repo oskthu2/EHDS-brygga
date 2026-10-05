@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>se.inera.ehds</groupId>
+    <artifactId>ehds-brygga-bridge</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>fml-mapping-poc</artifactId>
+  <name>EHDS Brygga – FML-utvärdering (PoC, ej en del av produktionsbryggan)</name>
+
+  <!--
+    Utvärderingsspår: kan FHIR Mapping Language (FML) konfigurera RIVTA->FHIR-mappningen
+    i stället för Java-kod i mapping-engine? Se ig/input/pagecontent/fml-evaluation.md
+    för resultat och slutsatser. Den befintliga Java-motorn i mapping-engine är opåverkad.
+  -->
+
+  <dependencies>
+    <dependency>
+      <groupId>se.inera.ehds</groupId>
+      <artifactId>mapping-engine</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <!-- StructureMapUtilities (FML parser/engine) + en offline-kapabel IWorkerContext -->
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-validation-resources-r4</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

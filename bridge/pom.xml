@@ -14,6 +14,7 @@
     <module>soap-client</module>
     <module>fhir-server</module>
     <module>ntjp-proxy</module>
+    <module>fml-mapping-poc</module>
   </modules>
 
   <properties>

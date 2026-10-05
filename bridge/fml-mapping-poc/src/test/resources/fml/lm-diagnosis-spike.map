@@ -1,0 +1,19 @@
+/// SPIKE (inte del av PoC-leveransen): bevisar att den publicerade logiska modellen från
+/// inera-ab/EHDS-TK (inera-ehds-lm-diagnosis, hämtad från dess gh-pages-byggartefakt) fungerar
+/// som FML-källa direkt, i stället för den utflattade Parameters-adaptern. Se
+/// LogicalModelSpikeTest och fml-evaluation.md för slutsatsen.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LmDiagnosisSpike" = "LmDiagnosisSpike"
+
+uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-diagnosis" alias LmDiagnosis as source
+uses "http://hl7.org/fhir/StructureDefinition/Condition" alias Condition as target
+
+group LmDiagnosisSpike(source src : LmDiagnosis, target tgt : Condition) {
+  src.diagnosis as d then {
+    d.diagnosisHeader as h then {
+      h.documentId as docId -> tgt.id = docId "id-value";
+    } "header";
+    d.diagnosisBody as b then {
+      b.diagnosisTime as t -> tgt.onset = t "onset-value";
+    } "body";
+  } "diagnosis";
+}

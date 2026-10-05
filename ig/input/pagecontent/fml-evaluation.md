@@ -103,6 +103,41 @@ plattare mellanrepresentation). Den delen av vinsten som brukar säljas in med F
 ("konfiguration istället för kod") gäller mappningen FHIR→FHIR, inte det första steget
 RIVTA-XML→FHIR-kompatibel struktur.
 
+### Rättelse: den logiska modellen behöver inte författas – den finns redan
+
+Ovanstående "betydande engångsarbete" gäller att författa en logisk modell från noll. Oskar
+påpekade att `inera-ab/EHDS-TK` redan publicerar en: `inera-ehds-lm-diagnosis`
+(`input/fsh/logicalmodels/IneraEHDSLMDiagnosis.fsh`), och motsvarande finns för **alla** TK:er i
+det repot, GetCareDocumentation och framtida Observation/Encounter-liknande kontrakt inkluderat
+(`IneraEHDSLMCareDocumentation.fsh`, `IneraEHDSLMObservations.fsh`, m.fl. i
+`input/fsh/logicalmodels/`). Varje modell är redan markerad `Characteristics: #can-be-target`,
+vilket är precis den FSH-flaggan FML-motorn kräver för att acceptera en logisk modell som
+källa/mål.
+
+Verifierat i den här sessionen (`LogicalModelSpikeTest`, spike – inte en del av den levererade
+täckningen): den publicerade, byggda `StructureDefinition`-JSON:en för
+`inera-ehds-lm-diagnosis` (hämtad från IG:ns `gh-pages`-gren, eftersom `inera-ab.github.io` är
+blockerat från denna sandlåda – se "Driftsfynd" nedan) går att registrera direkt i samma
+`SimpleWorkerContext` som resten av denna PoC, och en `StructureMap` som deklarerar den som
+`source` via `uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-diagnosis"
+alias LmDiagnosis as source` parsar och navigerar den nästlade strukturen
+(`diagnosis.diagnosisHeader.documentId`, `diagnosis.diagnosisBody.diagnosisTime`) utan fel.
+
+**Detta ändrar slutsatsen ovan påtagligt**, men inte helt: adapterarbetet (RIVTA-XML → en
+instans av den logiska modellens Java/FHIR-representation) måste fortfarande göras NÅGONSTANS –
+antingen ett eget JAXB→logisk-modell-serialiseringssteg, eller genom att RIVTA-avkodningen byggs
+om att producera den logiska modellens form direkt i stället för dagens JAXB-POJO:er. Vad som
+FAKTISKT försvinner med den redan-publicerade modellen är (a) arbetet att *författa och
+versionshantera* den logiska modellen själv (redan gjort, och av Oskar själv i ett annat repo
+som ändå måste hållas i synk med mappningsreglerna), och (b) den PoC-specifika
+Parameters-plattningen som tappar struktur och typning (se ovan) – man mappar mot RIVTA:s egna
+fältnamn och nästlingsnivåer, inte en handgjord lista av lösa `Parameters.parameter`-poster. Det
+återstår alltså ett adapterlager, men ett tunnare och redan delvis specificerat ett, och
+återanvändbart över alla TK:er eftersom samma logiska modeller redan finns för varenda kontrakt
+i EHDS-TK – vilket också direkt besvarar punkt 3 (nya resurser): `IneraEHDSLMObservations.fsh`
+m.fl. finns redan där, så "lägg till Observation" blir en ny `.map`-fil mot en källa som redan
+är definierad, inte ett nytt modelleringsarbete.
+
 ## 1. Felhantering: default / data-absent-reason / stoppa resursen
 
 De tre felhanteringsmönstren som redan är beslutade för GetDiagnosis (PR #38, se
@@ -292,16 +327,40 @@ proxyn, så `hapi-fhir-validation`-beroendet laddades ner utan problem. En rikti
 riktiga FHIR-paket (EU-profiler m.m.) skulle sannolikt stöta på samma `packages.fhir.org`-
 begränsning som redan är dokumenterad för SUSHI.
 
+`inera-ab.github.io` (där EHDS-TK:s byggda IG-sidor, inklusive `StructureDefinition`-JSON för de
+logiska modellerna, publiceras) är **också** blockerat av samma egress-proxy. Den byggda JSON:en
+gick trots det att hämta: EHDS-TK:s `gh-pages`-grens innehåll är nåbart via vanlig `git clone`
+mot `github.com` (en annan domän än `inera-ab.github.io`), så `git show
+<gh-pages-sha>:StructureDefinition-inera-ehds-lm-diagnosis.json` gav samma byggda artefakt som
+den blockerade webbsidan skulle ha visat. Ett generellt mönster värt att komma ihåg: när en
+`*.github.io`-sida är blockerad men det underliggande repot inte är det, ligger byggartefakterna
+oftast kvar, hämtningsbara, på `gh-pages`-grenen.
+
 ## Rekommendation
 
-- **Inte värt att migrera befintliga mappare just nu.** Den uppmätta nyttan (deklarativ,
-  konfigurerbar mappning) realiseras bara fullt ut för FHIR→FHIR-mappning; för RIVTA-källdata
-  krävs ett adapterlager som i praktiken är lika mycket arbete som dagens Java-mappers, och två av
-  tre önskade felhanteringsmönster kräver handskriven duplicering eller stannar i Java ändå.
-- **Värt att hålla ögonen på för nya, enklare tjänstekontrakt** där källan redan är nära FHIR-form
-  eller där en logisk modell är lätt att författa – där ger FML en verklig fördel för att snabbt
-  lägga till nya målresurser utan ny Java-kod.
-- Om arbetet fortsätter: investera i en riktig logisk modell (inte `Parameters`-plattning) för
-  minst ett tjänstekontrakt, och bygg en liten testsvit (som `GetDiagnosisFmlComparisonTest` här)
-  runt varje regel innan den litas på – de tysta fel som hittades ovan (punkt 1 särskilt) gör
-  "skriv och lita på" olämpligt för FML i denna motorversion.
+Upptäckten att EHDS-TK redan publicerar riktiga logiska modeller för samtliga tjänstekontrakt
+(se rättelsen ovan) väger upp en del av det tidigare "inte värt det just nu" – adapterarbetet är
+mindre och mer återanvändbart än PoC:ns `Parameters`-plattning fick det se ut. Rekommendationen
+justeras därför:
+
+- **Fortfarande inte värt att migrera befintliga mappare rakt av just nu**, men av ett svagare
+  skäl än tidigare: de logiska modellerna finns redan, men de har inte provkörts med RIKTIGA
+  RIVTA-instanser genom en serialiserare (den här spiken registrerade bara
+  `StructureDefinition`:n och navigerade den tomt – inget faktiskt transform() mot en ifylld
+  instans har körts än). Två av tre önskade felhanteringsmönster kräver fortfarande handskriven
+  duplicering eller stannar i Java oavsett källmodell.
+- **Värt ett konkret nästa steg**, inte bara "hålla ögonen på": kör en riktig
+  `transform()`-instans mot `inera-ehds-lm-diagnosis` (bygg en liten
+  JAXB→logisk-modell-serialiserare för GetDiagnosis, eller skriv en handgjord testinstans) och
+  jämför mot både Java-mappern och denna PoC:s `Parameters`-variant. Om det går lika smidigt som
+  den här spikens parse-steg antyder, är EHDS-TK:s logiska modeller den naturliga grunden för en
+  eventuell fortsättning – inte en ny `Parameters`-adapter per tjänstekontrakt.
+- **Lägga till nya resurser (punkt 3) är nu en starkare vinst än först bedömt**: eftersom
+  `IneraEHDSLMObservations.fsh`, `IneraEHDSLMCareDocumentation.fsh` m.fl. redan finns i EHDS-TK,
+  är modelleringsarbetet för en ny resurs redan gjort för varje existerande tjänstekontrakt –
+  kvar står bara att skriva `.map`-filen och en serialiserare från RIVTA-XML till den logiska
+  modellens form.
+- Om arbetet fortsätter: bygg en liten testsvit (som `GetDiagnosisFmlComparisonTest` här) runt
+  varje regel innan den litas på – de tysta fel som hittades ovan (punkt 1 särskilt) gör
+  "skriv och lita på" olämpligt för FML i denna motorversion, oavsett vilken källmodell som
+  används.

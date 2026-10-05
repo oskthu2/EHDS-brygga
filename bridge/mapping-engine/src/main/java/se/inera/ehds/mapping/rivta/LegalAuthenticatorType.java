@@ -6,15 +6,21 @@ import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 @XmlAccessorType(XmlAccessType.FIELD)
-@XmlType(name = "LegalAuthenticatorType", propOrder = {"hcProfessional", "signatureDate"})
+@XmlType(name = "LegalAuthenticatorType", propOrder = {
+    "signatureTime", "legalAuthenticatorHSAId", "legalAuthenticatorName"
+})
 public class LegalAuthenticatorType {
     @XmlElement(namespace = CoreNamespace.VALUE)
-    private HealthcareProfessionalType hcProfessional;
+    private String signatureTime;
     @XmlElement(namespace = CoreNamespace.VALUE)
-    private String signatureDate;
+    private String legalAuthenticatorHSAId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
+    private String legalAuthenticatorName;
 
-    public HealthcareProfessionalType getHcProfessional() { return hcProfessional; }
-    public void setHcProfessional(HealthcareProfessionalType hcProfessional) { this.hcProfessional = hcProfessional; }
-    public String getSignatureDate() { return signatureDate; }
-    public void setSignatureDate(String signatureDate) { this.signatureDate = signatureDate; }
+    public String getSignatureTime() { return signatureTime; }
+    public void setSignatureTime(String signatureTime) { this.signatureTime = signatureTime; }
+    public String getLegalAuthenticatorHSAId() { return legalAuthenticatorHSAId; }
+    public void setLegalAuthenticatorHSAId(String legalAuthenticatorHSAId) { this.legalAuthenticatorHSAId = legalAuthenticatorHSAId; }
+    public String getLegalAuthenticatorName() { return legalAuthenticatorName; }
+    public void setLegalAuthenticatorName(String legalAuthenticatorName) { this.legalAuthenticatorName = legalAuthenticatorName; }
 }

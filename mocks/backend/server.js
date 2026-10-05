@@ -24,19 +24,20 @@ const xmlParser = new XMLParser({
 });
 
 /**
- * Extracts the patient ID extension from a parsed SOAP GetDiagnosis request.
- * Handles both with-NS and without-NS attribute names.
+ * Extracts the patient id value from a parsed SOAP GetDiagnosis request.
+ * patientId in GetDiagnosis:2 is core:PersonIdType {id, type} — NOT an IIType
+ * {root, extension} pair. Handles both with-NS and without-NS attribute names.
  */
 function extractPatientId(parsed) {
   try {
-    // Navigate: Envelope > Body > GetDiagnosisRequest > patientId / PersonId > extension
+    // Navigate: Envelope > Body > GetDiagnosisRequest > patientId
     const body =
       parsed['Envelope']?.['Body'] ||
       parsed['soapenv:Envelope']?.['soapenv:Body'];
 
     if (!body) return null;
 
-    // The first child key of Body that contains patientId / PersonId
+    // The first child key of Body that contains patientId
     const requestKey = Object.keys(body).find((k) =>
       k.toLowerCase().includes('getdiagnosis')
     );
@@ -44,19 +45,16 @@ function extractPatientId(parsed) {
 
     const request = body[requestKey];
 
-    // RIVTA uses either "patientId" or "PersonId"
     const patientIdNode =
       request['patientId'] ||
-      request['PersonId'] ||
-      request['ns1:patientId'] ||
-      request['ns1:PersonId'];
+      request['ns1:patientId'];
 
     if (!patientIdNode) return null;
 
     return (
-      patientIdNode['extension'] ||
-      patientIdNode['ns1:extension'] ||
-      patientIdNode['Extension'] ||
+      patientIdNode['id'] ||
+      patientIdNode['ns1:id'] ||
+      patientIdNode['Id'] ||
       null
     );
   } catch {
@@ -103,40 +101,48 @@ function extractCareDocumentationPatientId(parsed) {
 
 /**
  * Builds a SOAP GetDiagnosisResponse envelope from an array of diagnosis objects.
+ *
+ * Verified against the real RIVTA GetDiagnosisResponder:2 XSD (Bitbucket repo
+ * rivta-domains/riv.clinicalprocess.healthcond.description) — GetDiagnosis:2 lives in
+ * the same domain repo as GetCareDocumentation, not in clinicalprocess:activity:conditions
+ * as an earlier, unverified version of this builder guessed by analogy. patientId is
+ * core:PersonIdType {id, type} — NOT an IIType {root, extension} pair.
  */
 function buildSoapResponse(patientId, diagnoses) {
   const diagnosisBlocks = diagnoses
     .map((d) => {
-      const periodEnd = d.periodEnd
-        ? `\n            <core:end>${d.periodEnd}</core:end>`
-        : '';
-
       const assertedDateEl = d.assertedDate
-        ? `\n            <core:assertedDate>${d.assertedDate}</core:assertedDate>`
+        ? `\n            <core:legalAuthenticator>
+              <core:signatureTime>${d.assertedDate}000000</core:signatureTime>
+            </core:legalAuthenticator>`
         : '';
 
       return `
       <ns1:diagnosis>
         <core:diagnosisHeader>
-          <core:patientId>
-            <core:root>1.2.752.129.2.1.3.1</core:root>
-            <core:extension>${patientId}</core:extension>
-          </core:patientId>
+          <core:documentId>${d.documentId}</core:documentId>
           <core:sourceSystemHSAId>${d.sourceSystemHSAId}</core:sourceSystemHSAId>
           <core:documentTime>${d.documentTime}</core:documentTime>
-          <core:careUnitHSAId>${d.careUnitHSAId}</core:careUnitHSAId>
-          <core:careProviderHSAId>${d.careProviderHSAId}</core:careProviderHSAId>
+          <core:patientId>
+            <core:id>${patientId}</core:id>
+            <core:type>1.2.752.129.2.1.3.1</core:type>
+          </core:patientId>
+          <core:accountableHealthcareProfessional>
+            <core:authorTime>${d.authorTime}</core:authorTime>
+            <core:healthcareProfessionalHSAId>${d.healthcareProfessionalHSAId}</core:healthcareProfessionalHSAId>
+            <core:healthcareProfessionalCareUnitHSAId>${d.careUnitHSAId}</core:healthcareProfessionalCareUnitHSAId>
+            <core:healthcareProfessionalCareGiverHSAId>${d.careProviderHSAId}</core:healthcareProfessionalCareGiverHSAId>
+          </core:accountableHealthcareProfessional>${assertedDateEl}
+          <core:approvedForPatient>true</core:approvedForPatient>
         </core:diagnosisHeader>
         <core:diagnosisBody>
+          <core:typeOfDiagnosis>${d.typeOfDiagnosis}</core:typeOfDiagnosis>
+          <core:diagnosisTime>${d.diagnosisTime}</core:diagnosisTime>
           <core:diagnosisCode>
             <core:code>${d.diagnosisCode}</core:code>
             <core:codeSystem>${d.codeSystem}</core:codeSystem>
             <core:displayName>${d.displayName}</core:displayName>
           </core:diagnosisCode>
-          <core:diagnosisType>${d.diagnosisType}</core:diagnosisType>
-          <core:diagnosisTimePeriod>
-            <core:start>${d.periodStart}</core:start>${periodEnd}
-          </core:diagnosisTimePeriod>${assertedDateEl}
         </core:diagnosisBody>
       </ns1:diagnosis>`;
     })
@@ -147,13 +153,11 @@ function buildSoapResponse(patientId, diagnoses) {
   // Namespace split mirrors the confirmed pattern on GetCareDocumentationResponder:3:
   // the Responder schema only wraps GetDiagnosis/GetDiagnosisResponse/diagnosis; nested
   // content (diagnosisHeader, diagnosisBody, result) belongs to the domain's own
-  // core-components schema. The exact core namespace below is inferred (see
-  // se.inera.ehds.mapping.rivta.CoreNamespace) — the official
-  // clinicalprocess:activity:conditions:2 XSD could not be located in this session.
+  // core-components schema (urn:riv:clinicalprocess:healthcond:description:2).
   return `<?xml version="1.0" encoding="UTF-8"?>
 <soapenv:Envelope xmlns:soapenv="http://schemas.xmlsoap.org/soap/envelope/"
-                  xmlns:ns1="urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2"
-                  xmlns:core="urn:riv:clinicalprocess:activity:conditions:2">
+                  xmlns:ns1="urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2"
+                  xmlns:core="urn:riv:clinicalprocess:healthcond:description:2">
   <soapenv:Body>
     <ns1:GetDiagnosisResponse>${diagnosisBlocks}
       <ns1:result>

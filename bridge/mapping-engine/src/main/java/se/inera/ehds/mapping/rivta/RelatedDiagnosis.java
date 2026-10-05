@@ -5,6 +5,7 @@ import jakarta.xml.bind.annotation.XmlAccessorType;
 import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
+/** RelatedDiagnosisType. Now held as a List on DiagnosisBody (0..unbounded in the real XSD). */
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "RelatedDiagnosisType", propOrder = {"documentId"})
 public class RelatedDiagnosis {

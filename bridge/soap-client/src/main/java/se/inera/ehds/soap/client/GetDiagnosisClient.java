@@ -71,10 +71,12 @@ public class GetDiagnosisClient {
         bp.getRequestContext().put(MessageContext.HTTP_REQUEST_HEADERS, httpHeaders);
 
         // Build request
+        // PersonIdType here is the real {id,type} shape (clinicalprocess:healthcond:description:2),
+        // not an IIType {root,extension} pair — "type" is the identifier scheme/OID, "id" the value.
         PersonIdType patientId = new PersonIdType();
-        // Strip urn:oid: prefix if present — RIVTA root is the raw OID
-        patientId.setRoot(patientRoot.startsWith("urn:oid:") ? patientRoot.substring(8) : patientRoot);
-        patientId.setExtension(patientValue);
+        // Strip urn:oid: prefix if present — RIVTA type is the raw OID
+        patientId.setType(patientRoot.startsWith("urn:oid:") ? patientRoot.substring(8) : patientRoot);
+        patientId.setId(patientValue);
 
         GetDiagnosis request = new GetDiagnosis();
         request.setPatientId(patientId);

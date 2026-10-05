@@ -130,10 +130,20 @@ Profilen kräver exakt ett `category[diagnostyp]`-snitt med en kod från Ineras 
 Ytterligare `category`-poster (t.ex. `encounter-diagnosis` från standard-FHIR) kan läggas till av konsumenten
 men hanteras inte av denna profil.
 
-**Fallback:** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` återanvänds den råa
-RIVTA-koden oförändrad som både `category.coding.code` och `category.coding.display`, med
-`kv_diagnostyp` som system. Ingen loggning sker idag. Condition inkluderas alltid i svaret –
-mappningen kastar aldrig undantag på grund av en okänd diagnostyp.
+**Fallback (DIAG-003):** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` fylls
+`category[diagnostyp]` **inte** i med en gissad kod – att återanvända den råa RIVTA-koden som om
+den vore en giltig `kv_diagnostyp`-kod skulle ge en felaktig kodning. I stället sätts
+`category[diagnostyp]` till en `CodeableConcept` utan `coding`, med extensionen
+
+```json
+{
+  "url": "http://hl7.org/fhir/StructureDefinition/data-absent-reason",
+  "valueCode": "unknown"
+}
+```
+
+Condition inkluderas ändå i svaret – mappningen kastar aldrig undantag på grund av en okänd
+diagnostyp, men category[diagnostyp] saknar en bärande kod i detta fall.
 
 ## Datumsformat
 
@@ -290,9 +300,11 @@ Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver f
 
 - `clinicalStatus` – alltid satt (active eller resolved baserat på slutdatum)
 - `verificationStatus` – alltid satt till `confirmed`
-- `category[diagnostyp]` – exakt ett diagnostyp-snitt med kod från kv_diagnostyp
+- `category[diagnostyp]` – alltid satt; innehåller en kod från kv_diagnostyp om `diagnosisType`
+  gick att konceptmappa, annars `extension[data-absent-reason] = unknown` utan `coding` (DIAG-003)
 - `code` – diagnoskod med minst en coding
-- `subject.identifier` – patientidentifierare med system och value
+- `subject.identifier` – patientidentifierare med system och value; posten filtreras bort
+  (ingen Condition produceras) om denna inte går att sätta med ett giltigt format (DIAG-001)
 
 Valfria fält (0..1) som sätts när källdata finns:
 
@@ -345,22 +357,21 @@ finns och används som typ för referensen (`Reference($seEhdsPatient)`), men sj
 instansen bundlas inte — endast identifieraren bärs vidare. Samma avsteg gäller
 `DocumentReference.subject` i `mapping-getcaredocumentation.md` (GENERAL-002 där).
 
-### DIAG-001: Saknat personnummer ger Condition utan subject
+### DIAG-001: Saknat eller felaktigt personnummer stoppar posten
 
-Om `diagnosisHeader.patientId` helt saknas i TK-svaret sätter bryggan inte `Condition.subject`
-alls – mappningen kastar inget undantag och Condition inkluderas ändå i svaret, trots att
-`SEEHDSCondition` kräver `subject.identifier` (kardinalitet 1..1). **Medvetet avsteg (PoC-scope):**
-att filtrera bort hela Condition-posten vid saknad patientidentifierare bedöms vara ett sämre
-beteende för en diagnosbrygga (att tyst tappa en patients diagnosinformation) än att leverera en
-post som avviker från profilen; konsumenten får själv upptäcka avvikelsen vid profilvalidering.
+`SEEHDSCondition` kräver `subject.identifier` (kardinalitet 1..1) – en Condition utan en
+tillförlitlig patientidentifierare är inte bara avvikande, den är oanvändbar och riskerar att
+hamna fel om den ändå levereras. Bryggan validerar därför att `diagnosisHeader.patientId.extension`
+matchar ett personnummer/samordningsnummer utan bindestreck (`^\d{12}$`, dvs. ÅÅÅÅMMDD + 4 siffror).
 
-### DIAG-002: Personnummerformat valideras inte
+Om `patientId` saknas helt, eller `extension` inte matchar detta format, **filtreras hela
+diagnosposten bort** – `mapDiagnosis` returnerar `null` för just den posten, på samma sätt som vid
+ett saknat `diagnosisHeader`/`diagnosisBody`. Övriga poster i samma TK-svar påverkas inte.
+Mappningen kastar inget undantag; det är bara den enskilda posten som uteblir ur resultatet.
 
-Bryggan validerar inte formatet på `patientId.extension` – värdet skickas vidare oförändrat till
-`Condition.subject.identifier.value`, oavsett om det ser ut som ett giltigt personnummer/
-samordningsnummer eller inte. Detta är samma avsteg som anges i tabellen ovan: MVP 3 gör ingen
-PU-slagning och har därmed inget facit att validera mot. En framtida PU-integration skulle kunna
-lägga till formatvalidering/normalisering innan mappning.
+Valideringen är ett formatkrav, inte en PU-slagning – MVP 3 gör fortfarande ingen kontroll mot
+personuppgiftsregistret (inget facit att validera mot utöver formatet). En framtida
+PU-integration skulle kunna ersätta eller komplettera formatkontrollen med en riktig uppslagning.
 
 ### Spärr: inre och yttre
 EHDS-bryggan är avsedd för cross-border och ska applicera alla spärrar. Sparrkontrollen sker mot `careProviderHSAId` (organisationsnivå) i enlighet med Ineras spärrtjänst som beskrivs på [Ineras konfluensida](https://inera.atlassian.net/wiki/spaces/PIS/pages/3435203724/).

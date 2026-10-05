@@ -13,6 +13,7 @@ import se.inera.ehds.mapping.tk.RivDateParser;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class GetDiagnosisMapper {
@@ -31,6 +32,10 @@ public class GetDiagnosisMapper {
     private static final String PROFILE_URL_EU_EPS =
             "http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps";
     private static final String PRACTITIONER_ROLE_TYPE = "PractitionerRole";
+    private static final String DATA_ABSENT_REASON_EXT =
+            "http://hl7.org/fhir/StructureDefinition/data-absent-reason";
+    // Personnummer/samordningsnummer utan bindestreck: ÅÅÅÅMMDD + 4 siffror.
+    private static final Pattern PERSONNUMMER_PATTERN = Pattern.compile("^\\d{12}$");
 
     private final NamingSystemRegistry namingSystem;
     private final ConceptMapRegistry conceptMaps;
@@ -64,6 +69,13 @@ public class GetDiagnosisMapper {
             return null;
         }
 
+        // Saknat eller felaktigt personnummer/samordningsnummer stoppar hela posten –
+        // en Condition utan en tillförlitlig patientidentifierare kan inte levereras.
+        PersonIdType patientId = header.getPatientId();
+        if (patientId == null || !isValidPersonId(patientId.getExtension())) {
+            return null;
+        }
+
         Condition c = new Condition();
         c.setId(UUID.randomUUID().toString());
         c.getMeta().addProfile(PROFILE_URL);
@@ -77,14 +89,14 @@ public class GetDiagnosisMapper {
         // verificationStatus: always confirmed for RIVTA-sourced data
         c.setVerificationStatus(codeable(VER_STATUS_SYS, "confirmed"));
 
-        // category: diagnosisType (HD/BY) via ConceptMap mot kv_diagnostyp
-        ConceptMapEntry cat = conceptMaps.translateDiagnosisType(body.getDiagnosisType())
-                .orElseGet(() -> new ConceptMapEntry(
-                        body.getDiagnosisType(),
-                        DIAGNOSIS_TYPE_CS,
-                        body.getDiagnosisType(),
-                        body.getDiagnosisType()));
-        c.addCategory(codeableWithDisplay(cat.getTargetSystem(), cat.getTargetCode(), cat.getDisplay()));
+        // category: diagnosisType (HD/BY) via ConceptMap mot kv_diagnostyp.
+        // Saknar diagnosisType en känd mappning fylls category[diagnostyp] inte i – i stället
+        // anges data-absent-reason=unknown, se DIAG-003 i mapping-getdiagnosis.md.
+        conceptMaps.translateDiagnosisType(body.getDiagnosisType())
+                .ifPresentOrElse(
+                        cat -> c.addCategory(
+                                codeableWithDisplay(cat.getTargetSystem(), cat.getTargetCode(), cat.getDisplay())),
+                        () -> c.addCategory(dataAbsentReasonUnknown()));
 
         // chronicCondition: extension[chronicDiagnosis] med boolean
         if (body.getChronicCondition() != null) {
@@ -113,14 +125,11 @@ public class GetDiagnosisMapper {
                     .setText(codeText));
         }
 
-        // subject: patient identifier
-        PersonIdType pid = header.getPatientId();
-        if (pid != null) {
-            c.setSubject(new Reference().setIdentifier(
-                    new Identifier()
-                            .setSystem(namingSystem.oidToUri(pid.getRoot()))
-                            .setValue(pid.getExtension())));
-        }
+        // subject: patient identifier (validerad ovan – patientId finns och har giltigt format)
+        c.setSubject(new Reference().setIdentifier(
+                new Identifier()
+                        .setSystem(namingSystem.oidToUri(patientId.getRoot()))
+                        .setValue(patientId.getExtension())));
 
         // onset / abatement from diagnosisTimePeriod
         DatePeriodType period = body.getDiagnosisTimePeriod();
@@ -195,5 +204,15 @@ public class GetDiagnosisMapper {
     private CodeableConcept codeableWithDisplay(String system, String code, String display) {
         return new CodeableConcept().addCoding(
                 new Coding().setSystem(system).setCode(code).setDisplay(display));
+    }
+
+    private boolean isValidPersonId(String extension) {
+        return extension != null && PERSONNUMMER_PATTERN.matcher(extension).matches();
+    }
+
+    private CodeableConcept dataAbsentReasonUnknown() {
+        CodeableConcept cc = new CodeableConcept();
+        cc.addExtension(new Extension(DATA_ABSENT_REASON_EXT).setValue(new CodeType("unknown")));
+        return cc;
     }
 }

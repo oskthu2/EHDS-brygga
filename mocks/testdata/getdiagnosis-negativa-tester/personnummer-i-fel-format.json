@@ -1,6 +1,6 @@
 {
   "_testfall": "diagnosisHeader.patientId.extension är inte ett giltigt personnummer",
-  "_forvantat": "Värdet 'inte-ett-personnummer' skickas vidare oförändrat, ingen formatvalidering (se DIAG-002)",
+  "_forvantat": "Hela diagnosposten filtreras bort, samma beteende som vid saknat personnummer (se DIAG-001)",
   "result": { "resultCode": "OK" },
   "diagnosis": [
     {

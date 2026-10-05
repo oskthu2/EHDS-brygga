@@ -1,6 +1,8 @@
 package se.inera.ehds.mapping.tk.getdiagnosis;
 
 import org.hl7.fhir.r4.model.BooleanType;
+import org.hl7.fhir.r4.model.CodeType;
+import org.hl7.fhir.r4.model.CodeableConcept;
 import org.hl7.fhir.r4.model.Condition;
 import org.hl7.fhir.r4.model.Extension;
 import org.hl7.fhir.r4.model.Provenance;
@@ -139,13 +141,20 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void okand_diagnostyp_anvandar_raw_kod() {
+        void okand_diagnostyp_ger_data_absent_reason_unknown_ingen_kodning() {
+            // DIAG-003: diagnosisType utan konceptmappning fyller inte category[diagnostyp]
+            // med en gissad kod – i stället anges data-absent-reason = unknown.
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisBody().setDiagnosisType("XX");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
-            assertEquals("XX", c.getCategoryFirstRep().getCodingFirstRep().getCode());
+            CodeableConcept category = c.getCategoryFirstRep();
+            assertTrue(category.getCoding().isEmpty());
+            Extension ext = category.getExtensionByUrl(
+                    "http://hl7.org/fhir/StructureDefinition/data-absent-reason");
+            assertNotNull(ext);
+            assertEquals("unknown", ((CodeType) ext.getValue()).getCode());
         }
     }
 
@@ -291,7 +300,7 @@ class GetDiagnosisMapperTest {
             Diagnosis diag = minimalDiagnosis();
             PersonIdType pid = new PersonIdType();
             pid.setRoot("9.9.9.9.9");
-            pid.setExtension("12345");
+            pid.setExtension("200001019999");
             diag.getDiagnosisHeader().setPatientId(pid);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -560,36 +569,35 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void diagnostyp_utan_konceptmappning_mappas_till_raw_kod_utan_undantag() {
-            // Se mapping-getdiagnosis.md: Fallback vid okänd diagnosisType är att den råa
-            // RIVTA-koden återanvänds som både kod och text i stället för kv_diagnostyp.
+        void diagnostyp_utan_konceptmappning_ger_data_absent_reason_ingen_undantag() {
+            // DIAG-003 (dokumenterad i mapping-getdiagnosis.md): okänd diagnosisType fyller
+            // inte category[diagnostyp] med en gissad kod – data-absent-reason=unknown anges
+            // i stället. Se även DiagnosKategori.okand_diagnostyp_ger_data_absent_reason_unknown_ingen_kodning.
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisBody().setDiagnosisType("OKÄND-TYP");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            assertEquals(1, result.size());
             Condition c = result.get(0).condition();
-            assertEquals("OKÄND-TYP", c.getCategoryFirstRep().getCodingFirstRep().getCode());
-            assertEquals("https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp",
-                    c.getCategoryFirstRep().getCodingFirstRep().getSystem());
+            assertTrue(c.getCategoryFirstRep().getCoding().isEmpty());
         }
 
         @Test
-        void saknat_personnummer_ger_condition_utan_subject_men_inget_undantag() {
-            // DIAG-001 (dokumenterad i mapping-getdiagnosis.md): om patientId helt saknas i
-            // TK-svaret sätts ingen subject – Condition mappas ändå, kastar inget undantag.
+        void saknat_personnummer_stoppar_posten() {
+            // DIAG-001 (dokumenterad i mapping-getdiagnosis.md): saknas patientId helt i
+            // TK-svaret kastas hela diagnosposten bort – ingen Condition utan tillförlitlig
+            // patientidentifierare levereras.
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisHeader().setPatientId(null);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
-            assertEquals(1, result.size());
-            Condition c = result.get(0).condition();
-            assertFalse(c.hasSubject());
+            assertEquals(List.of(), result);
         }
 
         @Test
-        void personnummer_i_fel_format_passerar_oforandrat_utan_validering() {
-            // DIAG-002 (dokumenterad i mapping-getdiagnosis.md): bryggan validerar inte
-            // personnummerformat i MVP 3 (ingen PU-slagning) – värdet skickas vidare som det är.
+        void personnummer_i_fel_format_stoppar_posten() {
+            // DIAG-001: ett personnummer som inte är 12 siffror (t.ex. fritext eller fel
+            // längd) stoppar posten på samma sätt som ett helt saknat personnummer.
             Diagnosis diag = minimalDiagnosis();
             PersonIdType pid = new PersonIdType();
             pid.setRoot("1.2.752.129.2.1.3.1");
@@ -597,8 +605,20 @@ class GetDiagnosisMapperTest {
             diag.getDiagnosisHeader().setPatientId(pid);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
-            Condition c = result.get(0).condition();
-            assertEquals("inte-ett-personnummer", c.getSubject().getIdentifier().getValue());
+            assertEquals(List.of(), result);
+        }
+
+        @Test
+        void personnummer_stoppar_posten_men_paverkar_inte_ovriga_i_samma_svar() {
+            Diagnosis utanGiltigtPersonnummer = minimalDiagnosis();
+            PersonIdType ogiltig = new PersonIdType();
+            ogiltig.setRoot("1.2.752.129.2.1.3.1");
+            ogiltig.setExtension("123");
+            utanGiltigtPersonnummer.getDiagnosisHeader().setPatientId(ogiltig);
+
+            List<MappedDiagnosisEntry> result =
+                    mapper.map(responseWith(utanGiltigtPersonnummer, minimalDiagnosis()), ctx);
+            assertEquals(1, result.size());
         }
 
         @Test

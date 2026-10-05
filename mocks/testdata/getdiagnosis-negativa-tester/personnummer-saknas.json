@@ -1,6 +1,6 @@
 {
   "_testfall": "diagnosisHeader.patientId saknas helt",
-  "_forvantat": "Condition mappas utan subject, inget undantag (se DIAG-001)",
+  "_forvantat": "Hela diagnosposten filtreras bort, ingen Condition produceras (se DIAG-001)",
   "result": { "resultCode": "OK" },
   "diagnosis": [
     {

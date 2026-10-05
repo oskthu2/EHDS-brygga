@@ -1,6 +1,6 @@
 {
   "_testfall": "Diagnostyp saknar post i concept-maps/diagnosis-type.yaml",
-  "_forvantat": "category.coding.code/display = raw RIVTA-kod 'OKÄND-TYP', inget undantag",
+  "_forvantat": "category[diagnostyp] fylls inte i med en gissad kod – extension[data-absent-reason] = unknown sätts i stället, inget undantag (se DIAG-003)",
   "result": { "resultCode": "OK" },
   "diagnosis": [
     {

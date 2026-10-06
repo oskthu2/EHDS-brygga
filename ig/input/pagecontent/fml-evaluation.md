@@ -66,6 +66,31 @@ Ett nytt Maven-modul, `bridge/fml-mapping-poc`, med:
 
 Kör dem med `cd bridge && mvn test -pl fml-mapping-poc -am`.
 
+## Interaktiv testklient
+
+`FmlTestClient` (`se.inera.ehds.fml.FmlTestClient`) är en enkel kommandoradsklient för att
+manuellt utforska mappningarna utan att läsa testkoden: väljer SOAP-källa/testmeddelande, visar
+att den laddas in mot sin logiska modell, väljer en FML-mappning ur `FmlEngine`s registry, och
+kör antingen `$transform` (hela mappningen, resulterande FHIR-resurs som JSON) eller `$evaluate`
+(ett valfritt FHIRPath-uttryck mot den inlästa källan – samma mekanism som registryts
+`stopIfFalseFhirPath`-vakt använder, men fritt skrivbart för att inspektera enskilda fält).
+
+De fyra bundlade testmeddelandena (`src/main/resources/testmessages/*.xml`) är riktiga,
+schema-giltiga SOAP-svar – marshallade från samma JAXB-klasser som produktionskoden, inte
+handskriven XML (se `GenerateTestMessagesTool`, körs manuellt för att regenerera dem): en
+giltig och en ogiltig GetDiagnosis-post (den senare demonstrerar stoppa-resursen-vakten), samt
+en platt-fritext- och en multimedia-post för GetCareDocumentation.
+
+Körs med:
+
+```bash
+cd bridge && mvn -pl fml-mapping-poc exec:exec
+```
+
+(`exec:exec`, inte `exec:java` – `exec:java`s isolerade klassladdare kolliderar med JAXB:s
+modul-split på JDK 17 och kastar en `loader constraint violation` på `QName`/
+`DatatypeConstants`; `exec:exec` kör i en riktig forkad process och undviker det.)
+
 ## Täckning – vad är faktiskt översatt till FML
 
 Siffrorna nedan räknar fält/regler, inte rader kod, och är avstämda mot de nuvarande

@@ -3,10 +3,12 @@ package se.inera.ehds.fml;
 import org.hl7.fhir.r4.context.SimpleWorkerContext;
 import org.hl7.fhir.r4.elementmodel.JsonParser;
 import org.hl7.fhir.r4.fhirpath.FHIRPathEngine;
+import org.hl7.fhir.r4.formats.IParser;
 import org.hl7.fhir.r4.model.Base;
 import org.hl7.fhir.r4.model.BooleanType;
 import org.hl7.fhir.r4.model.ConceptMap;
 import org.hl7.fhir.r4.model.Parameters;
+import org.hl7.fhir.r4.model.Resource;
 import org.hl7.fhir.r4.model.StructureDefinition;
 import org.hl7.fhir.r4.model.StructureMap;
 import org.hl7.fhir.r4.utils.StructureMapUtilities;
@@ -137,6 +139,36 @@ public final class FmlEngine {
         Base target = newTargetInstance(def.targetResourceType());
         smu.transform(null, source, maps.get(key), target);
         return target;
+    }
+
+    /** All registered mapping keys, in registry order — for a test client's menu, say. */
+    public List<String> mappingKeys() {
+        return List.copyOf(registry.keySet());
+    }
+
+    /** The mappings that share a given source logical model (same tjänstekontrakt). */
+    public List<MappingDefinition> mappingsForSource(String logicalModelResource) {
+        return registry.values().stream()
+                .filter(def -> def.sourceLogicalModelResource().equals(logicalModelResource))
+                .toList();
+    }
+
+    public MappingDefinition definition(String key) {
+        MappingDefinition def = registry.get(key);
+        if (def == null) throw new IllegalArgumentException("Unknown mapping: " + key);
+        return def;
+    }
+
+    /** The FHIRPath $evaluate equivalent: run an arbitrary expression against a parsed source. */
+    public List<Base> evaluate(Base source, String fhirPath) {
+        return fhirPathEngine.evaluate(source, fhirPath);
+    }
+
+    /** Pretty-prints a transform() result (or any other FHIR resource) as JSON. */
+    public String toJson(Base resource) throws IOException {
+        IParser parser = ctx.newJsonParser();
+        parser.setOutputStyle(IParser.OutputStyle.PRETTY);
+        return parser.composeString((Resource) resource);
     }
 
     private boolean evaluatesTrue(Base source, String fhirPath) {

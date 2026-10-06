@@ -46,6 +46,24 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <version>3.2.5</version>
       </plugin>
+      <!--
+        Kör den interaktiva testklienten: mvn -pl fml-mapping-poc exec:exec
+        (exec:exec, inte exec:java - exec:java's isolerade klassladdare kolliderar med
+        JAXB:s modul-split på JDK 17, "loader constraint violation" på DatatypeConstants/QName)
+      -->
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>exec-maven-plugin</artifactId>
+        <version>3.2.0</version>
+        <configuration>
+          <executable>java</executable>
+          <arguments>
+            <argument>-classpath</argument>
+            <classpath/>
+            <argument>se.inera.ehds.fml.FmlTestClient</argument>
+          </arguments>
+        </configuration>
+      </plugin>
     </plugins>
   </build>
 </project>

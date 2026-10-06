@@ -330,18 +330,14 @@ GetDiagnosis-mappningen, eftersom tjänstekontraktet inte bär motsvarande uppgi
 |---|---|---|
 | `Condition.bodySite` | `SEEHDSCondition` (egen MS-flagga, `0..1`, SNOMED CT `preferred`) | `diagnosisBody` har inget fält för kroppslokalisation – varken kodat eller som fritext. |
 | `Condition.severity` | Ärvd från IPS Condition 2.0.0 (`0..1`) | `diagnosisBody` har inget svårighetsgradsfält. |
-| `Condition.note` | `SEEHDSCondition` (egen MS-flagga, `0..*`) | GetDiagnosis har ingen fritext kopplad till den enskilda diagnosen – `diagnosisBody` innehåller bara `diagnosisCode`, `diagnosisType`, `diagnosisTimePeriod`, `chronicCondition` och `relatedDiagnosis`. |
+| `Condition.note` | `SEEHDSCondition` (egen MS-flagga, `0..*`) | GetDiagnosis har ingen fritext kopplad till den enskilda diagnosen – `diagnosisBody` innehåller bara `diagnosisCode`, `typeOfDiagnosis`, `diagnosisTime`, `chronicDiagnosis` och `relatedDiagnosis`. |
 | `Condition.subject.reference` | Ärvd från IPS Condition 2.0.0, där elementet är `1..1` MS (obligatoriskt) | Medvetet avsteg – se GENERAL-002 nedan. `subject` sätts alltid som logisk referens via `subject.identifier`; bryggan bundlar aldrig en `Patient`-resurs och sätter därför aldrig `subject.reference`. |
+| `Condition.abatement[x]` | Ärvd från IPS Condition 2.0.0 (`0..1`) | Det riktiga schemat (`DiagnosisBodyType`) har bara `diagnosisTime` – en enda tidpunkt, inget periodkoncept med slutdatum. Det finns inget källfält att härleda ett `abatementDateTime` från, se "Härledning av clinicalStatus" ovan. |
 
 Att dessa saknas i testdatan är alltså förväntat, inte ett mappningsfel.
 
-**Två punkter som ofta missuppfattas som saknade Must Support-element:**
+**En punkt som ofta missuppfattas som ett saknat Must Support-element:**
 
-- **`Condition.abatement[x]` är redan mappat** (`diagnosisBody.diagnosisTimePeriod.end` →
-  `Condition.abatementDateTime`, se `abatementDateTime` under "Fältvalidering" ovan).
-  Det är ett valfritt fält (`0..1`) som bara sätts när RIVTA-svaret har ett slutdatum på
-  diagnosperioden – att det saknas i ett specifikt testfall betyder bara att den diagnosen
-  fortfarande är aktiv (inget slutdatum), inte att mappningen saknar stöd för fältet.
 - **`Condition.category.text` är inte ett Must Support-element.** Varken `$ipsCondition` eller
   `SEEHDSCondition` sätter en MS-flagga på `category.text` (kontrollerat mot den upplösta
   snapshot:en för `Condition-uv-ips` 2.0.0) – endast själva `category[diagnostyp]`-kodningen är

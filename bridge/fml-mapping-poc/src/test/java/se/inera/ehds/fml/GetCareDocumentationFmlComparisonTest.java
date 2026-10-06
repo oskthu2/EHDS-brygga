@@ -1,7 +1,7 @@
 package se.inera.ehds.fml;
 
 import org.hl7.fhir.r4.model.DocumentReference;
-import org.hl7.fhir.r4.model.Parameters;
+import org.hl7.fhir.r4.model.Provenance;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import se.inera.ehds.mapping.naming.NamingSystemRegistry;
@@ -15,18 +15,18 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Comparative tests for the GetCareDocumentation FML translation: status, masterIdentifier,
- * date, meta.source, subject, context.related, blockComparisonTime, type, description,
- * plain-text content, author and authenticator/signatureTime. See
- * RivtaCareDocumentationParametersAdapter and ig/input/pagecontent/fml-evaluation.md for what
- * is explicitly NOT covered (DocBook narrative/Composition, multimediaEntry, dissentingOpinion,
- * approvedForPatient) and why.
+ * Comparative tests for the GetCareDocumentation FML translation, rebuilt against the current
+ * (post-PR#41) RIVTA schema and the logical-model source (see
+ * GetCareDocumentationJsonSourceBuilder, FmlEngine). See
+ * GetCareDocumentationJsonSourceBuilder and fml-evaluation.md for what is explicitly NOT
+ * covered (DocBook narrative/Composition, approvedForPatient, hasMore) and why.
  */
 class GetCareDocumentationFmlComparisonTest {
 
     private static GetCareDocumentationMapper javaMapper;
     private static MapperContext ctx;
     private static FmlEngine fml;
+    private static GetCareDocumentationJsonSourceBuilder sourceBuilder;
 
     @BeforeAll
     static void setUp() throws Exception {
@@ -36,10 +36,11 @@ class GetCareDocumentationFmlComparisonTest {
                 "190101011234",
                 "SE2321000999-EHDS");
         fml = new FmlEngine();
+        sourceBuilder = new GetCareDocumentationJsonSourceBuilder(new NamingSystemRegistry());
     }
 
     @Test
-    void plattFritext_alleRakaFalt_matchar_java() {
+    void plattFritext_alleRakaFalt_matchar_java() throws Exception {
         CareDocumentation entry = fullEntry("Det här är fritext utan DocBook-struktur.");
 
         DocumentReference javaResult = runJava(entry);
@@ -49,6 +50,7 @@ class GetCareDocumentationFmlComparisonTest {
         assertEquals(javaResult.getStatus(), fmlResult.getStatus());
 
         assertEquals(javaResult.getMasterIdentifier().getValue(), fmlResult.getMasterIdentifier().getValue());
+        assertEquals(javaResult.getMasterIdentifier().getSystem(), fmlResult.getMasterIdentifier().getSystem());
         assertEquals(javaResult.getDateElement().getValueAsString(), fmlResult.getDateElement().getValueAsString());
         assertEquals(javaResult.getMeta().getSource(), fmlResult.getMeta().getSource());
 
@@ -85,13 +87,10 @@ class GetCareDocumentationFmlComparisonTest {
     }
 
     @Test
-    void docBookFritext_fmlSaknarNarrativInnehall_javaHarDet() {
-        // DOKUMENTERAT FYND (inte tyst överhoppat): DocBook-till-narrative-transformationen
-        // (DocBookToNarrativeTransformer) och Strategy B-Compositionen kräver egen Java-kod -
-        // adaptern skickar därför aldrig ett DocBook-fritextinnehåll vidare till FML
-        // (RivtaCareDocumentationParametersAdapter.toParameters() filtrerar bort det), så FML-
-        // resultatet saknar helt enkelt content/attachment i det fallet. Detta test gör
-        // skillnaden explicit i stället för att låta den passera obemärkt.
+    void docBookFritext_fmlSaknarNarrativInnehall_javaHarDet() throws Exception {
+        // DOKUMENTERAT FYND (inte tyst överhoppat): DocBookToNarrativeTransformer och
+        // Strategy B-Compositionen kräver egen Java-kod - JSON-byggaren skickar därför aldrig
+        // DocBook-fritext vidare, så FML-resultatet saknar helt enkelt content/attachment.
         CareDocumentation entry = fullEntry("<section><title>Anteckning</title><para>Text</para></section>");
 
         DocumentReference javaResult = runJava(entry);
@@ -99,11 +98,11 @@ class GetCareDocumentationFmlComparisonTest {
         assertEquals("text/html; charset=utf-8", javaResult.getContentFirstRep().getAttachment().getContentType());
 
         DocumentReference fmlResult = runFml(entry);
-        assertFalse(fmlResult.hasContent(), "FML-adaptern skickar inte vidare DocBook-fritext - se fml-evaluation.md");
+        assertFalse(fmlResult.hasContent(), "FML-källan skickar inte vidare DocBook-fritext - se fml-evaluation.md");
     }
 
     @Test
-    void multimediaEntry_varde_matchar_java() {
+    void multimediaEntry_varde_matchar_java() throws Exception {
         CareDocumentation entry = fullEntry(null);
         MultimediaEntry media = new MultimediaEntry();
         media.setMediaType("image/png");
@@ -117,12 +116,10 @@ class GetCareDocumentationFmlComparisonTest {
                 fmlResult.getContentFirstRep().getAttachment().getContentType());
         assertArrayEquals(javaResult.getContentFirstRep().getAttachment().getData(),
                 fmlResult.getContentFirstRep().getAttachment().getData());
-        assertEquals(javaResult.getContentFirstRep().getAttachment().getTitle(),
-                fmlResult.getContentFirstRep().getAttachment().getTitle());
     }
 
     @Test
-    void multimediaEntry_referens_matchar_java() {
+    void multimediaEntry_referens_matchar_java() throws Exception {
         CareDocumentation entry = fullEntry(null);
         MultimediaEntry media = new MultimediaEntry();
         media.setMediaType("video/mp4");
@@ -139,10 +136,12 @@ class GetCareDocumentationFmlComparisonTest {
     }
 
     @Test
-    void dissentingOpinion_forstaPosten_matchar_java() {
+    void dissentingOpinion_forstaPosten_matchar_java() throws Exception {
         CareDocumentation entry = fullEntry("Fritext.");
         DissentingOpinion dissent = new DissentingOpinion();
-        dissent.setOpinionId("op-1");
+        PersonIdType opinionId = new PersonIdType();
+        opinionId.setExtension("op-1");
+        dissent.setOpinionId(opinionId);
         dissent.setAuthorTime("20240103120000");
         dissent.setOpinion("Jag håller inte med.");
         PersonIdType dissentPerson = new PersonIdType();
@@ -173,6 +172,29 @@ class GetCareDocumentationFmlComparisonTest {
                 fmlResult.getExtensionByUrl(url).getExtensionByUrl("personName").getValue().primitiveValue());
     }
 
+    @Test
+    void provenance_tvaAgenter_matchar_java() throws Exception {
+        CareDocumentation entry = fullEntry("Fritext.");
+
+        MappedDocumentEntry javaEntry = javaMapper.map(okResponse(entry), ctx).get(0);
+        Provenance javaProv = javaEntry.provenance();
+
+        org.hl7.fhir.r4.model.Base source = fml.parseSource("/fhir/lm-caredocumentation.json", sourceBuilder.toJson(entry));
+        Provenance fmlProv = (Provenance) fml.transform("GetCareDocumentationToProvenance", source);
+
+        assertEquals(agentHsaId(javaProv, "custodian"), agentHsaId(fmlProv, "custodian"));
+        assertEquals(agentHsaId(javaProv, "author"), agentHsaId(fmlProv, "author"));
+        assertEquals(javaProv.getRecordedElement().getValueAsString(), fmlProv.getRecordedElement().getValueAsString());
+    }
+
+    private String agentHsaId(Provenance prov, String role) {
+        return prov.getAgent().stream()
+                .filter(a -> a.getType().getCodingFirstRep().getCode().equals(role))
+                .findFirst()
+                .map(a -> a.getWho().getIdentifier().getValue())
+                .orElse(null);
+    }
+
     private DocumentReference runJava(CareDocumentation entry) {
         GetCareDocumentationResponse response = okResponse(entry);
         List<MappedDocumentEntry> result = javaMapper.map(response, ctx);
@@ -180,9 +202,9 @@ class GetCareDocumentationFmlComparisonTest {
         return result.get(0).documentReference();
     }
 
-    private DocumentReference runFml(CareDocumentation entry) {
-        Parameters source = RivtaCareDocumentationParametersAdapter.toParameters(entry);
-        return fml.transformCareDocumentation(source);
+    private DocumentReference runFml(CareDocumentation entry) throws Exception {
+        org.hl7.fhir.r4.model.Base source = fml.parseSource("/fhir/lm-caredocumentation.json", sourceBuilder.toJson(entry));
+        return (DocumentReference) fml.transform("GetCareDocumentationToDocumentReference", source);
     }
 
     private GetCareDocumentationResponse okResponse(CareDocumentation entry) {
@@ -198,32 +220,50 @@ class GetCareDocumentationFmlComparisonTest {
         CareDocumentation entry = new CareDocumentation();
 
         Header header = new Header();
-        header.setSourceSystemId("SE2321000016-ABC");
+        PersonIdType sourceSystemId = new PersonIdType();
+        sourceSystemId.setExtension("SE2321000016-ABC");
+        header.setSourceSystemId(sourceSystemId);
 
         AccessControlHeader ach = new AccessControlHeader();
         PersonIdType pid = new PersonIdType();
         pid.setRoot("1.2.752.129.2.1.3.1");
         pid.setExtension("190101011234");
         ach.setPatientId(pid);
-        ach.setAccountableHealthcareProvider("SE2321000016-ABC");
-        ach.setAccountableCareUnit("SE2321000016-ENHET");
-        ach.setCareProcessId("vardprocess-123");
+
+        PersonIdType provider = new PersonIdType();
+        provider.setExtension("SE2321000016-ABC");
+        ach.setAccountableHealthcareProvider(provider);
+
+        PersonIdType unit = new PersonIdType();
+        unit.setExtension("SE2321000016-ENHET");
+        ach.setAccountableCareUnit(unit);
+
+        PersonIdType careProcess = new PersonIdType();
+        careProcess.setExtension("vardprocess-123");
+        ach.setCareProcessId(careProcess);
+
         ach.setBlockComparisonTime("20240101100000");
         header.setAccessControlHeader(ach);
 
         RecordType record = new RecordType();
-        record.setRecordId("rec-001");
+        PersonIdType recordId = new PersonIdType();
+        recordId.setExtension("rec-001");
+        record.setId(recordId);
         record.setTimestamp("20240101120000");
         header.setRecord(record);
 
         Author author = new Author();
-        author.setAuthorId("SE2321000016-REC");
+        PersonIdType authorId = new PersonIdType();
+        authorId.setExtension("SE2321000016-REC");
+        author.setId(authorId);
         author.setName("Author Authorsson");
         author.setTimestamp("20240101110000");
         header.setAuthor(author);
 
         Signature signature = new Signature();
-        signature.setSignatureId("SE2321000016-ASS");
+        PersonIdType signatureId = new PersonIdType();
+        signatureId.setExtension("SE2321000016-ASS");
+        signature.setId(signatureId);
         signature.setName("Signer Signersson");
         signature.setTimestamp("20240102120000");
         header.setSignature(signature);

@@ -1,10 +1,8 @@
 package se.inera.ehds.fml;
 
-import org.hl7.fhir.r4.model.CodeableConcept;
+import org.hl7.fhir.r4.model.Base;
 import org.hl7.fhir.r4.model.Condition;
-import org.hl7.fhir.r4.model.Parameters;
 import org.hl7.fhir.r4.model.Provenance;
-import org.hl7.fhir.r4.model.Reference;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import se.inera.ehds.mapping.concept.ConceptMapRegistry;
@@ -19,111 +17,154 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Comparative tests: runs the same RIVTA GetDiagnosis fixtures through (a) the production
- * Java mapper (mapping-engine) and (b) the FML StructureMap PoC, and compares the resulting
- * Condition fields. Covers the three decided error-handling behaviours from PR #38
- * (DIAG-001 stop-on-invalid-personnummer, OID-fallback, DIAG-003 data-absent-reason) plus a
- * happy path. See ig/input/pagecontent/fml-evaluation.md for the write-up these tests back.
+ * Comparative tests for the GetDiagnosis FML translation, rebuilt against the current
+ * (post-PR#41) RIVTA schema and the logical-model source (see GetDiagnosisJsonSourceBuilder,
+ * FmlEngine, get-diagnosis-to-condition.map / get-diagnosis-to-provenance.map).
  */
 class GetDiagnosisFmlComparisonTest {
 
     private static GetDiagnosisMapper javaMapper;
     private static MapperContext ctx;
     private static FmlEngine fml;
+    private static GetDiagnosisJsonSourceBuilder sourceBuilder;
 
     @BeforeAll
     static void setUp() throws Exception {
         javaMapper = new GetDiagnosisMapper(new NamingSystemRegistry(), new ConceptMapRegistry());
-        ctx = new MapperContext(
-                "http://electronichealth.se/identifier/personnummer",
-                "190101011234",
-                "SE2321000999-EHDS");
+        ctx = new MapperContext("http://electronichealth.se/identifier/personnummer", "190101011234", "SE2321000999-EHDS");
         fml = new FmlEngine();
-        if (System.getenv("FML_DEBUG") != null) {
-            System.out.println("=== rendered map ===\n" + fml.render() + "\n=== end ===");
+        sourceBuilder = new GetDiagnosisJsonSourceBuilder(new NamingSystemRegistry());
+    }
+
+    @Test
+    void grundlaggandeFalt_matchar_java() throws Exception {
+        Diagnosis diag = fullDiagnosis("Huvuddiagnos", true);
+
+        Condition javaResult = runJavaCondition(diag);
+        Condition fmlResult = runFmlCondition(diag);
+
+        assertEquals(javaResult.getVerificationStatus().getCodingFirstRep().getCode(),
+                fmlResult.getVerificationStatus().getCodingFirstRep().getCode());
+        assertEquals("confirmed", javaResult.getVerificationStatus().getCodingFirstRep().getCode());
+
+        assertEquals(javaResult.getClinicalStatus().getCodingFirstRep().getCode(),
+                fmlResult.getClinicalStatus().getCodingFirstRep().getCode());
+        assertEquals("active", javaResult.getClinicalStatus().getCodingFirstRep().getCode());
+
+        assertEquals(javaResult.getSubject().getIdentifier().getValue(), fmlResult.getSubject().getIdentifier().getValue());
+        assertEquals(javaResult.getSubject().getIdentifier().getSystem(), fmlResult.getSubject().getIdentifier().getSystem());
+
+        assertEquals(javaResult.getOnsetDateTimeType().getValueAsString(), fmlResult.getOnsetDateTimeType().getValueAsString());
+        assertEquals(javaResult.getMeta().getSource(), fmlResult.getMeta().getSource());
+
+        assertEquals(javaResult.getRecorder().getIdentifier().getValue(), fmlResult.getRecorder().getIdentifier().getValue());
+        assertEquals(javaResult.getRecordedDateElement().getValueAsString(), fmlResult.getRecordedDateElement().getValueAsString());
+
+        assertEquals(javaResult.getAsserter().getIdentifier().getValue(), fmlResult.getAsserter().getIdentifier().getValue());
+        assertEquals(
+                javaResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date").getValue().primitiveValue(),
+                fmlResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date").getValue().primitiveValue());
+
+        assertEquals(javaResult.getCode().getCodingFirstRep().getSystem(), fmlResult.getCode().getCodingFirstRep().getSystem());
+        assertEquals(javaResult.getCode().getCodingFirstRep().getCode(), fmlResult.getCode().getCodingFirstRep().getCode());
+    }
+
+    @Test
+    void kategoriMappad_HuvuddiagnosOchBidiagnos_matchar_java() throws Exception {
+        for (String typeOfDiagnosis : List.of("Huvuddiagnos", "Bidiagnos")) {
+            Diagnosis diag = fullDiagnosis(typeOfDiagnosis, false);
+            Condition javaResult = runJavaCondition(diag);
+            Condition fmlResult = runFmlCondition(diag);
+            assertEquals(javaResult.getCategoryFirstRep().getCodingFirstRep().getCode(),
+                    fmlResult.getCategoryFirstRep().getCodingFirstRep().getCode(), typeOfDiagnosis);
+            assertEquals(javaResult.getCategoryFirstRep().getCodingFirstRep().getSystem(),
+                    fmlResult.getCategoryFirstRep().getCodingFirstRep().getSystem(), typeOfDiagnosis);
         }
     }
 
     @Test
-    void happyPath_sammaKodsystemOchKategori() {
-        Diagnosis d = diagnosis("190101011234", "HD", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", "20240601");
+    void kategoriOkandTyp_dataAbsentReason_matchar_java() throws Exception {
+        Diagnosis diag = fullDiagnosis("NagonAnnanTyp", false);
+        Condition javaResult = runJavaCondition(diag);
+        Condition fmlResult = runFmlCondition(diag);
 
-        Condition javaResult = runJava(d);
-        Condition fmlResult = runFml(d);
-
-        assertEquals("https://www.icd10.se/", javaResult.getCode().getCodingFirstRep().getSystem());
-        assertEquals(javaResult.getCode().getCodingFirstRep().getSystem(), fmlResult.getCode().getCodingFirstRep().getSystem());
-        assertEquals(javaResult.getCode().getCodingFirstRep().getCode(), fmlResult.getCode().getCodingFirstRep().getCode());
-        assertEquals("HD", fmlResult.getCategoryFirstRep().getCodingFirstRep().getCode());
-        assertEquals(javaResult.getCategoryFirstRep().getCodingFirstRep().getCode(),
-                fmlResult.getCategoryFirstRep().getCodingFirstRep().getCode());
-        assertEquals("resolved", javaResult.getClinicalStatus().getCodingFirstRep().getCode());
-        assertEquals("resolved", fmlResult.getClinicalStatus().getCodingFirstRep().getCode());
+        String darUrl = "http://hl7.org/fhir/StructureDefinition/data-absent-reason";
+        assertFalse(javaResult.getCategoryFirstRep().hasCoding());
+        assertFalse(fmlResult.getCategoryFirstRep().hasCoding());
+        assertEquals(javaResult.getCategoryFirstRep().getExtensionByUrl(darUrl).getValue().primitiveValue(),
+                fmlResult.getCategoryFirstRep().getExtensionByUrl(darUrl).getValue().primitiveValue());
+        assertEquals("unknown", javaResult.getCategoryFirstRep().getExtensionByUrl(darUrl).getValue().primitiveValue());
     }
 
     @Test
-    void recorderOchAsserter_matchar_java() {
-        Diagnosis d = diagnosis("190101011234", "HD", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", "20240601");
-        withRecorderAndAsserter(d);
+    void chronicDiagnosisOchRelatedDiagnosis_matchar_java() throws Exception {
+        Diagnosis diag = fullDiagnosis("Huvuddiagnos", true);
+        diag.getDiagnosisBody().getRelatedDiagnosis().add(relatedDiagnosis("doc-related-1"));
+        diag.getDiagnosisBody().getRelatedDiagnosis().add(relatedDiagnosis("doc-related-2"));
 
-        Condition javaResult = runJava(d);
-        Condition fmlResult = runFml(d);
+        Condition javaResult = runJavaCondition(diag);
+        Condition fmlResult = runFmlCondition(diag);
 
-        assertEquals(javaResult.getRecorder().getIdentifier().getValue(),
-                fmlResult.getRecorder().getIdentifier().getValue());
-        assertEquals(javaResult.getRecordedDateElement().getValueAsString(),
-                fmlResult.getRecordedDateElement().getValueAsString());
-        assertEquals(javaResult.getAsserter().getIdentifier().getValue(),
-                fmlResult.getAsserter().getIdentifier().getValue());
-        assertEquals(javaResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date")
-                        .getValue().primitiveValue(),
-                fmlResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date")
-                        .getValue().primitiveValue());
+        String chronicUrl = "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition";
+        assertEquals(javaResult.getExtensionByUrl(chronicUrl).getValue().primitiveValue(),
+                fmlResult.getExtensionByUrl(chronicUrl).getValue().primitiveValue());
+        assertEquals("true", javaResult.getExtensionByUrl(chronicUrl).getValue().primitiveValue());
+
+        String relatedUrl = "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition";
+        List<org.hl7.fhir.r4.model.Extension> javaRelated = javaResult.getExtensionsByUrl(relatedUrl);
+        List<org.hl7.fhir.r4.model.Extension> fmlRelated = fmlResult.getExtensionsByUrl(relatedUrl);
+        assertEquals(javaRelated.size(), fmlRelated.size());
+        assertEquals(2, javaRelated.size());
+        for (int i = 0; i < javaRelated.size(); i++) {
+            org.hl7.fhir.r4.model.Reference javaRef = (org.hl7.fhir.r4.model.Reference) javaRelated.get(i).getValue();
+            org.hl7.fhir.r4.model.Reference fmlRef = (org.hl7.fhir.r4.model.Reference) fmlRelated.get(i).getValue();
+            assertEquals(javaRef.getIdentifier().getValue(), fmlRef.getIdentifier().getValue());
+        }
     }
 
     @Test
-    void chronicConditionOchRelatedDiagnosis_matchar_java() {
-        Diagnosis d = diagnosis("190101011234", "HD", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", null);
-        d.getDiagnosisBody().setChronicCondition(Boolean.TRUE);
-        RelatedDiagnosis related = new RelatedDiagnosis();
-        related.setDocumentId("doc-123");
-        d.getDiagnosisBody().setRelatedDiagnosis(related);
-
-        Condition javaResult = runJava(d);
-        Condition fmlResult = runFml(d);
-
-        assertEquals(
-                javaResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition")
-                        .getValue().primitiveValue(),
-                fmlResult.getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition")
-                        .getValue().primitiveValue());
-        Reference javaRelated = (Reference) javaResult
-                .getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition")
-                .getValue();
-        Reference fmlRelated = (Reference) fmlResult
-                .getExtensionByUrl("https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition")
-                .getValue();
-        assertEquals(javaRelated.getIdentifier().getValue(), fmlRelated.getIdentifier().getValue());
+    void diagnoskod_kandOchOkandOid_matchar_java() throws Exception {
+        for (String oid : List.of("1.2.752.116.1.1.1.1.3", "9.9.9.9.9.9")) {
+            Diagnosis diag = fullDiagnosis("Huvuddiagnos", false);
+            diag.getDiagnosisBody().getDiagnosisCode().setCodeSystem(oid);
+            Condition javaResult = runJavaCondition(diag);
+            Condition fmlResult = runFmlCondition(diag);
+            assertEquals(javaResult.getCode().getCodingFirstRep().getSystem(),
+                    fmlResult.getCode().getCodingFirstRep().getSystem(), oid);
+            assertEquals(javaResult.getCode().getCodingFirstRep().getCode(),
+                    fmlResult.getCode().getCodingFirstRep().getCode(), oid);
+        }
     }
 
     @Test
-    void provenance_treAgenter_matchar_java() {
-        Diagnosis d = diagnosis("190101011234", "HD", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", "20240601");
-        withRecorderAndAsserter(d);
+    void stoppaResursen_felaktigtPersonnummer_ingenResursAlls() throws Exception {
+        // DIAG-001: Java-mappern returnerar null för hela posten. Till skillnad från den
+        // tidigare Parameters-baserade varianten (som bara kunde hoppa över subject-fältet)
+        // kan FmlEngine nu stoppa HELA anropet via registry-postens FHIRPath-guard - samma
+        // beteende som Java, inte en kompromiss. Se FmlEngine-javadoc.
+        Diagnosis diag = fullDiagnosis("Huvuddiagnos", true);
+        diag.getDiagnosisHeader().getPatientId().setId("fel-format");
 
-        List<MappedDiagnosisEntry> javaEntries = javaMapper.map(okResponse(d), ctx);
-        assertEquals(1, javaEntries.size());
-        Provenance javaProv = javaEntries.get(0).provenance();
+        List<MappedDiagnosisEntry> javaResult = javaMapper.map(okResponse(diag), ctx);
+        assertTrue(javaResult.isEmpty(), "Java ska returnera en tom lista för ogiltigt personnummer");
 
-        Parameters source = RivtaDiagnosisParametersAdapter.toParameters(d, ctx.getBridgeHsaId());
-        Provenance fmlProv = fml.transformDiagnosisProvenance(source);
+        Base fmlResult = fml.transform("GetDiagnosisToCondition", parseSource(diag));
+        assertNull(fmlResult, "FmlEngine ska returnera null (stoppa resursen) för ogiltigt personnummer, precis som Java");
+    }
 
-        assertEquals(javaProv.getRecordedElement().getValueAsString(), fmlProv.getRecordedElement().getValueAsString());
-        // Fixturen sätter inget careUnitHSAId, så "author"-agenten uteblir i båda - precis
-        // som ProvenanceBuilder.addAgent() hoppar över en roll med null-värde.
-        assertEquals(javaProv.getAgent().size(), fmlProv.getAgent().size());
+    @Test
+    void provenance_tvaAgenter_matchar_java() throws Exception {
+        Diagnosis diag = fullDiagnosis("Huvuddiagnos", true);
+
+        MappedDiagnosisEntry javaEntry = javaMapper.map(okResponse(diag), ctx).get(0);
+        Provenance javaProv = javaEntry.provenance();
+
+        Base provenanceSource = fml.parseSource("/fhir/lm-diagnosis.json", sourceBuilder.toJson(diag, true));
+        Provenance fmlProv = (Provenance) fml.transform("GetDiagnosisToProvenance", provenanceSource);
+
         assertEquals(agentHsaId(javaProv, "custodian"), agentHsaId(fmlProv, "custodian"));
-        assertEquals(agentHsaId(javaProv, "assembler"), agentHsaId(fmlProv, "assembler"));
+        assertEquals(agentHsaId(javaProv, "author"), agentHsaId(fmlProv, "author"));
+        assertEquals(javaProv.getRecordedElement().getValueAsString(), fmlProv.getRecordedElement().getValueAsString());
     }
 
     private String agentHsaId(Provenance prov, String role) {
@@ -134,126 +175,72 @@ class GetDiagnosisFmlComparisonTest {
                 .orElse(null);
     }
 
-    private void withRecorderAndAsserter(Diagnosis d) {
-        se.inera.ehds.mapping.rivta.HealthcareProfessionalType ahp = new se.inera.ehds.mapping.rivta.HealthcareProfessionalType();
-        PersonIdType recorderId = new PersonIdType();
-        recorderId.setExtension("SE2321000016-REC");
-        ahp.setPersonId(recorderId);
-        ahp.setAuthorTime("20240101120000");
-        d.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
-
-        se.inera.ehds.mapping.rivta.LegalAuthenticatorType la = new se.inera.ehds.mapping.rivta.LegalAuthenticatorType();
-        se.inera.ehds.mapping.rivta.HealthcareProfessionalType asserterHcp = new se.inera.ehds.mapping.rivta.HealthcareProfessionalType();
-        PersonIdType asserterId = new PersonIdType();
-        asserterId.setExtension("SE2321000016-ASS");
-        asserterHcp.setPersonId(asserterId);
-        la.setHcProfessional(asserterHcp);
-        la.setSignatureDate("20240102120000");
-        d.getDiagnosisHeader().setLegalAuthenticator(la);
-    }
-
-    @Test
-    void diag001_saknatPersonnummer_javaStopparHelaPosten_fmlStopparBaraFaltet() {
-        Diagnosis d = diagnosis(null, "HD", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", null);
-
-        // Java: hela Condition+Provenance-paret filtreras bort - map() returnerar tom lista.
-        GetDiagnosisResponse response = okResponse(d);
-        assertEquals(List.of(), javaMapper.map(response, ctx), "Java-mappern ska stoppa hela posten");
-
-        // FML: StructureMap-anropet transform() körs alltid på den Condition som skickats in;
-        // "stoppa posten" går inte att uttrycka i en enskild regel - det kräver att anroparen
-        // (gruppen/koden som itererar över diagnosisList) hoppar över posten baserat på samma
-        // villkor, precis som Java-koden gör i sin stream().filter(Objects::nonNull). Detta är
-        // den viktigaste skillnaden utvärderingen hittade för "stoppa resurs"-fallet.
-        Condition fmlResult = runFml(d);
-        assertFalse(fmlResult.hasSubject(), "utan giltigt personnummer ska subject uteblir i FML-resultatet");
-    }
-
-    @Test
-    void diag003_okandDiagnosTyp_bada_ger_dataAbsentReason() {
-        Diagnosis d = diagnosis("190101011234", "OKAND", "1.2.752.116.1.1.1.1.3", "J45", "Astma", "20240101", null);
-
-        Condition javaResult = runJava(d);
-        Condition fmlResult = runFml(d);
-
-        assertDataAbsentReasonUnknown(javaResult.getCategoryFirstRep());
-        assertDataAbsentReasonUnknown(fmlResult.getCategoryFirstRep());
-    }
-
-    @Test
-    void okantKodverkOid_bada_ger_urnOidFallback() {
-        Diagnosis d = diagnosis("190101011234", "HD", "2.16.840.1.113883.6.999", "X1", "Okänd kod", "20240101", null);
-
-        Condition javaResult = runJava(d);
-        Condition fmlResult = runFml(d);
-
-        assertEquals("urn:oid:2.16.840.1.113883.6.999", javaResult.getCode().getCodingFirstRep().getSystem());
-        assertEquals(javaResult.getCode().getCodingFirstRep().getSystem(), fmlResult.getCode().getCodingFirstRep().getSystem());
-        assertEquals("X1", fmlResult.getCode().getCodingFirstRep().getCode());
-    }
-
-    private void assertDataAbsentReasonUnknown(CodeableConcept category) {
-        assertTrue(category.getCoding().isEmpty(), "category ska vara utan coding");
-        assertEquals(1, category.getExtension().size());
-        assertEquals("http://hl7.org/fhir/StructureDefinition/data-absent-reason",
-                category.getExtensionFirstRep().getUrl());
-        assertEquals("unknown", category.getExtensionFirstRep().getValue().primitiveValue());
-    }
-
-    private Condition runJava(Diagnosis d) {
-        List<MappedDiagnosisEntry> result = javaMapper.map(okResponse(d), ctx);
+    private Condition runJavaCondition(Diagnosis diag) {
+        List<MappedDiagnosisEntry> result = javaMapper.map(okResponse(diag), ctx);
         assertEquals(1, result.size(), "förväntade exakt en mappad post från Java-mappern");
         return result.get(0).condition();
     }
 
-    private Condition runFml(Diagnosis d) {
-        Parameters source = RivtaDiagnosisParametersAdapter.toParameters(d);
-        Condition result = fml.transformDiagnosis(source);
-        if (System.getenv("FML_DEBUG") != null) {
-            try {
-                System.out.println(new org.hl7.fhir.r4.formats.JsonParser().composeString(result));
-            } catch (java.io.IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-        return result;
+    private Condition runFmlCondition(Diagnosis diag) throws Exception {
+        return (Condition) fml.transform("GetDiagnosisToCondition", parseSource(diag));
     }
 
-    private GetDiagnosisResponse okResponse(Diagnosis d) {
+    private Base parseSource(Diagnosis diag) throws Exception {
+        return fml.parseSource("/fhir/lm-diagnosis.json", sourceBuilder.toJson(diag));
+    }
+
+    private GetDiagnosisResponse okResponse(Diagnosis diag) {
         GetDiagnosisResponse response = new GetDiagnosisResponse();
         ResultType result = new ResultType();
         result.setResultCode("OK");
         response.setResult(result);
-        response.setDiagnosis(List.of(d));
+        response.setDiagnosis(List.of(diag));
         return response;
     }
 
-    private Diagnosis diagnosis(String personnummer, String diagnosisType, String codeSystemOid,
-                                 String code, String display, String onsetStart, String onsetEnd) {
-        Diagnosis d = new Diagnosis();
+    private RelatedDiagnosis relatedDiagnosis(String documentId) {
+        RelatedDiagnosis rel = new RelatedDiagnosis();
+        rel.setDocumentId(documentId);
+        return rel;
+    }
+
+    private Diagnosis fullDiagnosis(String typeOfDiagnosis, boolean chronic) {
+        Diagnosis diag = new Diagnosis();
+
         DiagnosisHeader header = new DiagnosisHeader();
-        if (personnummer != null) {
-            PersonIdType pid = new PersonIdType();
-            pid.setRoot("1.2.752.129.2.1.3.1");
-            pid.setExtension(personnummer);
-            header.setPatientId(pid);
-        }
+        header.setDocumentId("doc-1");
         header.setSourceSystemHSAId("SE2321000016-ABC");
-        header.setCareProviderHSAId("SE2321000016-ABC");
-        d.setDiagnosisHeader(header);
+
+        PersonIdType patientId = new PersonIdType();
+        patientId.setId("190101011234");
+        patientId.setType("1.2.752.129.2.1.3.1");
+        header.setPatientId(patientId);
+
+        HealthcareProfessionalType ahp = new HealthcareProfessionalType();
+        ahp.setAuthorTime("20240101120000");
+        ahp.setHealthcareProfessionalHSAId("SE2321000016-REC");
+        ahp.setHealthcareProfessionalCareUnitHSAId("SE2321000016-ENHET");
+        ahp.setHealthcareProfessionalCareGiverHSAId("SE2321000016-ABC");
+        header.setAccountableHealthcareProfessional(ahp);
+
+        LegalAuthenticatorType la = new LegalAuthenticatorType();
+        la.setSignatureTime("20240102120000");
+        la.setLegalAuthenticatorHSAId("SE2321000016-ASS");
+        header.setLegalAuthenticator(la);
+
+        diag.setDiagnosisHeader(header);
 
         DiagnosisBody body = new DiagnosisBody();
-        body.setDiagnosisType(diagnosisType);
+        body.setTypeOfDiagnosis(typeOfDiagnosis);
+        body.setChronicDiagnosis(chronic);
+        body.setDiagnosisTime("20240103120000");
         CVType dc = new CVType();
-        dc.setCodeSystem(codeSystemOid);
-        dc.setCode(code);
-        dc.setDisplayName(display);
+        dc.setCode("A09");
+        dc.setCodeSystem("1.2.752.116.1.1.1.1.3");
+        dc.setDisplayName("Diarre");
         body.setDiagnosisCode(dc);
-        DatePeriodType period = new DatePeriodType();
-        period.setStart(onsetStart);
-        period.setEnd(onsetEnd);
-        body.setDiagnosisTimePeriod(period);
-        d.setDiagnosisBody(body);
-        return d;
+        diag.setDiagnosisBody(body);
+
+        return diag;
     }
 }

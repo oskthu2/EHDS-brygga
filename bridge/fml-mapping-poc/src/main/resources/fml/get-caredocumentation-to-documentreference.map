@@ -1,206 +1,196 @@
-/// FML-utvärdering: GetCareDocumentation (RIVTA) -> DocumentReference.
+/// FML-utvärdering: GetCareDocumentation (RIVTA) -> DocumentReference. Källan är nu EHDS-TK:s
+/// publicerade logiska modell inera-ehds-lm-care-documentation, se
+/// GetCareDocumentationJsonSourceBuilder och fml-evaluation.md.
 ///
-/// Täcker de "raka" fälten (status, masterIdentifier, date, meta.source, subject,
-/// context.related, blockComparisonTime-extension, type, description, fritext-innehåll utan
-/// DocBook-struktur, author, authenticator+signaturtid). Se
-/// RivtaCareDocumentationParametersAdapter och fml-evaluation.md för en uttrycklig lista på vad
-/// som INTE är med och varför (DocBook->narrative, Composition "Strategy B", multimediaEntry,
-/// dissentingOpinion, approvedForPatient).
+/// DocBook-fritext (clinicalDocumentNoteText) utelämnas helt av JSON-byggaren när innehållet
+/// ser ut som XML - DocBookToNarrativeTransformer och Strategy B-Compositionen kräver egen
+/// Java-kod och saknar FML-motsvarighet (arkitekturellt stoppad, oförändrat fynd).
+/// dissentingOpinion bär bara den första posten (dokumenterad begränsning, oförändrad).
 map "http://ehds-brygga.inera.se/fhir/StructureMap/GetCareDocumentationToDocumentReference" = "GetCareDocumentationToDocumentReference"
 
-uses "http://hl7.org/fhir/StructureDefinition/Parameters" alias RivtaCareDocumentation as source
+uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-care-documentation" alias LmCareDocumentation as source
 uses "http://hl7.org/fhir/StructureDefinition/DocumentReference" alias DocumentReference as target
 
-group GetCareDocumentationToDocumentReference(source src : RivtaCareDocumentation, target tgt : DocumentReference) {
+group GetCareDocumentationToDocumentReference(source src : LmCareDocumentation, target tgt : DocumentReference) {
 
-  // status: RIVTA-body saknar statusfält helt - källsystemet antas bara returnera aktiva
-  // anteckningar, se Java-kommentaren i GetCareDocumentationMapper. Ovillkorlig regel, inget
-  // källfält att villkora på.
+  // status: alltid 'current' - RIVTA-body saknar ett eget statusfält.
   src -> tgt.status = 'current' "status";
 
-  src.parameter as rid where name = 'recordId' -> tgt.masterIdentifier = create('Identifier') as mid then {
-    rid.value as v -> mid.value = v "masterIdentifier-value";
-  } "masterIdentifier";
+  src.careDocumentation as cd then {
+    cd.header as h then {
 
-  src.parameter as rt where name = 'recordTimestampInstant' -> tgt.date = create('instant') as dateEl then {
-    rt.value as v -> dateEl.value = v "date-value";
-  } "date";
+      // masterIdentifier: record.recordId
+      h.record as rec then {
+        rec.recordId as rid then {
+          rid -> tgt.masterIdentifier = create('Identifier') as mid then {
+            rid.value as v -> mid.value = v "masterIdentifier-value";
+            rid.system as sys -> mid.system = sys "masterIdentifier-system";
+          } "masterIdentifier-id";
+        } "masterIdentifier";
+        // date: record.timestamp - instant, kräver create()-inpackning (castToInstant() saknar
+        // Element-fallback, se get-diagnosis-to-provenance.map). Bindningen måste gå via .value
+        // för att få en riktig StringType, se samma fynd där.
+        rec.timestamp as t then {
+          t.value as tv -> tgt.date = create('instant') as dateEl then {
+            tv -> dateEl.value = tv "date-value";
+          } "date-wrap";
+        } "date";
+      } "record";
 
-  src.parameter as sh where name = 'sourceSystemId' -> tgt.meta = create('Meta') as m then {
-    sh.value as v -> m.source = ('https://tjanstekatalogen.inera.se/Endpoint/' & v) "meta-source";
-  } "meta";
+      // meta.source
+      h.sourceSystemId as src1 then {
+        src1.value as v -> tgt.meta = create('Meta') as m then {
+          v -> m.source = ('https://tjanstekatalogen.inera.se/Endpoint/' & v) "meta-source";
+        } "meta";
+      } "meta-block";
 
-  // subject: patientId. Systemet hårdkodas till personnummer-URI:n - samma förenkling som i
-  // get-diagnosis-to-condition.map (patientId.root slås egentligen upp via
-  // NamingSystemRegistry i Java, men root är i praktiken alltid samma OID här).
-  src.parameter as pid where name = 'patientId' -> tgt.subject = create('Reference') as subjRef then {
-    pid -> subjRef.identifier = create('Identifier') as subjId then {
-      pid -> subjId.system = 'http://electronichealth.se/identifier/personnummer' "subject-system";
-      pid.value as v -> subjId.value = v "subject-value";
-    } "subject-id";
-  } "subject";
+      h.accessControlHeader as ach then {
+        // subject: patientId
+        ach.patientId as pid then {
+          pid -> tgt.subject = create('Reference') as subjRef then {
+            pid -> subjRef.identifier = create('Identifier') as subjId then {
+              pid.value as v -> subjId.value = v "subject-value";
+              pid.system as sys -> subjId.system = sys "subject-system";
+            } "subject-id";
+          } "subject-ref";
+        } "subject";
 
-  // context.related: careProcessId, inget system - bara värde, precis som i Java.
-  src.parameter as cpid where name = 'careProcessId' -> tgt.context as ctxEl then {
-    cpid -> ctxEl.related = create('Reference') as relRef then {
-      cpid -> relRef.identifier = create('Identifier') as relId then {
-        cpid.value as v -> relId.value = v "related-value";
-      } "related-id";
-    } "related-ref";
-  } "context-related";
+        // context.related: careProcessId. Ingen create('DocumentReference_Context') - nästlade
+        // BackboneElements saknar en fristående StructureDefinition, se fml-evaluation.md fynd 4.
+        ach.careProcessId as cpid then {
+          cpid -> tgt.context as ctx then {
+            cpid -> ctx.related = create('Reference') as relRef then {
+              cpid -> relRef.identifier = create('Identifier') as relId then {
+                cpid.value as v -> relId.value = v "related-value";
+                cpid.system as sys -> relId.system = sys "related-system";
+              } "related-id";
+            } "related-ref";
+          } "context";
+        } "careProcessId";
 
-  // extension[blockComparisonTime]
-  src.parameter as bct where name = 'blockComparisonTime' -> tgt.extension = create('Extension') as bctExt then {
-    bct -> bctExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-block-comparison-time' "bct-url";
-    bct -> bctExt.value = create('dateTime') as bctEl then {
-      bct.value as v -> bctEl.value = v "bct-value";
-    } "bct-el";
-  } "blockComparisonTime";
+        // extension[blockComparisonTime]
+        ach.blockComparisonTime as bct -> tgt.extension = create('Extension') as bctExt then {
+          bct -> bctExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-block-comparison-time' "bct-url";
+          bct -> bctExt.value = bct "bct-value";
+        } "blockComparisonTime";
+      } "ach";
 
-  // type: clinicalDocumentNoteCode. Samma urn:oid-fallback som diagnoskoden utan känd
-  // ConceptMap-mappning i get-diagnosis-to-condition.map - OID:n för ClinicalDocumentNoteCodeCS
-  // (1.2.752.129.2.2.2.11) saknar en egen NamingSystemRegistry-post, så Java returnerar
-  // urn:oid:<oid> här också; ingen särbehandling behövs alltså i FML.
-  src.parameter as nc where name = 'noteCodeSystemOid' -> tgt.type = create('CodeableConcept') as typeCC then {
-    nc.value as oid -> typeCC.coding = create('Coding') as typeCoding then {
-      oid -> typeCoding.system = ('urn:oid:' & oid) "type-system";
-      src.parameter as ncc where name = 'noteCodeCode' then {
-        ncc.value as v -> typeCoding.code = v "type-code";
-      } "type-code-bind";
-      src.parameter as ncd where name = 'noteCodeDisplay' then {
-        ncd.value as v -> typeCoding.display = v "type-display";
-      } "type-display-bind";
-    } "type-coding";
-    src.parameter as nct where name = 'noteCodeText' then {
-      nct.value as v -> typeCC.text = v "type-text";
-    } "type-text-bind";
-  } "type";
+      // author -> PractitionerRole (logisk referens)
+      h.author as author then {
+        author.authorId as aid then {
+          aid.value as v -> tgt.author = create('Reference') as authorRef then {
+            aid -> authorRef.type = 'PractitionerRole' "author-type";
+            author.name as nm -> authorRef.display = nm "author-display";
+            v -> authorRef.identifier = create('Identifier') as authorId then {
+              v -> authorId.value = v "author-id-value";
+            } "author-id";
+          } "author-ref";
+        } "authorId";
+      } "author";
 
-  src.parameter as nt where name = 'noteTitle' then {
-    nt.value as v -> tgt.description = v "description-value";
-  } "description";
+      // authenticator + extension[signatureTime] -> PractitionerRole (logisk referens)
+      h.signature as signature then {
+        signature.signatureId as sid then {
+          sid.value as v -> tgt.authenticator = create('Reference') as authnRef then {
+            sid -> authnRef.type = 'PractitionerRole' "authn-type";
+            signature.name as nm -> authnRef.display = nm "authn-display";
+            v -> authnRef.identifier = create('Identifier') as authnId then {
+              v -> authnId.value = v "authn-id-value";
+            } "authn-id";
+          } "authn-ref";
+        } "signatureId";
+        signature.timestamp as t -> tgt.extension = create('Extension') as sigExt then {
+          t -> sigExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-signature-time' "sig-url";
+          t -> sigExt.value = t "sig-value";
+        } "signatureTime";
+      } "signature";
+    } "header";
 
-  // content: XOR enligt körtidsdatat (precis som i Java, FSH-invarianten
-  // getcaredocumentation-body-xor garanterar att bara en av de två grenarna ger en parameter).
-  // attachment.data tar emot en REDAN base64-kodad sträng (RivtaCareDocumentationParametersAdapter
-  // kodar om fritexten till base64 innan den läggs i Parameters, och media.getValue() ÄR redan
-  // base64 i RIVTA-källan) - ett base64Binary-elements .value-property avkodar strängen på samma
-  // sätt oavsett om den kommer från FML eller från Java-mappern, så själva base64-steget behövde
-  // inte göras i FML (och FHIRPath i denna motorversion saknar en inbyggd .encode('base64') att
-  // göra det med ändå). attachment.title sätts bara när noteTitle finns, precis som i Java.
-  src.parameter as txt where name = 'noteTextPlainBase64' -> tgt.content as contentEl then {
-    txt -> contentEl.attachment = create('Attachment') as att then {
-      txt -> att.contentType = 'text/plain; charset=utf-8' "content-type";
-      txt -> att.data = create('base64Binary') as dataEl then {
-        txt.value as v -> dataEl.value = v "content-data-value";
-      } "content-data";
-      src.parameter as nt2 where name = 'noteTitle' then {
-        nt2.value as v -> att.title = v "content-title";
-      } "content-title-bind";
-    } "content-attachment";
-  } "content-plain";
+    cd.body as body then {
+      // type: clinicalDocumentNoteCode
+      body.clinicalDocumentNoteCode as noteCode where coding.exists() -> tgt.type = create('CodeableConcept') as typeCC then {
+        noteCode.coding as nc then {
+          nc.system as sys -> typeCC.coding = create('Coding') as typeCoding then {
+            sys -> typeCoding.system = sys "type-system";
+            nc.code as v -> typeCoding.code = v "type-code";
+            nc.display as v -> typeCoding.display = v "type-display";
+          } "type-coding";
+        } "nc";
+        noteCode.text as v -> typeCC.text = v "type-text";
+      } "type";
 
-  // multimediaEntry (värde-grenen): base64-data + mediaType.
-  src.parameter as mv where name = 'multimediaValueBase64' -> tgt.content as mContentEl then {
-    mv -> mContentEl.attachment = create('Attachment') as mAtt then {
-      mv -> mAtt.data = create('base64Binary') as mDataEl then {
-        mv.value as v -> mDataEl.value = v "media-data-value";
-      } "media-data";
-      src.parameter as mt where name = 'multimediaType' then {
-        mt.value as v -> mAtt.contentType = v "media-type";
-      } "media-type-bind";
-      src.parameter as nt3 where name = 'noteTitle' then {
-        nt3.value as v -> mAtt.title = v "media-title";
-      } "media-title-bind";
-    } "media-attachment";
-  } "content-media-value";
+      // description: clinicalDocumentNoteTitle
+      body.clinicalDocumentNoteTitle as title -> tgt.description = title "description";
 
-  // multimediaEntry (referens-grenen): url + mediaType, ingen data.
-  src.parameter as mr where name = 'multimediaReference' -> tgt.content as rContentEl then {
-    mr -> rContentEl.attachment = create('Attachment') as rAtt then {
-      mr.value as v -> rAtt.url = v "media-url";
-      src.parameter as mt2 where name = 'multimediaType' then {
-        mt2.value as v -> rAtt.contentType = v "media-ref-type";
-      } "media-ref-type-bind";
-      src.parameter as nt4 where name = 'noteTitle' then {
-        nt4.value as v -> rAtt.title = v "media-ref-title";
-      } "media-ref-title-bind";
-    } "media-ref-attachment";
-  } "content-media-reference";
+      // content: clinicalDocumentNoteText (ren fritext) XOR multimediaEntry. Ingen
+      // create('DocumentReference_Content') - samma nästlade-BackboneElement-begränsning.
+      body.clinicalDocumentNoteText as noteTextSrc then {
+        noteTextSrc.value as noteText -> tgt.content as content1 then {
+          noteText -> content1.attachment = create('Attachment') as att1 then {
+            noteText -> att1.contentType = 'text/plain; charset=utf-8' "content-type";
+            noteText -> att1.data = create('base64Binary') as data1 then {
+              noteText -> data1.value = noteText "content-data";
+            } "content-data-el";
+            body.clinicalDocumentNoteTitle as title2 -> att1.title = title2 "content-title";
+          } "attachment";
+        } "content-plaintext-wrap";
+      } "content-plaintext";
 
-  // dissentingOpinion[0] -> extension[dissentingOpinion] (bara FÖRSTA posten - se adapterns
-  // klasskommentar om varför en repeterande lista inte flattas generellt i denna PoC).
-  src.parameter as doid where name = 'dissentOpinionId' -> tgt.extension = create('Extension') as dissExt then {
-    doid -> dissExt.url = 'https://fhir.inera.se/StructureDefinition/dissenting-opinion' "diss-url";
-    doid -> dissExt.extension = create('Extension') as doidExt then {
-      doid -> doidExt.url = 'opinionId' "diss-opinionid-url";
-      doid -> doidExt.value = create('string') as doidEl then {
-        doid.value as v -> doidEl.value = v "diss-opinionid-value";
-      } "diss-opinionid-el";
-    } "diss-opinionid-ext";
-    src.parameter as dat where name = 'dissentAuthorTime' then {
-      dat -> dissExt.extension = create('Extension') as datExt then {
-        dat -> datExt.url = 'authorTime' "diss-authortime-url";
-        dat -> datExt.value = create('dateTime') as datEl then {
-          dat.value as v -> datEl.value = v "diss-authortime-value";
-        } "diss-authortime-el";
-      } "diss-authortime-ext";
-    } "diss-authortime-bind";
-    src.parameter as dop where name = 'dissentOpinion' then {
-      dop -> dissExt.extension = create('Extension') as dopExt then {
-        dop -> dopExt.url = 'opinion' "diss-opinion-url";
-        dop -> dopExt.value = create('string') as dopEl then {
-          dop.value as v -> dopEl.value = v "diss-opinion-value";
-        } "diss-opinion-el";
-      } "diss-opinion-ext";
-    } "diss-opinion-bind";
-    src.parameter as dpid where name = 'dissentPersonId' then {
-      dpid -> dissExt.extension = create('Extension') as dpidExt then {
-        dpid -> dpidExt.url = 'personId' "diss-personid-url";
-        dpid -> dpidExt.value = create('Identifier') as dpidEl then {
-          dpid -> dpidEl.system = 'urn:oid:1.2.752.129.2.1.4.1' "diss-personid-system";
-          dpid.value as v -> dpidEl.value = v "diss-personid-value";
-        } "diss-personid-el";
-      } "diss-personid-ext";
-    } "diss-personid-bind";
-    src.parameter as dpn where name = 'dissentPersonName' then {
-      dpn -> dissExt.extension = create('Extension') as dpnExt then {
-        dpn -> dpnExt.url = 'personName' "diss-personname-url";
-        dpn -> dpnExt.value = create('string') as dpnEl then {
-          dpn.value as v -> dpnEl.value = v "diss-personname-value";
-        } "diss-personname-el";
-      } "diss-personname-ext";
-    } "diss-personname-bind";
-  } "dissentingOpinion";
+      body.multimediaEntry as media where value.exists() -> tgt.content as content2 then {
+        media -> content2.attachment = create('Attachment') as att2 then {
+          media.mediaType as mt -> att2.contentType = mt "media-contentType";
+          media.value as mediaVal then {
+            mediaVal.value as vv -> att2.data = create('base64Binary') as data2 then {
+              vv -> data2.value = vv "media-data-value";
+            } "media-data-wrap";
+          } "media-data-el";
+          body.clinicalDocumentNoteTitle as title3 -> att2.title = title3 "media-title";
+        } "media-attachment";
+      } "content-media-value";
 
-  // author: header.author.authorId -> PractitionerRole (logisk referens).
-  src.parameter as aid where name = 'authorId' -> tgt.author = create('Reference') as authorRef then {
-    aid -> authorRef.type = 'PractitionerRole' "author-type";
-    aid -> authorRef.identifier = create('Identifier') as authorId then {
-      aid -> authorId.system = 'urn:oid:1.2.752.129.2.1.4.1' "author-id-system";
-      aid.value as v -> authorId.value = v "author-id-value";
-    } "author-id";
-    src.parameter as anm where name = 'authorName' then {
-      anm.value as v -> authorRef.display = v "author-display";
-    } "author-display-bind";
-  } "author";
+      body.multimediaEntry as media2 where reference.exists() -> tgt.content as content3 then {
+        media2.reference as ref -> content3.attachment = create('Attachment') as att3 then {
+          media2.mediaType as mt -> att3.contentType = mt "media-ref-contentType";
+          ref -> att3.url = ref "media-ref-url";
+          body.clinicalDocumentNoteTitle as title4 -> att3.title = title4 "media-ref-title";
+        } "media-ref-attachment";
+      } "content-media-ref";
 
-  // authenticator: header.signature.signatureId -> PractitionerRole + extension[signatureTime].
-  src.parameter as sid where name = 'signatureId' -> tgt.authenticator = create('Reference') as authnRef then {
-    sid -> authnRef.type = 'PractitionerRole' "authn-type";
-    sid -> authnRef.identifier = create('Identifier') as authnId then {
-      sid -> authnId.system = 'urn:oid:1.2.752.129.2.1.4.1' "authn-id-system";
-      sid.value as v -> authnId.value = v "authn-id-value";
-    } "authn-id";
-    src.parameter as snm where name = 'signatureName' then {
-      snm.value as v -> authnRef.display = v "authn-display";
-    } "authn-display-bind";
-  } "authenticator";
-  src.parameter as st where name = 'signatureTimestamp' -> tgt.extension = create('Extension') as sigExt then {
-    st -> sigExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-signature-time' "sig-url";
-    st -> sigExt.value = create('dateTime') as sigEl then {
-      st.value as v -> sigEl.value = v "sig-value";
-    } "sig-el";
-  } "signatureTime";
-
+      // dissentingOpinion[0] -> extension (delad extension, ägs inte av denna IG).
+      body.dissentingOpinion as dissent then {
+        dissent -> tgt.extension = create('Extension') as dissentExt then {
+          dissent -> dissentExt.url = 'https://fhir.inera.se/StructureDefinition/dissenting-opinion' "dissent-url";
+          dissent.opinionId as oid then {
+            oid.value as oidLeaf then {
+              oidLeaf.value as v -> dissentExt.extension = create('Extension') as opinionIdExt then {
+                oid -> opinionIdExt.url = 'opinionId' "opinionId-url";
+                v -> opinionIdExt.value = v "opinionId-value";
+              } "opinionId-ext";
+            } "opinionId-wrap";
+          } "opinionId";
+          dissent.authorTime as t -> dissentExt.extension = create('Extension') as authorTimeExt then {
+            t -> authorTimeExt.url = 'authorTime' "authorTime-url";
+            t -> authorTimeExt.value = t "authorTime-value";
+          } "authorTime-ext";
+          dissent.opinion as op -> dissentExt.extension = create('Extension') as opinionExt then {
+            op -> opinionExt.url = 'opinion' "opinion-url";
+            op -> opinionExt.value = op "opinion-value";
+          } "opinion-ext";
+          dissent.personId as pid2 then {
+            pid2 -> dissentExt.extension = create('Extension') as personIdExt then {
+              pid2 -> personIdExt.url = 'personId' "personId-url";
+              pid2 -> personIdExt.value = create('Identifier') as personIdVal then {
+                pid2.value as v -> personIdVal.value = v "personId-value";
+                pid2.system as sys -> personIdVal.system = sys "personId-system";
+              } "personId-identifier";
+            } "personId-ext";
+          } "personId";
+          dissent.personName as pn -> dissentExt.extension = create('Extension') as personNameExt then {
+            pn -> personNameExt.url = 'personName' "personName-url";
+            pn -> personNameExt.value = pn "personName-value";
+          } "personName-ext";
+        } "dissent-ext";
+      } "dissentingOpinion";
+    } "body";
+  } "careDocumentation";
 }

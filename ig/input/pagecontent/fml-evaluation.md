@@ -13,58 +13,84 @@ Syftet var att svara på en konkret fråga: kan [FHIR Mapping Language](https://
 3. Hur lätt är det att lägga till fler resurser (Encounter, Observation, ...) ovanpå andra
    tjänstekontrakt?
 
+Branchen fick senare en uppföljande, mer konkret beställning från Oskar: rätta mappningen mot
+nuvarande produktionsschema (efter PR #41:s XSD-baserade ommodellering), bygg om källadaptern så
+att källan registreras som en **riktig** logisk modell (inte en plattad `Parameters`-genväg), gör
+motorn generisk i matchbox-`$transform`-stil ("lägg till en map-fil och det funkar"), och behåll
+"ett anrop → en resurs" samtidigt som flera målresurser (Condition+Provenance,
+DocumentReference+Provenance) får dela samma underliggande tjänstekontrakt. De avsnitten nedan
+som beskriver resultatet av det är markerade med **(uppdaterat)**.
+
 ## Vad som byggdes
 
 Ett nytt Maven-modul, `bridge/fml-mapping-poc`, med:
 
-- `get-diagnosis-to-condition.map` – GetDiagnosis → `Condition`: personnummer→subject (DIAG-001),
-  diagnostyp→category via ConceptMap (DIAG-003), diagnoskod→code med OID→URI-slagning och
-  urn:oid-fallback, onset/abatement, meta.source, clinicalStatus/verificationStatus, recorder/
-  recordedDate, asserter/assertedDate-extension, chronicCondition-extension,
-  relatedDiagnosis-extension.
-- `get-diagnosis-to-provenance.map` – GetDiagnosis → `Provenance` (tre agenter: custodian/author/
-  assembler), som en **separat** StructureMap – se "Fjärde begränsningen" nedan för varför den
-  inte kunde vara en andra target i samma grupp.
-- `get-caredocumentation-to-documentreference.map` – GetCareDocumentation → `DocumentReference`:
-  status, masterIdentifier, date, meta.source, subject, context.related (careProcessId),
-  blockComparisonTime-extension, type (clinicalDocumentNoteCode), description, innehåll
-  (fritext icke-DocBook, samt båda multimediaEntry-grenarna: värde och referens), author,
-  authenticator, signatureTime-extension, dissentingOpinion[0]-extension (se "Vad som INTE
-  täcks" nedan för DocBook-narrativet/Composition, och varför bara post 0 av
-  dissentingOpinion-listan tas med).
-- Tre `ConceptMap`-resurser (`diagnosis-type`, `codesystem-oid`, ...) som motsvarar de YAML-filer
+- **(uppdaterat)** Källan är nu EHDS-TK:s publicerade logiska modeller
+  (`inera-ehds-lm-diagnosis`, `inera-ehds-lm-care-documentation`), inte en plattad `Parameters`-
+  resurs – se "Källdata är inte FHIR" nedan för hur.
+- `get-diagnosis-to-condition.map` – GetDiagnosis → `Condition`: category via ConceptMap
+  (Huvuddiagnos/Bidiagnos), diagnoskod→code med OID→URI-slagning och urn:oid-fallback, onset,
+  meta.source, clinicalStatus/verificationStatus, recorder/recordedDate, asserter/
+  assertedDate-extension, chronicDiagnosis-extension, relatedDiagnosis-extension. Giltigt
+  personnummer är inte längre ett fält-villkor i `.map`-filen – det är nu
+  `FmlEngine`:s deklarativa "stoppa resursen"-vakt, se punkt 1 nedan.
+- `get-diagnosis-to-provenance.map` – GetDiagnosis → `Provenance` (två agenter: custodian/
+  author), som en **separat** StructureMap mot SAMMA källa – se "Fjärde begränsningen" nedan för
+  varför en `transform()` inte kan producera båda målen i ett anrop, och "En källa, flera
+  målresurser" för hur `FmlEngine` nu orkestrerar det ändå.
+- `get-caredocumentation-to-documentreference.map` och `get-caredocumentation-to-provenance.map`
+  – samma mönster för GetCareDocumentation: status, masterIdentifier, date, meta.source, subject,
+  context.related (careProcessId), blockComparisonTime-extension, type
+  (clinicalDocumentNoteCode), description, innehåll (fritext icke-DocBook, samt båda
+  multimediaEntry-grenarna: värde och referens), author, authenticator, signatureTime-extension,
+  dissentingOpinion[0]-extension, och en egen Provenance-map (recorded från author.timestamp med
+  record.timestamp som fallback, två agenter).
+- Två `ConceptMap`-resurser (`diagnosis-type`, `codesystem-oid`) som motsvarar de YAML-filer
   Java-mapparna redan läser (`concept-maps/diagnosis-type.yaml`, `naming-systems.yaml`).
-- `FmlEngine` – kör `org.hl7.fhir.r4.utils.StructureMapUtilities` offline (ingen
-  packages.fhir.org-åtkomst krävs, se "Driftsfynd" nedan); en metod per målresurstyp
-  (`transformDiagnosis`, `transformDiagnosisProvenance`, `transformCareDocumentation`).
-- `RivtaDiagnosisParametersAdapter` / `RivtaCareDocumentationParametersAdapter` – plattar ut de
-  RIVTA-fält som används till en FHIR `Parameters`-resurs (se "Källdata är inte FHIR" nedan för
-  varför).
+- **(uppdaterat)** `FmlEngine` – en enda generisk `transform(key, source)`-metod, driven av en
+  deklarativ registry (`MappingDefinition`: källmodell, map-fil, gruppnamn, målresurstyp,
+  valfri FHIRPath-"stoppa resursen"-vakt) i stället för en hårdkodad Java-metod per
+  målresurstyp. Målinstansen skapas via reflektion (`Class.forName("org.hl7.fhir.r4.model." +
+  targetType)`), inte en ny `new Condition()`/`new Provenance()`-rad i Java för varje tillägg –
+  se "En källa, flera målresurser" nedan.
+- **(uppdaterat)** `GetDiagnosisJsonSourceBuilder` / `GetCareDocumentationJsonSourceBuilder` –
+  bygger en JSON-instans av respektive logiska modell direkt från RIVTA-JAXB-objekten, parsad av
+  `org.hl7.fhir.r4.elementmodel.JsonParser` till en riktig FML-källa (`Element`). Ersätter de
+  tidigare `RivtaDiagnosisParametersAdapter`/`RivtaCareDocumentationParametersAdapter`
+  (borttagna) – se "Källdata är inte FHIR" nedan.
 - `GetDiagnosisFmlComparisonTest` (7 tester) och `GetCareDocumentationFmlComparisonTest`
-  (5 tester) – jämförande tester som körs genom **både** den riktiga Java-mappern och FML-motorn
-  på samma indata och jämför resultatet fält för fält. Alla 12 är gröna.
+  (6 tester) – jämförande tester som körs genom **både** den riktiga Java-mappern och FML-motorn
+  på samma indata och jämför resultatet fält för fält. Alla 13 är gröna, inklusive ett nytt test
+  som verifierar att "stoppa resursen"-vakten returnerar `null` precis som Java-sidans tomma
+  lista.
 
 Kör dem med `cd bridge && mvn test -pl fml-mapping-poc -am`.
 
 ## Täckning – vad är faktiskt översatt till FML
 
 Siffrorna nedan räknar fält/regler, inte rader kod, och är avstämda mot de nuvarande
-Java-mapparna (`GetDiagnosisMapper.java`, `GetCareDocumentationMapper.java`) på denna grens
-startpunkt.
+Java-mapparna (`GetDiagnosisMapper.java`, `GetCareDocumentationMapper.java`) EFTER PR #41:s
+XSD-baserade ommodellering – dvs. mot det schema som faktiskt körs i produktion i dag, inte
+startpunktens.
 
-**GetDiagnosis → Condition + Provenance: 15 av 15 fält/regler översatta (100 %).**
-clinicalStatus, verificationStatus, category (inkl. DIAG-003), code (inkl. OID-fallback), subject
-(inkl. DIAG-001), onset, abatement, meta.source, recorder, recordedDate, asserter, assertedDate,
-chronicCondition, relatedDiagnosis, och Provenance (tre agenter). Den enda posten som inte är en
-"regel" i vanlig mening är VG-scope-filtret (`requestedVgHsaId`) – se "Fjärde begränsningen" nedan;
-det är en semantisk gräns i motorn (stoppa en hel post), inte ett fält som saknar en regel.
+**GetDiagnosis → Condition + Provenance: samtliga fält/regler översatta.**
+clinicalStatus, verificationStatus, category (Huvuddiagnos/Bidiagnos via ConceptMap), code
+(inkl. OID-fallback), subject, onset, meta.source, recorder, recordedDate, asserter,
+assertedDate, chronicDiagnosis, relatedDiagnosis, och Provenance (två agenter: custodian/
+author). `abatement`/`period` finns inte längre i det nuvarande RIVTA-schemat
+(`diagnosisTime` är en enda instant, se teamminnet) och är därför inte en lucka utan en korrekt
+avspegling av källan. Giltigt personnummer (det som tidigare krävde ett separat VG-scope-liknande
+filter) är inte längre ett fält i `.map`-filen: det är nu `FmlEngine`:s deklarativa
+"stoppa resursen"-vakt (en FHIRPath-regel i registry-posten), verifierad av ett eget test
+(`stoppaResursen_felaktigtPersonnummer_ingenResursAlls`) – se punkt 1 nedan.
 
-**GetCareDocumentation → DocumentReference: 13 av 15 fält/regler översatta (cirka 87 %).**
+**GetCareDocumentation → DocumentReference + Provenance: samtliga fält utom två (se tabellen).**
 Översatt: status, masterIdentifier, date, meta.source, subject, context.related,
 blockComparisonTime, type, description, content (fritext icke-DocBook + båda
 multimediaEntry-grenarna, räknas som en post), author, authenticator, signatureTime,
-dissentingOpinion[0]-extension. **Explicit INTE översatt** (se nästa avsnitt för varför och hur
-allvarligt varje fall är):
+dissentingOpinion[0]-extension, och Provenance (recorded från author.timestamp med
+record.timestamp som fallback, två agenter: custodian/author). **Explicit INTE översatt** (se
+nästa avsnitt för varför och hur allvarligt varje fall är):
 
 | Fält/regel | Status | Orsak |
 |---|---|---|
@@ -124,19 +150,43 @@ alias LmDiagnosis as source` parsar och navigerar den nästlade strukturen
 (`diagnosis.diagnosisHeader.documentId`, `diagnosis.diagnosisBody.diagnosisTime`) utan fel.
 
 **Detta ändrar slutsatsen ovan påtagligt**, men inte helt: adapterarbetet (RIVTA-XML → en
-instans av den logiska modellens Java/FHIR-representation) måste fortfarande göras NÅGONSTANS –
-antingen ett eget JAXB→logisk-modell-serialiseringssteg, eller genom att RIVTA-avkodningen byggs
-om att producera den logiska modellens form direkt i stället för dagens JAXB-POJO:er. Vad som
-FAKTISKT försvinner med den redan-publicerade modellen är (a) arbetet att *författa och
-versionshantera* den logiska modellen själv (redan gjort, och av Oskar själv i ett annat repo
-som ändå måste hållas i synk med mappningsreglerna), och (b) den PoC-specifika
-Parameters-plattningen som tappar struktur och typning (se ovan) – man mappar mot RIVTA:s egna
-fältnamn och nästlingsnivåer, inte en handgjord lista av lösa `Parameters.parameter`-poster. Det
-återstår alltså ett adapterlager, men ett tunnare och redan delvis specificerat ett, och
-återanvändbart över alla TK:er eftersom samma logiska modeller redan finns för varenda kontrakt
-i EHDS-TK – vilket också direkt besvarar punkt 3 (nya resurser): `IneraEHDSLMObservations.fsh`
-m.fl. finns redan där, så "lägg till Observation" blir en ny `.map`-fil mot en källa som redan
-är definierad, inte ett nytt modelleringsarbete.
+instans av den logiska modellens form) måste fortfarande göras NÅGONSTANS – antingen ett eget
+JAXB→logisk-modell-serialiseringssteg, eller genom att RIVTA-avkodningen byggs om att producera
+den logiska modellens form direkt i stället för dagens JAXB-POJO:er. Vad som FAKTISKT försvinner
+med den redan-publicerade modellen är (a) arbetet att *författa och versionshantera* den logiska
+modellen själv (redan gjort, och av Oskar själv i ett annat repo som ändå måste hållas i synk med
+mappningsreglerna), och (b) den PoC-specifika Parameters-plattningen som tappar struktur och
+typning (se ovan) – man mappar mot RIVTA:s egna fältnamn och nästlingsnivåer, inte en handgjord
+lista av lösa `Parameters.parameter`-poster.
+
+### Andra rättelse: adapterlagret är nu byggt, inte bara spikat – och det blir JSON, inte Java-objekt
+
+Ovanstående var skrivet när bara `LogicalModelSpikeTest` fanns (en navigering av en tom
+`StructureDefinition`, inget faktiskt `transform()` mot en ifylld instans). Oskars uppföljande
+fråga var rakt på sak: **soap/xml behöver bli json, eller hur?** – svaret är ja, och det är nu
+implementerat, inte bara en gissning:
+
+- `GetDiagnosisJsonSourceBuilder`/`GetCareDocumentationJsonSourceBuilder` går från de redan
+  avkodade RIVTA-JAXB-objekten (SOAP/XML är redan Java-objekt vid den punkten, ingen extra
+  XML-avkodning behövs) till en handbyggd `com.google.gson.JsonObject`-trädstruktur som
+  speglar den logiska modellens fältnamn/nästling exakt.
+- Den JSON-strängen matas in i `org.hl7.fhir.r4.elementmodel.JsonParser.parse(json,
+  sd.getType())`, som ger tillbaka ett riktigt `org.hl7.fhir.r4.elementmodel.Element` – samma
+  bastyp (`Base`) som en vanlig FHIR-resurs skulle ge. Det är detta `Element` som skickas in som
+  `source` till `StructureMapUtilities.transform()`, inte en Java-POJO av den logiska modellens
+  "typ" (det finns ingen sådan POJO-klass – logiska modeller genereras bara till
+  `StructureDefinition`+FSH, aldrig till Java-bönor).
+- Varför JSON och inte t.ex. XML rakt in i `elementmodel`-parsern: `JsonParser` är den enklaste,
+  mest beprövade vägen in i `elementmodel.Element` i denna HAPI-version, och Gson fanns redan
+  transitivt på classpath (via `hapi-fhir-validation`) – ingen ny dependency behövdes. En
+  XML-väg (`elementmodel.XmlParser`) skulle fungera likvärdigt men ger inget extra: adapterlagret
+  (fältnamn, OID→URI, datumformat) måste skrivas oavsett vilket av de två man väljer.
+- Detta adapterlager är fortfarande det enda handskrivna steget per tjänstekontrakt – men det är
+  nu en vanlig trädbyggande Java-klass (lätt att testa isolerat, inga FML-körningsfel inblandade)
+  i stället för en `Parameters`-plattning som tappade struktur. Det besvarar också punkt 3 (nya
+  resurser) konkret: `IneraEHDSLMObservations.fsh` m.fl. finns redan i EHDS-TK, så "lägg till
+  Observation" blir en ny `XxxJsonSourceBuilder` (samma Gson-trädmönster) + en ny `.map`-fil mot
+  en källa som redan är definierad, inte ett nytt modelleringsarbete.
 
 ## 1. Felhantering: default / data-absent-reason / stoppa resursen
 
@@ -147,25 +197,36 @@ De tre felhanteringsmönstren som redan är beslutade för GetDiagnosis (PR #38,
 |---|---|---|
 | **OID utan mappning → fallback-URI** (`urn:oid:<oid>`) | en rad: `namingSystem.oidToUri(oid)` med inbyggd fallback | **Går, men måste skrivas för hand två gånger.** `translate()` mot en `ConceptMap` ger *alltid* ett fast värde för omappade koder (ConceptMap `unmapped.mode`), inte en beräknad sträng. Att bygga `urn:oid:<oid>` kräver en andra, separat regel vars `where()`-villkor är den **bokstavliga negationen** av den mappade regelns villkor (samma OID-lista skriven ut två gånger, en gång rakt och en gång negerad). Ingen mekanism tvingar dem att hållas i synk – lägg till ett kodverk i YAML-filen och FML-regeln vet inte om det. |
 | **Diagnostyp utan ConceptMap-mappning → `data-absent-reason=unknown`, ingen gissad kod** (DIAG-003) | `Optional.ifPresentOrElse(...)` | **Går, med samma dubbleringsproblem som ovan.** `ConceptMap`-"unmapped"-läget kan bara ge en kod, inte byta till en helt annan resursform (en extension i stället för en coding). Löst här med samma mönster: två speglade regler. |
-| **Ogiltigt/saknat personnummer → stoppa posten** (DIAG-001) | `if (!isValidPersonId(...)) return null;` stoppar **hela** `Condition`+`Provenance`-paret innan något annat fält sätts | **Går inte på regelnivå.** Se nedan. |
+| **Ogiltigt/saknat personnummer → stoppa posten** (DIAG-001) | `if (!isValidPersonId(...)) return null;` stoppar **hela** `Condition`+`Provenance`-paret innan något annat fält sätts | **Går inte på regelnivå – men går deklarativt på motornivå.** Se nedan. |
 
-### Det here finns ett verkligt (inte bara stilistiskt) gap: att stoppa en hel resurs
+### Tredje rättelse: stoppa en hel resurs går inte i en `.map`-regel, men går nu som en konfigurationsrad i registryt
 
-Java-mappern kan returnera `null` för hela posten mitt i mappningen. En FML-regel kan bara
-avstå från att sätta **ett enskilt fält** (`where()` slår inte till → inget `subject` skapas,
-men `Condition`-resursen skapas och skickas vidare ändå, bara utan `subject`). Vårt test
-(`diag001_...`) visar precis detta: Java-sidan ger en tom lista (posten finns inte), FML-sidan
-ger en `Condition` utan `subject`. **För att verkligen stoppa hela resursen i FML måste villkoret
-flyttas upp en nivå**, till den kod som itererar över listan av diagnoser och anropar
-`transform()` per post – dvs. tillbaka till Java (eller vilken värdkod som anropar
-StructureMap-motorn). FML i sig har ingen "skippa hela målobjektet"-konstruktion inifrån en regel.
+Slutsatsen stod tidigare som ett olösbart gap. Den håller fortfarande för FML:s regelspråk
+självt: en enskild regel kan bara avstå från att sätta ETT fält (`where()` slår inte till → inget
+`subject`, men resursen skapas och skickas vidare ändå). Men Oskars generiska motor-ombyggnad gav
+en naturlig plats att lösa det ANDRA stället än i `.map`-filen: `FmlEngine.MappingDefinition` har
+nu ett valfritt fält, `stopIfFalseFhirPath`, en FHIRPath-boolesk som evalueras mot källan
+(`org.hl7.fhir.r4.fhirpath.FHIRPathEngine`) INNAN `transform()` över huvud taget anropas. För
+`GetDiagnosisToCondition` är den satt till
+`diagnosis.diagnosisHeader.patientId.value.matches('^[0-9]{12}$')`; om den utvärderas falskt
+returnerar `FmlEngine.transform(...)` `null` utan att röra `.map`-filen eller skapa någon
+resurs alls – verifierat av ett dedikerat test
+(`stoppaResursen_felaktigtPersonnummer_ingenResursAlls`) som jämför mot Java-mapperns tomma lista.
 
-**Slutsats för punkt 1:** FML ger konfiguration för två av tre mönster (default/fallback-värde,
-data-absent-reason-flagga), men med en viktig brist: ett omappat värde kräver en HANDSKRIVEN,
-duplicerad negation av villkoret snarare än ett riktigt "annars"-grenval. Det tredje mönstret
-(stoppa hela resursen) kan inte uttryckas i FML-regler alls – det måste ligga i värdkoden runt
-StructureMap-anropet, precis som i dag. Att "styra felhantering via konfiguration" blir därför
-en delvis sanning: två av tre fall flyttar in i `.map`-filen, det tredje stannar i Java oavsett.
+Det här är fortfarande inte "en FML-regel" i ordets strikta mening – vakten ligger i Java-kod
+(`FmlEngine`), inte i `.map`-filens eget språk. Men den är nu en **deklarativ rad i en registry**,
+inte en if-sats inbäddad i en mappningsmetod: att lägga till ett nytt stopp-villkor för en ny
+resurs är en ny `stopIfFalseFhirPath`-sträng i en `MappingDefinition`-post, inte ny Java-logik.
+Det är skillnaden mellan "kan inte uttryckas i FML" (den ursprungliga slutsatsen) och "uttrycks
+inte i `.map`-filen, men uttrycks ändå konfigurativt, en nivå upp" – en rimlig mellanlösning givet
+att FML:s regelspråk saknar en egen "avbryt hela målobjektet"-konstruktion.
+
+**Slutsats för punkt 1:** alla tre mönstren kan nu styras via konfiguration snarare än
+hårdkodad Java-logik per resurstyp – men på två olika nivåer. Default/fallback-värde och
+data-absent-reason-flagga är `.map`-regler (med en kvarstående brist: ett omappat värde kräver
+en HANDSKRIVEN, duplicerad negation av villkoret snarare än ett riktigt "annars"-grenval). Stoppa
+hela resursen är en rad i `FmlEngine`s registry (en FHIRPath-vakt), inte en `.map`-regel. Ingen
+av de tre kräver längre en ny Java-metod per resurstyp för att konfigureras.
 
 ### Fjärde begränsningen (upptäckt när Provenance lades till): en `transform()` tar bara EN target
 
@@ -174,11 +235,50 @@ och `getInputName()` kastar `This engine does not support multiple source inputs
 bara "source" men gäller identiskt för `target`-moden) så snart en grupp deklarerar mer än en
 input av samma mode. Att producera två målresurser (`Condition` + `Provenance`) från samma
 källpost med ETT `transform()`-anrop går alltså inte – lösningen här var två helt separata
-`StructureMap`-filer (`get-diagnosis-to-condition.map` och `get-diagnosis-to-provenance.map`),
-körda med två separata `transform()`-anrop från samma källdata. Det här är ytterligare en punkt
-där "konfiguration" har en hård gräns: att orkestrera FLERA målresurser per källpost (vilket varje
-TK-mappning i den här bryggan gör – Condition+Provenance, DocumentReference+Provenance+eventuell
-Composition) måste ligga i anropande kod, inte i en enda `.map`-fil.
+`StructureMap`-filer (`get-diagnosis-to-condition.map` och `get-diagnosis-to-provenance.map`,
+och motsvarande för GetCareDocumentation), körda med två separata `transform()`-anrop mot samma
+källa. Det här är ytterligare en punkt där "konfiguration" har en hård gräns: att orkestrera
+FLERA målresurser per källpost (vilket varje TK-mappning i den här bryggan gör –
+Condition+Provenance, DocumentReference+Provenance+eventuell Composition) måste ligga i
+anropande kod, inte i en enda `.map`-fil. "Ett anrop → en resurs" håller alltså fortfarande på
+`transform()`-nivå; det som ändrats är VAD som orkestrerar flera sådana anrop mot samma källa,
+se nedan.
+
+## En källa, flera målresurser: en matchbox-`$transform`-liknande generisk motor
+
+Oskars konkreta beställning var att göra `FmlEngine` generisk i stil med matchbox-IG:ns
+[`$transform`-operation](https://github.com/ahdis/matchbox) – "lägg till en map-fil och det
+funkar" – samtidigt som "ett anrop → en resurs" behålls, men flera resurser (som delar samma
+tjänstekontrakt i botten) kan konfigureras oberoende av varandra. Lösningen:
+
+- En `record MappingDefinition(key, sourceLogicalModelResource, mapResourcePath, groupName,
+  targetResourceType, stopIfFalseFhirPath)` beskriver EN rad i en registry (en lista, inte en
+  Java-metod). `GetDiagnosisToCondition` och `GetDiagnosisToProvenance` är två separata poster
+  som pekar på SAMMA `sourceLogicalModelResource` (`/fhir/lm-diagnosis.json`) men olika
+  `mapResourcePath`/`targetResourceType` – precis "olika resurser, samma tjänstekontrakt i
+  botten".
+- `FmlEngine` har en enda publik metod, `transform(String key, Base source)`, som slår upp
+  posten, kör den valfria FHIRPath-vakten (se punkt 1 ovan), och instansierar målet via
+  reflektion: `Class.forName("org.hl7.fhir.r4.model." + def.targetResourceType())
+  .getDeclaredConstructor().newInstance()`. Ingen `transformDiagnosis()`/
+  `transformDiagnosisProvenance()`-metod per resurstyp längre – att lägga till en femte
+  målresurs (t.ex. GetDiagnosis → `Observation`, om det fanns ett sådant behov) är en ny post i
+  listan + en ny `.map`-fil, noll ny Java utanför registryt.
+- Konstruktorn parsar alla `.map`-filer och cachar alla källmodeller EN gång vid uppstart
+  (`computeIfAbsent`-dedup per källmodell-sökväg, eftersom två poster delar samma
+  `lm-diagnosis.json`), inte per anrop.
+- "Ett anrop → en resurs" är därmed fortfarande sant på `transform()`-nivå (varje anrop till
+  `FmlEngine.transform(key, source)` ger exakt en målresurs eller `null`), men anropande kod
+  (testerna i denna PoC; i en riktig brygga: `fhir-server`/`ntjp-proxy`) kan nu loopa över
+  registryts nycklar för samma tjänstekontrakts källa och få ut så många målresurser som
+  konfigurationen beskriver, utan att någon av `.map`-filerna eller `FmlEngine` själv behöver
+  veta om varandra.
+
+**Slutsats:** detta är den närmaste FML kommer matchbox-`$transform`s "generisk endpoint, map-fil
+som konfiguration"-modell inom denna PoC:s ramar. Den genuina gränsen (en `transform()`-anrop =
+en källa + en map-fil = en målresurstyp) är kvar och verkar vara en permanent egenskap av
+`StructureMapUtilities` i den här versionen, inte något som går att konfigurera bort – men
+ORKESTRERINGEN av flera sådana anrop mot samma tjänstekontrakt är nu helt deklarativ.
 
 ## 2. Dokumentutbyte vs resursorienterat API
 
@@ -305,7 +405,33 @@ Dessa upptäcktes genom att faktiskt köra `org.hl7.fhir.r4` (hapi-fhir-validati
    `Base64BinaryType`. Lösning: samma bind-mönster som för `dateTime`/`boolean` ovan –
    `att.data = create('base64Binary') as dataEl then { v -> dataEl.value = v; }` – eftersom det
    bygger en riktig `Base64BinaryType` och tilldelar den, i stället för att försöka casta en
-   `StringType` direkt.
+   `StringType` direkt. **Ytterligare fynd när källan blev ett riktigt `elementmodel.Element`
+   i stället för en `Parameters`-resurs (se nedan, punkt 8)**: `base64Binary` kräver dessutom att
+   KÄLLSTRÄNGEN redan är giltig base64 (`Base64BinaryType.checkValidBase64`) – FML har ingen
+   kodningsfunktion av sitt eget, så `clinicalDocumentNoteText` måste Base64-kodas av
+   `GetCareDocumentationJsonSourceBuilder` INNAN den hamnar i källans JSON, inte av någon
+   `.map`-regel. Samma begränsning gällde redan den tidigare `Parameters`-adaptern
+   (`noteTextPlainBase64`) – den är inte ny, men syns tydligare nu eftersom källan navigeras ett
+   steg djupare (se punkt 7).
+7. **En källväg kan inte ha mer än ETT punktseparerat segment direkt före `as` i en regel**
+   (`b.typeOfDiagnosis.coding as dtc` kastar `FHIRLexer$FHIRLexerException: Found "." expecting
+   ";"`, trots att samma väg fungerar fint som höger-led i ett `where()`-uttryck). Upptäcktes när
+   källan blev ett riktigt nästlat `elementmodel.Element` (den tidigare `Parameters`-adaptern
+   hade bara en nivås nästling, så detta syntes aldrig där). Lösning: bryt upp i nästlade
+   en-segments `then`-block (`b.typeOfDiagnosis as tod then { tod.coding as dtc -> ... }`) –
+   samma arbetsomgång som behövs för punkt 2 ovan, bara en nivå djupare.
+8. **`create(primitivType) as x then { v -> x.value = v }` ger fel resultat OM `v` är bundet till
+   den råa käll-`Element`:en direkt, i stället för till en extra `.value`-navigering på den.**
+   `elementmodel.Element.getProperty()` har ett specialfall: navigering av `.value` på ett
+   element där `isPrimitive()` är sant returnerar en riktig `StringType` med själva textvärdet.
+   Hoppas det steget över och `v` är den råa `Element`:en, blir `x.value = v` i praktiken
+   `PrimitiveType.setProperty()` → `setValueAsString(v.toString())`, och `Element.toString()` ger
+   formatet `"fältnamn=typ[värde]"` (t.ex. `"authorTime=dateTime[2024-01-01T12:00:00+01:00]"`) –
+   exakt samma klass av bugg som `BooleanType.toString()` i punkt 5, men här orsakad av KÄLLANS
+   typ (`Element`) snarare än MÅLETS. Lösning: alltid ett extra bindningssteg,
+   `t.value as tv -> x.value = tv`, innan tilldelningen. Denna typ av källa (`elementmodel`)
+   introducerades i den här sessionen tillsammans med den riktiga logiska modellen – den syns
+   inte med en `Parameters`-källa, vars parametervärden redan är färdiga primitiver.
 
 Ingen av dessa är dokumenterade begränsningar i FML-specen – de är beteenden hos just denna
 Java-implementation av motorn, upptäckta genom att köra den. En annan StructureMap-motor
@@ -338,29 +464,33 @@ oftast kvar, hämtningsbara, på `gh-pages`-grenen.
 
 ## Rekommendation
 
-Upptäckten att EHDS-TK redan publicerar riktiga logiska modeller för samtliga tjänstekontrakt
-(se rättelsen ovan) väger upp en del av det tidigare "inte värt det just nu" – adapterarbetet är
-mindre och mer återanvändbart än PoC:ns `Parameters`-plattning fick det se ut. Rekommendationen
-justeras därför:
+Den riktiga logiska modellen och den generiska motorn är nu kört och verifierat, inte bara
+spikat – `GetDiagnosisFmlComparisonTest` (7 tester) och `GetCareDocumentationFmlComparisonTest`
+(6 tester) körs mot en EKTA `inera-ehds-lm-diagnosis`/`inera-ehds-lm-care-documentation`-källa
+via `elementmodel.JsonParser`, inte en tom navigering av en `StructureDefinition`.
+Rekommendationen justeras därför ytterligare en gång:
 
-- **Fortfarande inte värt att migrera befintliga mappare rakt av just nu**, men av ett svagare
-  skäl än tidigare: de logiska modellerna finns redan, men de har inte provkörts med RIKTIGA
-  RIVTA-instanser genom en serialiserare (den här spiken registrerade bara
-  `StructureDefinition`:n och navigerade den tomt – inget faktiskt transform() mot en ifylld
-  instans har körts än). Två av tre önskade felhanteringsmönster kräver fortfarande handskriven
-  duplicering eller stannar i Java oavsett källmodell.
-- **Värt ett konkret nästa steg**, inte bara "hålla ögonen på": kör en riktig
-  `transform()`-instans mot `inera-ehds-lm-diagnosis` (bygg en liten
-  JAXB→logisk-modell-serialiserare för GetDiagnosis, eller skriv en handgjord testinstans) och
-  jämför mot både Java-mappern och denna PoC:s `Parameters`-variant. Om det går lika smidigt som
-  den här spikens parse-steg antyder, är EHDS-TK:s logiska modeller den naturliga grunden för en
-  eventuell fortsättning – inte en ny `Parameters`-adapter per tjänstekontrakt.
-- **Lägga till nya resurser (punkt 3) är nu en starkare vinst än först bedömt**: eftersom
-  `IneraEHDSLMObservations.fsh`, `IneraEHDSLMCareDocumentation.fsh` m.fl. redan finns i EHDS-TK,
-  är modelleringsarbetet för en ny resurs redan gjort för varje existerande tjänstekontrakt –
-  kvar står bara att skriva `.map`-filen och en serialiserare från RIVTA-XML till den logiska
-  modellens form.
-- Om arbetet fortsätter: bygg en liten testsvit (som `GetDiagnosisFmlComparisonTest` här) runt
-  varje regel innan den litas på – de tysta fel som hittades ovan (punkt 1 särskilt) gör
-  "skriv och lita på" olämpligt för FML i denna motorversion, oavsett vilken källmodell som
-  används.
+- **Fortfarande inte värt att migrera produktionsmapparna rakt av**, men inte längre av brist på
+  bevis – det är nu ett avvägt val snarare än en okänd risk. Skälen: (a) felsökning i FML sker
+  med betydligt sämre felmeddelanden än Java (se "Konkreta motorbegränsningar" ovan – nio
+  distinkta, odokumenterade motor-quirks hittades under arbetet, flera av dem helt tysta), (b)
+  omappade koder kräver fortfarande handskriven, duplicerad villkorsnegation i stället för ett
+  riktigt "annars"-grenval, och (c) DocBook→narrativ/Composition-Strategy B kan inte uttryckas
+  alls. Ingen av dessa tre är löst av den här omgångens arbete.
+- **De tre ursprungliga frågorna har nu konkreta, verifierade svar** snarare än spekulation:
+  felhantering kan styras deklarativt (två mönster i `.map`-filen, det tredje – stoppa hela
+  resursen – som en FHIRPath-rad i `FmlEngine`s registry, se punkt 1); dokumentutbyte och
+  resurs-API var redan två skilda, återanvändbara spår i FML:s egen modell (punkt 2); och nya
+  resurser ovanpå ett redan adapterat tjänstekontrakt är nu bokstavligen "en ny
+  `XxxJsonSourceBuilder` + en ny `.map`-fil + en ny registry-rad", verifierat av att
+  GetCareDocumentations Provenance-mål lades till på exakt det sättet utan att röra
+  `FmlEngine`s kärnkod.
+- **Om arbetet fortsätter**, är nästa naturliga steg inte längre arkitektur utan bredd: fler
+  tjänstekontrakt (t.ex. GetCareContact mot `IneraEHDSLMObservations.fsh` eller motsvarande),
+  och – om DocBook-begränsningen ska lösas inom FML snarare än kringgås – undersöka om senare
+  HAPI-versioner exponerar en extension-punkt för användardefinierade transformer (ingen hittades
+  i denna motorversion, se punkt 4/"genuint arkitektoniskt blockerat" ovan).
+- Bygg alltid en jämförande testsvit (som de två `*FmlComparisonTest`-klasserna här) runt varje
+  regel innan den litas på – de tysta fel som hittades i den här sessionen (särskilt punkt 1 i
+  motorbegränsningarna, och punkt 8:s `.value`-rebindningskrav) gör "skriv och lita på" olämpligt
+  för FML i denna motorversion, oavsett källmodell.

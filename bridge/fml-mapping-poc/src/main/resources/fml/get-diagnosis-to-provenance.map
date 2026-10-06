@@ -1,75 +1,60 @@
-/// FML-utvärdering: GetDiagnosis (RIVTA) -> Provenance.
-///
-/// Egen StructureMap, inte en andra "target" i GetDiagnosisToCondition.map: motorns
-/// StructureMapUtilities.transform(appInfo, source, map, target)-API tar bara EN source och EN
-/// target-variabel (se StructureMapUtilities.getInputName(), som kastar
-/// "This engine does not support multiple source inputs" så snart en grupp deklarerar mer än
-/// en input av samma mode - källkodskommentaren nämner bara source men gäller identiskt för
-/// target). Att producera flera målresurser (Condition + Provenance) från samma källpost kräver
-/// alltså antingen flera separata StructureMap-anrop (som här) eller egen orkestrerande kod runt
-/// motorn - en konkret gräns för hur långt "konfiguration" kan bära utan Java-kod, se
-/// fml-evaluation.md.
+/// FML-utvärdering: GetDiagnosis (RIVTA) -> Provenance. Delar källa (inera-ehds-lm-diagnosis)
+/// med get-diagnosis-to-condition.map - samma tjänstekontrakt, två olika målresurser, två
+/// StructureMap-filer (transform() stödjer bara en target per anrop, se fml-evaluation.md
+/// "Fjärde begränsningen"). custodian/author är de två agenter som kan härledas ur källan;
+/// assembler (bryggans eget HSA-id) och Provenance.target (korrelations-id mot den redan
+/// skapade Condition) är bryggans egna orkestreringsbeslut, inte RIVTA-data, och sätts av
+/// anropande kod efter transform() - inte i mappen, se FmlEngine-javadoc.
 map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToProvenance" = "GetDiagnosisToProvenance"
 
-uses "http://hl7.org/fhir/StructureDefinition/Parameters" alias RivtaDiagnosis as source
+uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-diagnosis" alias LmDiagnosis as source
 uses "http://hl7.org/fhir/StructureDefinition/Provenance" alias Provenance as target
 
-group GetDiagnosisToProvenance(source src : RivtaDiagnosis, target tgt : Provenance) {
+group GetDiagnosisToProvenance(source src : LmDiagnosis, target tgt : Provenance) {
+  src.diagnosis as d then {
+    d.diagnosisHeader as h then {
+      h.accountableHealthcareProfessional as ahp then {
+        // recorded: samma källa som Condition.recordedDate (authorTime), men instant i stället
+        // för dateTime - castToInstant() saknar Element-fallback (till skillnad från
+        // castToDateTime()), så värdet måste packas in via create('instant') + bindning, samma
+        // mönster som base64Binary-fyndet i fml-evaluation.md.
+        ahp.authorTime as t then {
+          // Bindningen måste gå via .value för att få en riktig StringType (vars toString()
+          // ger rätt råtext) - annars anropas PrimitiveType.setProperty()'s
+          // setValueAsString(value.toString()) på det råa Element-objektet självt, samma
+          // typkonverteringsbugg som BooleanType-fyndet i fml-evaluation.md.
+          t.value as tv -> tgt.recorded = create('instant') as rec then {
+            tv -> rec.value = tv "recorded-value";
+          } "recorded-wrap";
+        } "recorded";
 
-  src.parameter as ri where name = 'recorderAuthorInstant' -> tgt.recorded = create('instant') as recEl then {
-    ri.value as v -> recEl.value = v "recorded-value";
-  } "recorded";
+        // custodian: careGiverHSAId. Ingen create('Provenance_Agent') - nästlade
+        // BackboneElements saknar en fristående StructureDefinition och create() kastar
+        // "Unknown Resource or Type Name" för dem; dest.makeProperty()-reflektionen skapar
+        // elementet själv om create() utelämnas helt, se fml-evaluation.md fynd 4.
+        ahp.healthcareProfessionalCareGiverHSAId as cg then {
+          cg.value as v -> tgt.agent as custodianAgent then {
+            v -> custodianAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'custodian') "custodian-type";
+            v -> custodianAgent.who = create('Reference') as custodianWho then {
+              v -> custodianWho.identifier = create('Identifier') as custodianId then {
+                v -> custodianId.value = v "custodian-id-value";
+              } "custodian-id";
+            } "custodian-who";
+          } "custodian-agent";
+        } "custodian";
 
-  // Tre agenter (custodian/author/assembler) - samma mönster som ProvenanceBuilder.addAgent(),
-  // men upprepat tre gånger eftersom FML inte har något sätt att loopa över en
-  // (roll, hsaId)-lista deklarativt; varje agent är en egen regel.
-  src.parameter as cp where name = 'careProviderHsaId' -> tgt.agent as custAgent then {
-    cp -> custAgent.type = create('CodeableConcept') as custType then {
-      cp -> custType.coding = create('Coding') as custCoding then {
-        cp -> custCoding.system = 'http://terminology.hl7.org/CodeSystem/provenance-participant-type' "cust-cs-system";
-        cp -> custCoding.code = 'custodian' "cust-cs-code";
-      } "cust-coding";
-    } "cust-type";
-    cp -> custAgent.who = create('Reference') as custWho then {
-      cp -> custWho.identifier = create('Identifier') as custId then {
-        cp -> custId.system = 'urn:oid:1.2.752.129.2.1.4.1' "cust-id-system";
-        cp.value as v -> custId.value = v "cust-id-value";
-      } "cust-id";
-    } "cust-who";
-  } "agent-custodian";
-
-  src.parameter as cu where name = 'careUnitHsaId' -> tgt.agent as authAgent then {
-    cu -> authAgent.type = create('CodeableConcept') as authType then {
-      cu -> authType.coding = create('Coding') as authCoding then {
-        cu -> authCoding.system = 'http://terminology.hl7.org/CodeSystem/provenance-participant-type' "auth-cs-system";
-        cu -> authCoding.code = 'author' "auth-cs-code";
-      } "auth-coding";
-    } "auth-type";
-    cu -> authAgent.who = create('Reference') as authWho then {
-      cu -> authWho.identifier = create('Identifier') as authId then {
-        cu -> authId.system = 'urn:oid:1.2.752.129.2.1.4.1' "auth-id-system";
-        cu.value as v -> authId.value = v "auth-id-value";
-      } "auth-id";
-    } "auth-who";
-  } "agent-author";
-
-  // assembler (EHDS-bryggan): MapperContext.bridgeHsaId finns inte i källdatat (det är en
-  // bryggkonfigurationsparameter, inte ett RIVTA-fält) - skickas in som en egen parameter av
-  // testkoden, se RivtaDiagnosisParametersAdapter. Detta är samma typ av "bryggkonfiguration
-  // utanför själva meddelandet"-begränsning som noterats för code-/meta.source-reglerna.
-  src.parameter as br where name = 'bridgeHsaId' -> tgt.agent as asmAgent then {
-    br -> asmAgent.type = create('CodeableConcept') as asmType then {
-      br -> asmType.coding = create('Coding') as asmCoding then {
-        br -> asmCoding.system = 'http://terminology.hl7.org/CodeSystem/provenance-participant-type' "asm-cs-system";
-        br -> asmCoding.code = 'assembler' "asm-cs-code";
-      } "asm-coding";
-    } "asm-type";
-    br -> asmAgent.who = create('Reference') as asmWho then {
-      br -> asmWho.identifier = create('Identifier') as asmId then {
-        br -> asmId.system = 'urn:oid:1.2.752.129.2.1.4.1' "asm-id-system";
-        br.value as v -> asmId.value = v "asm-id-value";
-      } "asm-id";
-    } "asm-who";
-  } "agent-assembler";
-
+        // author: careUnitHSAId
+        ahp.healthcareProfessionalCareUnitHSAId as cu then {
+          cu.value as v -> tgt.agent as authorAgent then {
+            v -> authorAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'author') "author-type";
+            v -> authorAgent.who = create('Reference') as authorWho then {
+              v -> authorWho.identifier = create('Identifier') as authorId then {
+                v -> authorId.value = v "author-id-value";
+              } "author-id";
+            } "author-who";
+          } "author-agent";
+        } "author";
+      } "ahp";
+    } "header";
+  } "diagnosis";
 }

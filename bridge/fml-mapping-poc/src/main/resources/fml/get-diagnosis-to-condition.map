@@ -1,176 +1,150 @@
 /// FML-utvärdering: GetDiagnosis (RIVTA) -> Condition.
 ///
-/// Källan är INTE RIVTA-XML:en direkt (FML kräver en FHIR StructureDefinition eller en
-/// "logisk modell" på källsidan; RIVTA-JAXB-typerna har ingen). Som ett lättviktsadapter-lager
-/// plattas de relevanta fälten i stället ut till en FHIR Parameters-resurs (se
-/// RivtaDiagnosisParametersAdapter i testkoden). Detta är i sig ett resultat av utvärderingen,
-/// se ig/input/pagecontent/fml-evaluation.md.
+/// Källan är nu en RIKTIG logisk modell: EHDS-TK:s publicerade
+/// inera-ehds-lm-diagnosis-StructureDefinition (kind=logical), registrerad i worker-kontexten
+/// av FmlEngine och instansierad från JSON byggd av GetDiagnosisJsonSourceBuilder - ingen
+/// Parameters-flattening längre. Se fml-evaluation.md "Rättelse: den logiska modellen behöver
+/// inte författas - den finns redan".
+///
+/// DIAG-001 (saknat/felaktigt personnummer stoppar hela posten) hanteras numera INTE här genom
+/// att bara hoppa över subject-regeln (som i den gamla Parameters-versionen) - FmlEngine
+/// evaluerar ett FHIRPath-villkor (se registry-posten "GetDiagnosisToCondition") INNAN
+/// transform() körs alls, och hoppar över hela anropet (ingen resurs skapas) om det slår fel.
+/// Det matchar Java-mapperns "return null"-beteende exakt, och gör stoppa-resursen-policyn
+/// konfigurerbar i registry:n i stället för hårdkodad i en where()-klausul i mappen.
 map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToCondition" = "GetDiagnosisToCondition"
 
-uses "http://hl7.org/fhir/StructureDefinition/Parameters" alias RivtaDiagnosis as source
+uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-diagnosis" alias LmDiagnosis as source
 uses "http://hl7.org/fhir/StructureDefinition/Condition" alias Condition as target
 
-group GetDiagnosisToCondition(source src : RivtaDiagnosis, target tgt : Condition) {
+group GetDiagnosisToCondition(source src : LmDiagnosis, target tgt : Condition) {
 
   src -> tgt.verificationStatus = cc('http://terminology.hl7.org/CodeSystem/condition-ver-status', 'confirmed') "verStatus";
 
-  // clinicalStatus: resolved om diagnosisTimePeriod.end finns, annars active.
-  src.parameter as endP where name = 'onsetEnd' -> tgt.clinicalStatus = cc('http://terminology.hl7.org/CodeSystem/condition-clinical', 'resolved') "clin-resolved";
-  src.parameter as noEndP where name = 'onsetEndAbsent' -> tgt.clinicalStatus = cc('http://terminology.hl7.org/CodeSystem/condition-clinical', 'active') "clin-active";
+  // clinicalStatus: alltid 'active' - det riktiga schemat har inget slutdatum/resolution-koncept
+  // (diagnosisTime är en enda tidpunkt, ingen period), se GetDiagnosisMapper.java.
+  src -> tgt.clinicalStatus = cc('http://terminology.hl7.org/CodeSystem/condition-clinical', 'active') "clinStatus";
 
-  // DIAG-001: saknat/felaktigt personnummer stoppar hela posten. I Java-mappern returneras
-  // null för hela Condition+Provenance-paret; i FML uttrycks "stoppa posten" genom att
-  // where()-villkoret inte slår till, så ingen regel kör och ingen subject skapas. Detta
-  // skiljer sig semantiskt: Java stoppar HELA resursen (ingen Condition alls skickas vidare),
-  // medan FML-varianten nedan bara stoppar FÄLTET subject (Condition skapas fortfarande, bara
-  // utan subject) – att stoppa en hel målresurs villkorat på ett käll-fält kräver i FML att
-  // villkoret flyttas upp till den anropande gruppen/regeln som itererar över posterna, se
-  // utvärderingen för detaljer.
-  src.parameter as pn where name = 'personnummer' and value.matches('^[0-9]{12}$') -> tgt.subject = create('Reference') as ref then {
-    pn -> ref.identifier = create('Identifier') as id then {
-      pn.value as v -> id.value = v "pn-value";
-      pn -> id.system = 'http://electronichealth.se/identifier/personnummer' "pn-system";
-    } "pn-id";
-  } "subject-if-valid";
+  src.diagnosis as d then {
+    d.diagnosisHeader as h then {
 
-  // DIAG-003: diagnostyp utan känd konceptmappning (annat än HD/BY) -> data-absent-reason
-  // i stället för en gissad kod. De två rad-villkoren nedan är varandras komplement och måste
-  // hållas i synk för hand - ConceptMap-"unmapped"-läget i FML kan bara ge ett FAST reservkod,
-  // det kan inte uttrycka "sätt i stället en data-absent-reason-extension".
-  //
-  // OBS: where-villkoret skrivs som EN regex (value.matches(...)), inte som
-  // "(value = 'HD' or value = 'BY')". Den parentetiserade OR-formen parsar och loggar rätt
-  // (condition-debugutskriften visar true/false korrekt) men får motorn att helt hoppa över
-  // regelns nästlade then{}-block utan att kasta ett fel - en konkret, reproducerad
-  // motorbugg/begränsning i denna org.hl7.fhir.r4-version, se fml-evaluation.md.
-  src.parameter as dt where name = 'diagnosisType' and value.matches('^(HD|BY)$') -> tgt.category = create('CodeableConcept') as cat then {
-    dt.value as code -> cat.coding = translate(code, 'http://ehds-brygga.inera.se/fhir/ConceptMap/diagnosis-type', 'Coding') "dt-mapped";
-  } "category-mapped";
-  src.parameter as dt2 where name = 'diagnosisType' and value.matches('^(HD|BY)$').not() -> tgt.category = create('CodeableConcept') as cat2 then {
-    dt2 -> cat2.extension = create('Extension') as ext then {
-      dt2 -> ext.url = 'http://hl7.org/fhir/StructureDefinition/data-absent-reason' "dar-url";
-      dt2 -> ext.value = create('code') as cd then {
-        dt2 -> cd.value = 'unknown' "dar-value";
-      } "dar-code";
-    } "dar-ext";
-  } "category-absent";
+      // subject: patientId.id/.type (redan validerat av stoppa-resursen-villkoret ovan).
+      h.patientId as pid then {
+        pid -> tgt.subject = create('Reference') as ref then {
+          pid -> ref.identifier = create('Identifier') as id then {
+            pid.value as v -> id.value = v "subject-value";
+            pid.system as sys -> id.system = sys "subject-system";
+          } "subject-id";
+        } "subject-ref";
+      } "subject";
 
-  // Diagnoskod: kända OID:er -> URI via ConceptMap (translate() -> en hel Coding; translate()
-  // ger ALDRIG bara systemet som en sträng - "outputtype" kan bara vara 'code' (ger en CodeType)
-  // eller annat (ger alltid hela Coding-objektet, aldrig bara system/display som sträng) - se
-  // fml-evaluation.md. Okänt OID -> urn:oid:<oid>, strängkonkatenering med FHIRPath &.
-  //
-  // OBS: en transform-parameter till höger om "=" måste vara en BUNDEN variabel (via "X as v"),
-  // aldrig en punktnotationsväg som "dcode.value" rakt av - motorn tolkar "dcode.value" som
-  // ETT enda variabelnamn (bokstavligen "dcode.value") i stället för egenskapen "value" på
-  // variabeln "dcode", och kastar "Variable dcode.value not found". Varje fält måste därför
-  // bindas i ett eget steg ("X.value as v -> ... = v") innan det kan tilldelas - ingen genväg.
-  src.parameter as dc where name = 'diagnosisCodeSystemOid'
-      and value.matches('^(1\\.2\\.752\\.116\\.1\\.1\\.1\\.1\\.3|2\\.16\\.840\\.1\\.113883\\.6\\.3|2\\.16\\.840\\.1\\.113883\\.6\\.96)$')
-      -> tgt.code = create('CodeableConcept') as code1 then {
-    dc.value as oid -> code1.coding = translate(oid, 'http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid', 'Coding') as cdg1 then {
-      src.parameter as dcode where name = 'diagnosisCode' then {
-        dcode.value as v -> cdg1.code = v "code-value";
-      } "code-value-bind";
-      src.parameter as ddisp where name = 'diagnosisCodeDisplay' then {
-        ddisp.value as v -> cdg1.display = v "code-display";
-      } "code-display-bind";
-    } "code-translate";
-  } "code-mapped";
-  src.parameter as dc2 where name = 'diagnosisCodeSystemOid'
-      and value.matches('^(1\\.2\\.752\\.116\\.1\\.1\\.1\\.1\\.3|2\\.16\\.840\\.1\\.113883\\.6\\.3|2\\.16\\.840\\.1\\.113883\\.6\\.96)$').not()
-      -> tgt.code = create('CodeableConcept') as code2 then {
-    dc2.value as oid -> code2.coding = create('Coding') as cdg2 then {
-      oid -> cdg2.system = ('urn:oid:' & oid) "code-system-fallback";
-      src.parameter as dcode2 where name = 'diagnosisCode' then {
-        dcode2.value as v -> cdg2.code = v "code-value2";
-      } "code-value2-bind";
-      src.parameter as ddisp2 where name = 'diagnosisCodeDisplay' then {
-        ddisp2.value as v -> cdg2.display = v "code-display2";
-      } "code-display2-bind";
-    } "code-fallback";
-  } "code-unmapped";
+      // meta.source: tjänstekatalogens Endpoint för källsystemets HSA-id.
+      h.sourceSystemHSAId as src1 then {
+        src1.value as v -> tgt.meta = create('Meta') as m then {
+          v -> m.source = ('https://tjanstekatalogen.inera.se/Endpoint/' & v) "meta-source";
+        } "meta";
+      } "meta-block";
 
-  src.parameter as os where name = 'onsetStart' -> tgt.onset = create('dateTime') as onsetEl then {
-    os.value as v -> onsetEl.value = v "onset-value";
-  } "onset";
+      // recorder/recordedDate: accountableHealthcareProfessional.
+      h.accountableHealthcareProfessional as ahp then {
+        ahp.healthcareProfessionalHSAId as rec then {
+          rec.value as v -> tgt.recorder = create('Reference') as rref then {
+            rec -> rref.type = 'PractitionerRole' "recorder-type";
+            rec -> rref.identifier = create('Identifier') as rid then {
+              v -> rid.value = v "recorder-id-value";
+            } "recorder-id";
+          } "recorder-ref";
+        } "recorder";
+        ahp.authorTime as t -> tgt.recordedDate = t "recordedDate";
+      } "ahp";
 
-  src.parameter as oe where name = 'onsetEnd' -> tgt.abatement = create('dateTime') as abateEl then {
-    oe.value as v -> abateEl.value = v "abate-value";
-  } "abate";
+      // asserter/assertedDate: legalAuthenticator.
+      h.legalAuthenticator as la then {
+        la.legalAuthenticatorHSAId as ass then {
+          ass.value as v -> tgt.asserter = create('Reference') as aref then {
+            ass -> aref.type = 'PractitionerRole' "asserter-type";
+            ass -> aref.identifier = create('Identifier') as aid then {
+              v -> aid.value = v "asserter-id-value";
+            } "asserter-id";
+          } "asserter-ref";
+        } "asserter";
+        la.signatureTime as t -> tgt.extension = create('Extension') as adExt then {
+          t -> adExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date' "assertedDate-url";
+          t -> adExt.value = t "assertedDate-value";
+        } "assertedDate-ext";
+      } "la";
+    } "header";
 
-  // meta.source: samma TJÄNSTEKATALOG_BASE + "/Endpoint/" + hsaId-konstruktion som i Java;
-  // även detta är en beräknad sträng, inte en slagning, och skrivs därför rakt av med &.
-  src.parameter as sh where name = 'sourceHsaId' -> tgt.meta = create('Meta') as m then {
-    sh.value as v -> m.source = ('https://tjanstekatalogen.inera.se/Endpoint/' & v) "meta-source";
-  } "meta";
+    d.diagnosisBody as b then {
 
-  // recorder/recordedDate: accountableHealthcareProfessional -> PractitionerRole (logisk
-  // referens). Förenkling mot Java: identifier.system hårdkodas till HSA-fallback-URI:n
-  // (urn:oid:1.2.752.129.2.1.4.1) i stället för att slå upp personId.root via
-  // NamingSystemRegistry - samma typ av förenkling som redan gjorts för personnummer-systemet
-  // ovan, se fml-evaluation.md.
-  src.parameter as rp where name = 'recorderPersonId' -> tgt.recorder = create('Reference') as rref then {
-    rp -> rref.type = 'PractitionerRole' "recorder-type";
-    rp -> rref.identifier = create('Identifier') as rid then {
-      rp -> rid.system = 'urn:oid:1.2.752.129.2.1.4.1' "recorder-id-system";
-      rp.value as v -> rid.value = v "recorder-id-value";
-    } "recorder-id";
-  } "recorder";
-  src.parameter as rd where name = 'recorderAuthorTime' -> tgt.recordedDate = create('dateTime') as rdEl then {
-    rd.value as v -> rdEl.value = v "recordedDate-value";
-  } "recordedDate";
+      // onset: diagnosisTime - direkt dateTime-tilldelning funkar via castToDateTime()'s
+      // fhirType()-baserade fallback för Element (se GenericJsonSourceSpikeTest), ingen
+      // create('dateTime')-inpackning behövs här längre.
+      b.diagnosisTime as t -> tgt.onset = t "onset";
 
-  // asserter/assertedDate: legalAuthenticator -> PractitionerRole + extension[assertedDate].
-  src.parameter as ap where name = 'asserterPersonId' -> tgt.asserter = create('Reference') as aref then {
-    ap -> aref.type = 'PractitionerRole' "asserter-type";
-    ap -> aref.identifier = create('Identifier') as aid then {
-      ap -> aid.system = 'urn:oid:1.2.752.129.2.1.4.1' "asserter-id-system";
-      ap.value as v -> aid.value = v "asserter-id-value";
-    } "asserter-id";
-  } "asserter";
-  src.parameter as ad where name = 'assertedDate' -> tgt.extension = create('Extension') as adExt then {
-    ad -> adExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date' "assertedDate-url";
-    ad -> adExt.value = create('dateTime') as adEl then {
-      ad.value as v -> adEl.value = v "assertedDate-value";
-    } "assertedDate-el";
-  } "assertedDate-ext";
+      // category: typeOfDiagnosis ("Huvuddiagnos"/"Bidiagnos") via ConceptMap. Okänd kod ->
+      // data-absent-reason. Samma mutually-exclusive två-regel-mönster som tidigare (FML:s
+      // ConceptMap-"unmapped"-läge kan bara ge en FAST reservkod, inte en data-absent-reason-
+      // extension), bara uppdaterat till de riktiga käll-värdena.
+      b.typeOfDiagnosis as tod then {
+        tod.coding as dtc where code.matches('^(Huvuddiagnos|Bidiagnos)$') -> tgt.category = create('CodeableConcept') as cat then {
+          dtc.code as code -> cat.coding = translate(code, 'http://ehds-brygga.inera.se/fhir/ConceptMap/diagnosis-type', 'Coding') "dt-mapped";
+        } "category-mapped";
+        tod.coding as dtc2 where code.matches('^(Huvuddiagnos|Bidiagnos)$').not() -> tgt.category = create('CodeableConcept') as cat2 then {
+          dtc2 -> cat2.extension = create('Extension') as ext then {
+            dtc2 -> ext.url = 'http://hl7.org/fhir/StructureDefinition/data-absent-reason' "dar-url";
+            dtc2 -> ext.value = create('code') as cd then {
+              dtc2 -> cd.value = 'unknown' "dar-value";
+            } "dar-code";
+          } "dar-ext";
+        } "category-absent";
+      } "typeOfDiagnosis";
 
-  // chronicCondition: extension[chronicDiagnosis] med boolean. Käll-parametern bärs som
-  // StringType ("true"/"false") av samma skäl som onset-datumen ovan (valueBoolean går inte att
-  // läsa generiskt via Parameters.parameter i denna motorversion).
-  //
-  // OBS: ett bokstavligt FHIRPath-booleanvärde (true/false, utan citattecken) på target-sidan
-  // ("ccEl.value = true") kraschar med "Invalid boolean string: 'BooleanType[true]'" - motorns
-  // PrimitiveType.setProperty() gör setValueAsString(value.toString()), och till skillnad från
-  // StringType (som override:ar toString() till att returnera själva värdet) override:ar
-  // BooleanType INTE toString() alls, så Java-standardens "BooleanType[true]" skickas in rakt
-  // av. En fjärde, separat variant av samma typkonverteringsproblem som dc.value/translate()-
-  // fallen ovan - men den här går att undvika: en CITERAD strängliteral ('true'/'false') har en
-  // StringType.toString() som ger rätt råtext, och parsas korrekt av ett boolean-elements
-  // fromStringValue(). Löst genom att, precis som för category-mapped/-absent, dela upp i två
-  // ömsesidigt uteslutande regler med en citerad strängliteral på target-sidan.
-  src.parameter as cc1 where name = 'chronicCondition' and value = 'true' -> tgt.extension = create('Extension') as ccExt1 then {
-    cc1 -> ccExt1.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition' "chronic-url-true";
-    cc1 -> ccExt1.value = create('boolean') as ccEl1 then {
-      cc1 -> ccEl1.value = 'true' "chronic-value-true";
-    } "chronic-el-true";
-  } "chronicCondition-true";
-  src.parameter as cc2 where name = 'chronicCondition' and value = 'false' -> tgt.extension = create('Extension') as ccExt2 then {
-    cc2 -> ccExt2.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition' "chronic-url-false";
-    cc2 -> ccExt2.value = create('boolean') as ccEl2 then {
-      cc2 -> ccEl2.value = 'false' "chronic-value-false";
-    } "chronic-el-false";
-  } "chronicCondition-false";
+      // chronicDiagnosis: extension[chronicDiagnosis] med boolean. En enda regel räcker nu -
+      // till skillnad från den tidigare Parameters-baserade varianten behöver den inte delas upp
+      // i true/false eftersom värdet binds via .value (en riktig StringType, se
+      // GenericJsonSourceSpikeTest) i stället för ett bokstavligt FHIRPath-literal.
+      b.chronicDiagnosis as ccSrc then {
+        ccSrc.value as ccv -> tgt.extension = create('Extension') as ccExt then {
+          ccv -> ccExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition' "chronic-url";
+          ccv -> ccExt.value = create('boolean') as ccEl then {
+            ccv -> ccEl.value = ccv "chronic-value";
+          } "chronic-el";
+        } "chronicCondition";
+      } "chronicDiagnosis";
 
-  // relatedDiagnosis.documentId: extension[relatedCondition] med en logisk Identifier-referens.
-  src.parameter as rel where name = 'relatedDiagnosisDocumentId' -> tgt.extension = create('Extension') as relExt then {
-    rel -> relExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition' "related-url";
-    rel -> relExt.value = create('Reference') as relRef then {
-      rel -> relRef.identifier = create('Identifier') as relId then {
-        rel.value as v -> relId.value = v "related-id-value";
-      } "related-id";
-    } "related-ref";
-  } "relatedDiagnosis";
+      // relatedDiagnosis: 0..* - en extension per post, FML itererar regeln per matchande
+      // källnod utan särskild listsyntax.
+      b.relatedDiagnosis as rel then {
+        rel.documentId as docId -> tgt.extension = create('Extension') as relExt then {
+          docId -> relExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition' "related-url";
+          docId -> relExt.value = create('Reference') as relRef then {
+            docId -> relRef.identifier = create('Identifier') as relId then {
+              docId -> relId.value = docId "related-id-value";
+            } "related-id";
+          } "related-ref";
+        } "related-ext";
+      } "relatedDiagnosis";
 
+      // code: diagnosisCode. Kända OID:er -> URI via ConceptMap (translate()), okänt OID ->
+      // urn:oid:<oid>-fallback (OID-fallback, samma konvention som NamingSystemRegistry).
+      b.diagnosisCode as dcSrc then {
+        dcSrc.coding as dc where system.matches('^(1\\.2\\.752\\.116\\.1\\.1\\.1\\.1\\.3|2\\.16\\.840\\.1\\.113883\\.6\\.3|2\\.16\\.840\\.1\\.113883\\.6\\.96)$')
+            -> tgt.code = create('CodeableConcept') as code1 then {
+          dc.system as oid -> code1.coding = translate(oid, 'http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid', 'Coding') as cdg1 then {
+            dc.code as v -> cdg1.code = v "code-value";
+            dc.display as v -> cdg1.display = v "code-display";
+          } "code-translate";
+        } "code-mapped";
+        dcSrc.coding as dc2 where system.matches('^(1\\.2\\.752\\.116\\.1\\.1\\.1\\.1\\.3|2\\.16\\.840\\.1\\.113883\\.6\\.3|2\\.16\\.840\\.1\\.113883\\.6\\.96)$').not()
+            -> tgt.code = create('CodeableConcept') as code2 then {
+          dc2.system as oid -> code2.coding = create('Coding') as cdg2 then {
+            oid -> cdg2.system = ('urn:oid:' & oid) "code-system-fallback";
+            dc2.code as v -> cdg2.code = v "code-value2";
+            dc2.display as v -> cdg2.display = v "code-display2";
+          } "code-fallback";
+        } "code-unmapped";
+      } "diagnosisCode";
+    } "body";
+  } "diagnosis";
 }

@@ -35,7 +35,7 @@ Profilen säkerställer att:
 * extension[assertedDate] ^short = "Administrativt intygsgivningsdatum för legalAuthenticator (YYYYMMDD → YYYY-MM-DD)"
 
 * extension contains ExtChronicCondition named chronicDiagnosis 0..1 MS
-* extension[chronicDiagnosis] ^short = "Anger om diagnosen är klassad som kronisk (diagnosisBody.chronicCondition)"
+* extension[chronicDiagnosis] ^short = "Anger om diagnosen är klassad som kronisk (diagnosisBody.chronicDiagnosis)"
 
 * extension contains ExtRelatedCondition named relatedCondition 0..1 MS
 * extension[relatedCondition] ^short = "Logisk referens till relaterad diagnos via källsystemets documentId (diagnosisBody.relatedDiagnosis.documentId)"
@@ -89,11 +89,11 @@ Profilen säkerställer att:
 
 * onset[x] MS
 * onset[x] only dateTime
-* onsetDateTime ^short = "Diagnosens startdatum, mappat från diagnosisBody.diagnosisTimePeriod.start"
+* onsetDateTime ^short = "Diagnosens startdatum, mappat från diagnosisBody.diagnosisTime"
 
 * abatement[x] MS
 * abatement[x] only dateTime
-* abatementDateTime ^short = "Diagnosens slutdatum, mappat från diagnosisBody.diagnosisTimePeriod.end"
+* abatementDateTime ^short = "Diagnosens slutdatum – fylls aldrig i av GetDiagnosis-mappningen, eftersom diagnosisBody bara har diagnosisTime (en enda tidpunkt, inget periodkoncept med slutdatum)"
 
 * recordedDate MS
 * recordedDate ^short = "Registreringsdatum, mappat från diagnosisHeader.accountableHealthcareProfessional.authorTime (YYYYMMDDHHMMSS → ISO 8601). documentTime har kardinalitet 0..0 och används inte"

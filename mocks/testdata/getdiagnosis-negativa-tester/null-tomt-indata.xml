@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Testfall: Tomt diagnosis-falt i TK-svaret (motsvarar aven ett helt null-svar/
+  null-diagnosis i Java-testerna)
+  Forvantat: Mapper returnerar tom lista, kastar inget undantag
+-->
+<ns2:GetDiagnosisResponse xmlns="urn:riv:clinicalprocess:healthcond:description:2" xmlns:ns2="urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2">
+    <ns2:result>
+        <resultCode>OK</resultCode>
+        <logId>neg-test-ok</logId>
+    </ns2:result>
+</ns2:GetDiagnosisResponse>

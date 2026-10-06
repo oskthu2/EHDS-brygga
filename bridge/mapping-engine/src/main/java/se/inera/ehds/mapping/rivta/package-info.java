@@ -1,5 +1,5 @@
 @XmlSchema(
-    namespace = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2",
+    namespace = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2",
     elementFormDefault = XmlNsForm.QUALIFIED
 )
 package se.inera.ehds.mapping.rivta;

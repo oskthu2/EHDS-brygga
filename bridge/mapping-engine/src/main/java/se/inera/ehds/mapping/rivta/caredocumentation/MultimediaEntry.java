@@ -2,6 +2,7 @@ package se.inera.ehds.mapping.rivta.caredocumentation;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 /**
@@ -11,8 +12,11 @@ import jakarta.xml.bind.annotation.XmlType;
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "MultimediaEntryType", propOrder = {"mediaType", "value", "reference"})
 public class MultimediaEntry {
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String mediaType;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String value;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String reference;
 
     public String getMediaType() { return mediaType; }

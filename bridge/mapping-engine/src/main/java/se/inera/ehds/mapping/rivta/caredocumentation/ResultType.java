@@ -2,6 +2,7 @@ package se.inera.ehds.mapping.rivta.caredocumentation;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 /**
@@ -12,7 +13,9 @@ import jakarta.xml.bind.annotation.XmlType;
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "ResultType", propOrder = {"resultCode", "resultText"})
 public class ResultType {
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String resultCode;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String resultText;
 
     public String getResultCode() { return resultCode; }

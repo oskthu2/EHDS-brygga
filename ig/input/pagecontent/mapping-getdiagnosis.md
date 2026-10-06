@@ -13,27 +13,31 @@ EHDS-bryggan mappar svarsmeddelandet från detta tjänstekontrakt till FHIR R4-r
 
 | RIVTA-element | FHIR-element | Kommentar |
 |---|---|---|
-| `diagnosisHeader.patientId.extension` | `Condition.subject.identifier.value` | Personnummer eller samordningsnummer – subject är SEEHDSPatient |
-| `diagnosisHeader.patientId.root` | `Condition.subject.identifier.system` | OID konverteras till URI, se tabell nedan |
+| `diagnosisHeader.patientId.id` | `Condition.subject.identifier.value` | Personnummer eller samordningsnummer – subject är SEEHDSPatient |
+| `diagnosisHeader.patientId.type` | `Condition.subject.identifier.system` | OID konverteras till URI, se tabell nedan |
 | `diagnosisHeader.sourceSystemHSAId` | `Condition.meta.source` | Källsystemets Endpoint i tjänstekatalogen (https://tjanstekatalogen.inera.se/Endpoint/{hsaId}) |
-| `diagnosisHeader.accountableHealthcareProfessional.authorTime` | `Condition.recordedDate` | Format YYYYMMDDHHMMSS → ISO 8601 (`documentTime` har kardinalitet 0..0 och används inte) |
+| `diagnosisHeader.accountableHealthcareProfessional.authorTime` | `Condition.recordedDate` | Format YYYYMMDDHHMMSS → ISO 8601 |
 | `diagnosisBody.diagnosisCode.code` | `Condition.code.coding.code` | ICD-10-SE kod, t.ex. `J18.9` |
 | `diagnosisBody.diagnosisCode.codeSystem` | `Condition.code.coding.system` | OID `1.2.752.116.1.1.1.1.3` → `https://www.icd10.se/` |
 | `diagnosisBody.diagnosisCode.displayName` | `Condition.code.coding.display` | Kodverkets officiella benämning |
 | `diagnosisBody.diagnosisCode.originalText` | `Condition.code.text` | Fritext från källsystemet; om saknad används `displayName` som fallback |
-| `diagnosisBody.diagnosisType` (HD) | `Condition.category[diagnostyp]` = `HD` (kv_diagnostyp) | Huvuddiagnos → Ineras kv_diagnostyp-kod |
-| `diagnosisBody.diagnosisType` (BY) | `Condition.category[diagnostyp]` = `BY` (kv_diagnostyp) | Bidiagnos → Ineras kv_diagnostyp-kod |
-| `diagnosisBody.diagnosisTimePeriod.start` | `Condition.onsetDateTime` | Format YYYYMMDD → YYYY-MM-DD |
-| `diagnosisBody.diagnosisTimePeriod.end` | `Condition.abatementDateTime` | Om satt: resolved, annars active |
+| `diagnosisBody.typeOfDiagnosis` (Huvuddiagnos) | `Condition.category[diagnostyp]` = `HD` (kv_diagnostyp) | Huvuddiagnos → Ineras kv_diagnostyp-kod |
+| `diagnosisBody.typeOfDiagnosis` (Bidiagnos) | `Condition.category[diagnostyp]` = `BY` (kv_diagnostyp) | Bidiagnos → Ineras kv_diagnostyp-kod |
+| `diagnosisBody.diagnosisTime` | `Condition.onsetDateTime` | Format YYYYMMDDHHMMSS → ISO 8601 |
 | `diagnosisHeader.accountableHealthcareProfessional` | `Condition.recorder` (Reference(PractitionerRole)) | Ansvarig hälso- och sjukvårdspersonal – logisk referens via HSA-id |
 | `diagnosisHeader.legalAuthenticator` | `Condition.asserter` (Reference(PractitionerRole)) | Rättslig äkthetsintygsgivare – logisk referens via HSA-id |
-| `diagnosisHeader.legalAuthenticator` (datum) | `Condition.extension[assertedDate]` | Administrativt intygsgivningsdatum (YYYYMMDD → YYYY-MM-DD) |
-| `diagnosisBody.chronicCondition` | `Condition.extension[chronicDiagnosis]` | Boolean – om diagnosen är klassad som kronisk |
-| `diagnosisBody.relatedDiagnosis.documentId` | `Condition.extension[relatedCondition]` | Logisk referens (Identifier) till relaterad diagnos via källsystemets dokumentid |
-| `diagnosisHeader.careProviderHSAId` | `Provenance.agent[custodian]` | Juridiskt ansvarig vårdgivare – används för Sparr |
-| `diagnosisHeader.careUnitHSAId` | `Provenance.agent[author]` | Informationsägare vårdenhet |
-| `diagnosisHeader.documentTime` | `Provenance.recorded` | Tidsstämpel för Provenance |
+| `diagnosisHeader.legalAuthenticator.signatureTime` | `Condition.extension[assertedDate]` | Administrativt intygsgivningsdatum (YYYYMMDDHHMMSS → ISO 8601) |
+| `diagnosisBody.chronicDiagnosis` | `Condition.extension[chronicDiagnosis]` | Boolean – om diagnosen är klassad som kronisk |
+| `diagnosisBody.relatedDiagnosis[].documentId` | `Condition.extension[relatedCondition]` | Logisk referens (Identifier) till relaterad diagnos via källsystemets dokumentid – en extension per post (`relatedDiagnosis` är 0..* i det riktiga schemat) |
+| `diagnosisHeader.accountableHealthcareProfessional.healthcareProfessionalCareGiverHSAId` | `Provenance.agent[custodian]` | Juridiskt ansvarig vårdgivare – används för Sparr |
+| `diagnosisHeader.accountableHealthcareProfessional.healthcareProfessionalCareUnitHSAId` | `Provenance.agent[author]` | Informationsägare vårdenhet |
+| `diagnosisHeader.accountableHealthcareProfessional.authorTime` | `Provenance.recorded` | Tidsstämpel för Provenance |
 | (bryggan självt, `EHDS_BRIDGE_HSA_ID`) | `Provenance.agent[assembler]` | Bryggan som sammansättande aktör |
+
+**Not:** den riktiga `PatientSummaryHeaderType` (verifierad mot den officiella RIVTA-XSD:n,
+se "Härledning av clinicalStatus" nedan) har inga egna `careProviderHSAId`/`careUnitHSAId`-fält
+på headern – vårdgivare och vårdenhet hämtas i stället från
+`accountableHealthcareProfessional`.
 
 ## healthcareProfessionalType → PractitionerRole
 
@@ -44,9 +48,9 @@ som logisk referens via HSA-identifierare.
 
 | RIVTA-underelement | FHIR PractitionerRole-fält | Kommentar |
 |---|---|---|
-| `healthcareProfessional.personId` | `PractitionerRole.identifier.value` | HSA-id för personen |
-| `healthcareProfessional.personId.root` | `PractitionerRole.identifier.system` | OID→URI via NamingSystemRegistry |
-| `roleAtTime` | `PractitionerRole.code` | Yrkeskategori/roll vid tillfället |
+| `healthcareProfessionalHSAId` / `legalAuthenticatorHSAId` | `PractitionerRole.identifier.value` | Flata HSA-id-strängar (inte en nästlad personId-struktur) |
+| (fast HSA-OID, `1.2.752.129.2.1.4.1`) | `PractitionerRole.identifier.system` | OID→URI via NamingSystemRegistry – det riktiga schemat har bara en HSA-id-sträng per roll, inget eget OID-fält att läsa av |
+| `healthcareProfessionalRoleCode` | `PractitionerRole.code` | Yrkeskategori/roll vid tillfället |
 
 `accountableHealthcareProfessional` mappas till `Condition.recorder` och
 `legalAuthenticator` mappas till `Condition.asserter`. Datum för `legalAuthenticator`
@@ -94,43 +98,50 @@ Provenance-resurser inkluderas i sökbundlen med `searchMode = include` och refe
 | FHIR-resurs | Koppling | Beskrivning |
 |---|---|---|
 | `Provenance.target` | `urn:uuid:{Condition.id}` | Provenance beskriver denna Condition |
-| `Provenance.agent[custodian]` | `careProviderHSAId` | Juridiskt ansvarig vårdgivare (organisationsnivå, yttre Sparr) |
-| `Provenance.agent[author]` | `careUnitHSAId` | Informationsägare vårdenhet (inre Sparr) |
+| `Provenance.agent[custodian]` | `accountableHealthcareProfessional.healthcareProfessionalCareGiverHSAId` | Juridiskt ansvarig vårdgivare (organisationsnivå, yttre Sparr) |
+| `Provenance.agent[author]` | `accountableHealthcareProfessional.healthcareProfessionalCareUnitHSAId` | Informationsägare vårdenhet (inre Sparr) |
 | `Provenance.agent[assembler]` | `EHDS_BRIDGE_HSA_ID` | Bryggan som sammansatte FHIR-svaret |
 
 ## Härledning av clinicalStatus
 
-RIVTA-tjänstekontraktet innehåller inte ett explicit statusfält. `Condition.clinicalStatus` härledas
-baserat på förekomsten av slutdatum i diagnosperiodens tidsintervall:
+Det riktiga `GetDiagnosis:2`-kontraktet (verifierat mot den officiella RIVTA-XSD:n,
+`clinicalprocess_healthcond_description_2.1.xsd`) har inget period- eller
+slutdatumskoncept för en diagnos – `diagnosisTime` är en enda tidpunkt, inte ett
+intervall. `Condition.clinicalStatus` sätts därför **alltid** till `active`:
 
-| `diagnosisTimePeriod.end` | `Condition.clinicalStatus` | Förklaring |
+| `diagnosisBody` | `Condition.clinicalStatus` | Förklaring |
 |---|---|---|
-| Inte satt (null) | `active` | Diagnosen anses fortfarande aktiv |
-| Satt (datum finns) | `resolved` | Diagnosen har avslutats |
+| (alltid) | `active` | Schemat har inget fält som kan uttrycka att en diagnos är avslutad/resolved |
 
 `Condition.verificationStatus` sätts alltid till `confirmed` vid mappning från RIVTA,
 eftersom RIVTA-svar representerar bekräftade journaluppgifter.
 
-Eftersom härledningen enbart baseras på förekomsten av ett datum (inte på ett fristående
-statusvärde från TK) kan `clinicalStatus` aldrig bli tvetydig eller omappbar – fallet
-"statusvärde som inte kan mappas entydigt" kan inte uppstå med dagens `GetDiagnosis:2`-kontrakt.
+Eftersom `clinicalStatus` inte härleds från något källfält alls (till skillnad från en
+tidigare, overifierad version av denna mappning som uppfann ett `diagnosisTimePeriod.end`
+som inte finns i det riktiga schemat) kan `clinicalStatus` aldrig bli tvetydig eller
+omappbar – fallet "statusvärde som inte kan mappas entydigt" kan inte uppstå med dagens
+`GetDiagnosis:2`-kontrakt. Om en framtida kontraktsversion inför ett riktigt
+status-/slutdatumfält bör denna härledning uppdateras.
 
 ## Hantering av diagnosTyp
 
-RIVTA-koden för diagnostyp (`diagnosisType`) används för att sätta `Condition.category`.
-Se även [ConceptMap DiagnosisTypeToCategoryMap](ConceptMap-DiagnosisTypeToCategoryMap.html)
+RIVTA-koden för diagnostyp (`typeOfDiagnosis`) används för att sätta `Condition.category`.
+Den riktiga `DiagnosisTypeEnum` (XSD-verifierad) begränsar `typeOfDiagnosis` till exakt de
+svenska textvärdena `"Huvuddiagnos"`/`"Bidiagnos"` – **inte** förkortningarna `HD`/`BY` som
+en tidigare, overifierad version av denna mappning antog. Se även
+[ConceptMap DiagnosisTypeToCategoryMap](ConceptMap-DiagnosisTypeToCategoryMap.html)
 för den fullständiga mappningen.
 
-| RIVTA diagnosisType | Kod | System | FHIR category[diagnostyp]-kod |
-|---|---|---|---|
-| `HD` – Huvuddiagnos | `HD` | `https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp` | Ineras kv_diagnostyp |
-| `BY` – Bidiagnos | `BY` | `https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp` | Ineras kv_diagnostyp |
+| RIVTA typeOfDiagnosis | FHIR category[diagnostyp]-kod | System |
+|---|---|---|
+| `Huvuddiagnos` | `HD` | `https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp` |
+| `Bidiagnos` | `BY` | `https://terminologitjansten.inera.se/inera-kodverksforvaltning/kodverk/kv_diagnostyp` |
 
 Profilen kräver exakt ett `category[diagnostyp]`-snitt med en kod från Ineras kodverk `kv_diagnostyp`.
 Ytterligare `category`-poster (t.ex. `encounter-diagnosis` från standard-FHIR) kan läggas till av konsumenten
 men hanteras inte av denna profil.
 
-**Fallback (DIAG-003):** Om `diagnosisType` saknar en känd mappning i `ConceptMapRegistry` fylls
+**Fallback (DIAG-003):** Om `typeOfDiagnosis` saknar en känd mappning i `ConceptMapRegistry` fylls
 `category[diagnostyp]` **inte** i med en gissad kod – att återanvända den råa RIVTA-koden som om
 den vore en giltig `kv_diagnostyp`-kod skulle ge en felaktig kodning. I stället sätts
 `category[diagnostyp]` till en `CodeableConcept` utan `coding`, med extensionen
@@ -164,38 +175,31 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
 ```xml
 <ns1:diagnosis>
   <ns1:diagnosisHeader>
-    <ns1:patientId>
-      <ns1:root>1.2.752.129.2.1.3.1</ns1:root>
-      <ns1:extension>191212121212</ns1:extension>
-    </ns1:patientId>
+    <ns1:documentId>doc-example-1</ns1:documentId>
     <ns1:sourceSystemHSAId>SE2321000016-4HK5</ns1:sourceSystemHSAId>
+    <ns1:patientId>
+      <ns1:id>191212121212</ns1:id>
+      <ns1:type>1.2.752.129.2.1.3.1</ns1:type>
+    </ns1:patientId>
     <ns1:accountableHealthcareProfessional>
-      <ns1:personId>
-        <ns1:root>1.2.752.129.2.1.4.1</ns1:root>
-        <ns1:extension>SE2321000016-DOK</ns1:extension>
-      </ns1:personId>
       <ns1:authorTime>20230601120000</ns1:authorTime>
+      <ns1:healthcareProfessionalHSAId>SE2321000016-DOK</ns1:healthcareProfessionalHSAId>
+      <ns1:healthcareProfessionalCareGiverHSAId>SE2321000016-4HK5</ns1:healthcareProfessionalCareGiverHSAId>
     </ns1:accountableHealthcareProfessional>
     <ns1:legalAuthenticator>
-      <ns1:hcProfessional>
-        <ns1:personId>
-          <ns1:root>1.2.752.129.2.1.4.1</ns1:root>
-          <ns1:extension>SE2321000016-AUTH</ns1:extension>
-        </ns1:personId>
-      </ns1:hcProfessional>
-      <ns1:signatureDate>20230601</ns1:signatureDate>
+      <ns1:signatureTime>20230601000000</ns1:signatureTime>
+      <ns1:legalAuthenticatorHSAId>SE2321000016-AUTH</ns1:legalAuthenticatorHSAId>
     </ns1:legalAuthenticator>
+    <ns1:approvedForPatient>true</ns1:approvedForPatient>
   </ns1:diagnosisHeader>
   <ns1:diagnosisBody>
+    <ns1:typeOfDiagnosis>Huvuddiagnos</ns1:typeOfDiagnosis>
+    <ns1:diagnosisTime>20230601000000</ns1:diagnosisTime>
     <ns1:diagnosisCode>
       <ns1:code>J18.9</ns1:code>
       <ns1:codeSystem>1.2.752.116.1.1.1.1.3</ns1:codeSystem>
       <ns1:displayName>Pneumoni, ospecificerad</ns1:displayName>
     </ns1:diagnosisCode>
-    <ns1:diagnosisType>HD</ns1:diagnosisType>
-    <ns1:diagnosisTimePeriod>
-      <ns1:start>20230601</ns1:start>
-    </ns1:diagnosisTimePeriod>
   </ns1:diagnosisBody>
 </ns1:diagnosis>
 ```
@@ -261,7 +265,7 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
       "value": "191212121212"
     }
   },
-  "onsetDateTime": "2023-06-01",
+  "onsetDateTime": "2023-06-01T00:00:00",
   "recordedDate": "2023-06-01T12:00:00",
   "recorder": {
     "type": "PractitionerRole",
@@ -282,25 +286,25 @@ svensk tid (Europe/Stockholm) och konverterar till UTC vid behov.
 
 ### Förklaring av mappningen i exemplet
 
-- `clinicalStatus = active` – inget slutdatum i `diagnosisTimePeriod`, så diagnosen är fortfarande aktiv
+- `clinicalStatus = active` – det riktiga schemat har inget slutdatum/period-koncept för en diagnos, så clinicalStatus sätts alltid till active
 - `verificationStatus = confirmed` – sätts alltid vid mappning från RIVTA
-- `category[diagnostyp].coding.code = HD` – `diagnosisType = HD` (Huvuddiagnos) mappas direkt till Ineras kv_diagnostyp-kod
+- `category[diagnostyp].coding.code = HD` – `typeOfDiagnosis = Huvuddiagnos` mappas via ConceptMap till Ineras kv_diagnostyp-kod `HD`
 - `code.coding.system = https://www.icd10.se/` – OID `1.2.752.116.1.1.1.1.3` konverteras till ICD-10-SE URI
-- `subject.identifier.system = http://electronichealth.se/identifier/personnummer` – OID `1.2.752.129.2.1.3.1` konverteras till kanonisk URI (HL7 Sweden basprofiler)
+- `subject.identifier.system = http://electronichealth.se/identifier/personnummer` – OID `1.2.752.129.2.1.3.1` (från `patientId.type`) konverteras till kanonisk URI (HL7 Sweden basprofiler)
 - `recordedDate` – `accountableHealthcareProfessional.authorTime` = `20230601120000` konverteras till `2023-06-01T12:00:00`
-- `onsetDateTime` – `20230601` konverteras till `2023-06-01`
+- `onsetDateTime` – `diagnosisTime` = `20230601000000` konverteras till `2023-06-01T00:00:00`
 - `meta.source = https://tjanstekatalogen.inera.se/Endpoint/SE2321000016-4HK5` – källsystemets Endpoint i tjänstekatalogen
-- `recorder` – `accountableHealthcareProfessional.personId` mappas till logisk PractitionerRole-referens
-- `asserter` – `legalAuthenticator.hcProfessional.personId` mappas till logisk PractitionerRole-referens
-- `extension[assertedDate]` – `legalAuthenticator.signatureDate` konverteras till `2023-06-01`
+- `recorder` – `accountableHealthcareProfessional.healthcareProfessionalHSAId` mappas till logisk PractitionerRole-referens
+- `asserter` – `legalAuthenticator.legalAuthenticatorHSAId` mappas till logisk PractitionerRole-referens
+- `extension[assertedDate]` – `legalAuthenticator.signatureTime` konverteras till `2023-06-01T00:00:00`
 
 ## Fältvalidering
 
 Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver följande fält (kardinalitet 1..1 eller 1..*):
 
-- `clinicalStatus` – alltid satt (active eller resolved baserat på slutdatum)
+- `clinicalStatus` – alltid satt till `active` (det riktiga schemat har inget slutdatum/period-koncept att härleda `resolved` från)
 - `verificationStatus` – alltid satt till `confirmed`
-- `category[diagnostyp]` – alltid satt; innehåller en kod från kv_diagnostyp om `diagnosisType`
+- `category[diagnostyp]` – alltid satt; innehåller en kod från kv_diagnostyp om `typeOfDiagnosis`
   gick att konceptmappa, annars `extension[data-absent-reason] = unknown` utan `coding` (DIAG-003)
 - `code` – diagnoskod med minst en coding
 - `subject.identifier` – patientidentifierare med system och value; posten filtreras bort
@@ -308,14 +312,38 @@ Profilen [SEEHDSCondition](StructureDefinition-se-ehds-condition.html) kräver f
 
 Valfria fält (0..1) som sätts när källdata finns:
 
-- `recorder` – sätts om `accountableHealthcareProfessional` finns i RIVTA-svaret
+- `recorder` – sätts om `accountableHealthcareProfessional.healthcareProfessionalHSAId` finns i RIVTA-svaret
 - `recordedDate` – sätts om `accountableHealthcareProfessional.authorTime` finns i RIVTA-svaret
-- `asserter` – sätts om `legalAuthenticator` finns i RIVTA-svaret
-- `extension[assertedDate]` – sätts om `legalAuthenticator.signatureDate` finns
-- `onsetDateTime` – sätts om `diagnosisTimePeriod.start` finns
-- `abatementDateTime` – sätts om `diagnosisTimePeriod.end` finns
-- `extension[chronicDiagnosis]` – sätts om `diagnosisBody.chronicCondition` finns (true eller false)
-- `extension[relatedCondition]` – sätts om `diagnosisBody.relatedDiagnosis.documentId` finns
+- `asserter` – sätts om `legalAuthenticator.legalAuthenticatorHSAId` finns i RIVTA-svaret
+- `extension[assertedDate]` – sätts om `legalAuthenticator.signatureTime` finns
+- `onsetDateTime` – sätts om `diagnosisBody.diagnosisTime` finns
+- `extension[chronicDiagnosis]` – sätts om `diagnosisBody.chronicDiagnosis` finns (true eller false)
+- `extension[relatedCondition]` – en extension per post i `diagnosisBody.relatedDiagnosis` (0..*) med satt `documentId`
+
+## Must Support-element som inte kan mappas
+
+`SEEHDSCondition` ärver Must Support-flaggor från `$ipsCondition` (IPS Condition, version 2.0.0)
+och lägger dessutom till egna. Nedanstående element är Must Support men fylls **aldrig** i av
+GetDiagnosis-mappningen, eftersom tjänstekontraktet inte bär motsvarande uppgift:
+
+| Element | Must Support-källa | Varför GetDiagnosis inte kan fylla i det |
+|---|---|---|
+| `Condition.bodySite` | `SEEHDSCondition` (egen MS-flagga, `0..1`, SNOMED CT `preferred`) | `diagnosisBody` har inget fält för kroppslokalisation – varken kodat eller som fritext. |
+| `Condition.severity` | Ärvd från IPS Condition 2.0.0 (`0..1`) | `diagnosisBody` har inget svårighetsgradsfält. |
+| `Condition.note` | `SEEHDSCondition` (egen MS-flagga, `0..*`) | GetDiagnosis har ingen fritext kopplad till den enskilda diagnosen – `diagnosisBody` innehåller bara `diagnosisCode`, `typeOfDiagnosis`, `diagnosisTime`, `chronicDiagnosis` och `relatedDiagnosis`. |
+| `Condition.subject.reference` | Ärvd från IPS Condition 2.0.0, där elementet är `1..1` MS (obligatoriskt) | Medvetet avsteg – se GENERAL-002 nedan. `subject` sätts alltid som logisk referens via `subject.identifier`; bryggan bundlar aldrig en `Patient`-resurs och sätter därför aldrig `subject.reference`. |
+| `Condition.abatement[x]` | Ärvd från IPS Condition 2.0.0 (`0..1`) | Det riktiga schemat (`DiagnosisBodyType`) har bara `diagnosisTime` – en enda tidpunkt, inget periodkoncept med slutdatum. Det finns inget källfält att härleda ett `abatementDateTime` från, se "Härledning av clinicalStatus" ovan. |
+
+Att dessa saknas i testdatan är alltså förväntat, inte ett mappningsfel.
+
+**En punkt som ofta missuppfattas som ett saknat Must Support-element:**
+
+- **`Condition.category.text` är inte ett Must Support-element.** Varken `$ipsCondition` eller
+  `SEEHDSCondition` sätter en MS-flagga på `category.text` (kontrollerat mot den upplösta
+  snapshot:en för `Condition-uv-ips` 2.0.0) – endast själva `category[diagnostyp]`-kodningen är
+  Must Support och obligatorisk. Om avsaknaden av fritext i `category` ändå var det som
+  observerades: `Condition.code.text` sätts redan idag från `diagnosisCode.originalText`
+  (med `displayName` som fallback), se mappningstabellen ovan.
 
 ## Provenance
 
@@ -323,14 +351,13 @@ För varje Condition skapas en Provenance-resurs som inkluderas i sökbundlen me
 
 | Agent-roll | Källa | Syfte |
 |---|---|---|
-| `custodian` | `diagnosisHeader.careProviderHSAId` | Juridiskt ansvarig vårdgivare – används av Sparrtjänsten |
-| `author` | `diagnosisHeader.careUnitHSAId` | Informationsägare vårdenhet |
+| `custodian` | `diagnosisHeader.accountableHealthcareProfessional.healthcareProfessionalCareGiverHSAId` | Juridiskt ansvarig vårdgivare – används av Sparrtjänsten |
+| `author` | `diagnosisHeader.accountableHealthcareProfessional.healthcareProfessionalCareUnitHSAId` | Informationsägare vårdenhet |
 | `assembler` | `EHDS_BRIDGE_HSA_ID` (env-variabel) | EHDS-bryggan som sammansatte FHIR-bundlen |
 
 `Provenance.recorded` sätts till `diagnosisHeader.accountableHealthcareProfessional.authorTime`
-(konverterad till ISO 8601 + UTC) – samma källa som `Condition.recordedDate`. `documentTime` används
-inte eftersom fältet har kardinalitet 0..0 för GetDiagnosis. Om `authorTime` saknas används aktuell
-systemtid.
+(konverterad till ISO 8601 + UTC) – samma källa som `Condition.recordedDate`. Om `authorTime`
+saknas används aktuell systemtid.
 
 `Provenance.recorded` återanvänds även som jämförelsetidpunkt (`comparisonTime`, "CheckBlocks-tid")
 i anropet till spärrtjänsten, se [Säkerhetstjänsten (Spärr)](architecture.html#sakerhetstjansten-sparr)
@@ -361,10 +388,10 @@ instansen bundlas inte — endast identifieraren bärs vidare. Samma avsteg gäl
 
 `SEEHDSCondition` kräver `subject.identifier` (kardinalitet 1..1) – en Condition utan en
 tillförlitlig patientidentifierare är inte bara avvikande, den är oanvändbar och riskerar att
-hamna fel om den ändå levereras. Bryggan validerar därför att `diagnosisHeader.patientId.extension`
+hamna fel om den ändå levereras. Bryggan validerar därför att `diagnosisHeader.patientId.id`
 matchar ett personnummer/samordningsnummer utan bindestreck (`^\d{12}$`, dvs. ÅÅÅÅMMDD + 4 siffror).
 
-Om `patientId` saknas helt, eller `extension` inte matchar detta format, **filtreras hela
+Om `patientId` saknas helt, eller `id` inte matchar detta format, **filtreras hela
 diagnosposten bort** – `mapDiagnosis` returnerar `null` för just den posten, på samma sätt som vid
 ett saknat `diagnosisHeader`/`diagnosisBody`. Övriga poster i samma TK-svar påverkas inte.
 Mappningen kastar inget undantag; det är bara den enskilda posten som uteblir ur resultatet.

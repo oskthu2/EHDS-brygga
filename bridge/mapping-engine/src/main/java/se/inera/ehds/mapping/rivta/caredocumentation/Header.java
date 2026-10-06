@@ -2,6 +2,7 @@ package se.inera.ehds.mapping.rivta.caredocumentation;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 /** careDocumentation.header – JoL-header v2.2 (not PatientSummaryHeader). */
@@ -10,16 +11,21 @@ import jakarta.xml.bind.annotation.XmlType;
         "accessControlHeader", "sourceSystemId", "record", "author", "signature"
 })
 public class Header {
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private AccessControlHeader accessControlHeader;
-    private String sourceSystemId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
+    private PersonIdType sourceSystemId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private RecordType record;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private Author author;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private Signature signature;
 
     public AccessControlHeader getAccessControlHeader() { return accessControlHeader; }
     public void setAccessControlHeader(AccessControlHeader accessControlHeader) { this.accessControlHeader = accessControlHeader; }
-    public String getSourceSystemId() { return sourceSystemId; }
-    public void setSourceSystemId(String sourceSystemId) { this.sourceSystemId = sourceSystemId; }
+    public PersonIdType getSourceSystemId() { return sourceSystemId; }
+    public void setSourceSystemId(PersonIdType sourceSystemId) { this.sourceSystemId = sourceSystemId; }
     public RecordType getRecord() { return record; }
     public void setRecord(RecordType record) { this.record = record; }
     public Author getAuthor() { return author; }

@@ -62,17 +62,24 @@ public class GetDiagnosisMapper {
         DiagnosisBody body = diag.getDiagnosisBody();
         if (header == null || body == null) return null;
 
+        HealthcareProfessionalType ahp = header.getAccountableHealthcareProfessional();
+
         // VG-scopat anrop: filtrera bort poster som tillhör en annan vårdgivare än den
         // efterfrågade — skydd om bakomliggande system returnerar flera vårdgivares poster.
+        // Den riktiga PatientSummaryHeaderType har inget eget careProviderHSAId-fält;
+        // vårdgivaren hämtas i stället från accountableHealthcareProfessional. Null-safe
+        // eftersom accountableHealthcareProfessional är obligatoriskt i schemat men ett
+        // felformat svar ändå inte ska ge NPE.
+        String careGiverHsaId = ahp != null ? ahp.getHealthcareProfessionalCareGiverHSAId() : null;
         if (ctx != null && ctx.getRequestedVgHsaId() != null
-                && !ctx.getRequestedVgHsaId().equals(header.getCareProviderHSAId())) {
+                && !ctx.getRequestedVgHsaId().equals(careGiverHsaId)) {
             return null;
         }
 
         // Saknat eller felaktigt personnummer/samordningsnummer stoppar hela posten –
         // en Condition utan en tillförlitlig patientidentifierare kan inte levereras.
         PersonIdType patientId = header.getPatientId();
-        if (patientId == null || !isValidPersonId(patientId.getExtension())) {
+        if (patientId == null || !isValidPersonId(patientId.getId())) {
             return null;
         }
 
@@ -81,35 +88,38 @@ public class GetDiagnosisMapper {
         c.getMeta().addProfile(PROFILE_URL);
         c.getMeta().addProfile(PROFILE_URL_EU_EPS);
 
-        // clinicalStatus: active unless there is an end date
-        boolean resolved = body.getDiagnosisTimePeriod() != null
-                && body.getDiagnosisTimePeriod().getEnd() != null;
-        c.setClinicalStatus(codeable(CLIN_STATUS_SYS, resolved ? "resolved" : "active"));
+        // clinicalStatus: alltid active för RIVTA-källa GetDiagnosis – den riktiga
+        // PatientSummaryHeaderType/DiagnosisBodyType har inget slutdatum/resolution-koncept
+        // (diagnosisTime är en enda tidpunkt, ingen period), till skillnad från den tidigare,
+        // overifierade diagnosisTimePeriod som denna mappning uppfanns mot.
+        c.setClinicalStatus(codeable(CLIN_STATUS_SYS, "active"));
 
         // verificationStatus: always confirmed for RIVTA-sourced data
         c.setVerificationStatus(codeable(VER_STATUS_SYS, "confirmed"));
 
-        // category: diagnosisType (HD/BY) via ConceptMap mot kv_diagnostyp.
-        // Saknar diagnosisType en känd mappning fylls category[diagnostyp] inte i – i stället
+        // category: typeOfDiagnosis ("Huvuddiagnos"/"Bidiagnos") via ConceptMap mot kv_diagnostyp.
+        // Saknar typeOfDiagnosis en känd mappning fylls category[diagnostyp] inte i – i stället
         // anges data-absent-reason=unknown, se DIAG-003 i mapping-getdiagnosis.md.
-        conceptMaps.translateDiagnosisType(body.getDiagnosisType())
+        conceptMaps.translateDiagnosisType(body.getTypeOfDiagnosis())
                 .ifPresentOrElse(
                         cat -> c.addCategory(
                                 codeableWithDisplay(cat.getTargetSystem(), cat.getTargetCode(), cat.getDisplay())),
                         () -> c.addCategory(dataAbsentReasonUnknown()));
 
-        // chronicCondition: extension[chronicDiagnosis] med boolean
-        if (body.getChronicCondition() != null) {
+        // chronicDiagnosis: extension[chronicDiagnosis] med boolean
+        if (body.getChronicDiagnosis() != null) {
             c.addExtension(new Extension(EXT_CHRONIC_CONDITION)
-                    .setValue(new BooleanType(body.getChronicCondition())));
+                    .setValue(new BooleanType(body.getChronicDiagnosis())));
         }
 
-        // relatedDiagnosis.documentId: extension[relatedCondition] med logisk referens
-        RelatedDiagnosis related = body.getRelatedDiagnosis();
-        if (related != null && related.getDocumentId() != null) {
-            Reference relatedRef = new Reference()
-                    .setIdentifier(new Identifier().setValue(related.getDocumentId()));
-            c.addExtension(new Extension(EXT_RELATED_CONDITION).setValue(relatedRef));
+        // relatedDiagnosis: 0..unbounded i det riktiga schemat – en extension per post
+        // (extensions kan upprepas på ett FHIR-element).
+        for (RelatedDiagnosis related : body.getRelatedDiagnosis()) {
+            if (related != null && related.getDocumentId() != null) {
+                Reference relatedRef = new Reference()
+                        .setIdentifier(new Identifier().setValue(related.getDocumentId()));
+                c.addExtension(new Extension(EXT_RELATED_CONDITION).setValue(relatedRef));
+            }
         }
 
         // code: ICD-10-SE (or other coding system)
@@ -128,18 +138,13 @@ public class GetDiagnosisMapper {
         // subject: patient identifier (validerad ovan – patientId finns och har giltigt format)
         c.setSubject(new Reference().setIdentifier(
                 new Identifier()
-                        .setSystem(namingSystem.oidToUri(patientId.getRoot()))
-                        .setValue(patientId.getExtension())));
+                        .setSystem(namingSystem.oidToUri(patientId.getType()))
+                        .setValue(patientId.getId())));
 
-        // onset / abatement from diagnosisTimePeriod
-        DatePeriodType period = body.getDiagnosisTimePeriod();
-        if (period != null) {
-            if (period.getStart() != null) {
-                c.setOnset(new DateTimeType(RivDateParser.parse(period.getStart())));
-            }
-            if (period.getEnd() != null) {
-                c.setAbatement(new DateTimeType(RivDateParser.parse(period.getEnd())));
-            }
+        // onset from diagnosisTime (en enda tidpunkt – inget abatement för GetDiagnosis,
+        // eftersom det riktiga schemat inte har något slutdatum/period-koncept)
+        if (body.getDiagnosisTime() != null) {
+            c.setOnset(new DateTimeType(RivDateParser.parse(body.getDiagnosisTime())));
         }
 
         String hsaSystem = namingSystem.oidToUri(HSA_OID_INERA);
@@ -152,35 +157,36 @@ public class GetDiagnosisMapper {
         }
 
         // recorder: accountableHealthcareProfessional → PractitionerRole (logical reference)
-        // recordedDate: accountableHealthcareProfessional/authorTime (documentTime har kardinalitet 0..0)
-        HealthcareProfessionalType ahp = header.getAccountableHealthcareProfessional();
+        // recordedDate: accountableHealthcareProfessional/authorTime
         if (ahp != null) {
-            if (ahp.getPersonId() != null) {
-                c.setRecorder(practitionerRoleRef(ahp.getPersonId(), hsaSystem));
+            if (ahp.getHealthcareProfessionalHSAId() != null) {
+                c.setRecorder(practitionerRoleRef(ahp.getHealthcareProfessionalHSAId(), hsaSystem));
             }
             if (ahp.getAuthorTime() != null) {
                 c.setRecordedDateElement(new DateTimeType(RivDateParser.parse(ahp.getAuthorTime())));
             }
         }
 
-        // asserter: legalAuthenticator → PractitionerRole; signatureDate → extension[assertedDate]
+        // asserter: legalAuthenticator → PractitionerRole; signatureTime → extension[assertedDate]
         LegalAuthenticatorType la = header.getLegalAuthenticator();
         if (la != null) {
-            if (la.getHcProfessional() != null && la.getHcProfessional().getPersonId() != null) {
-                c.setAsserter(practitionerRoleRef(la.getHcProfessional().getPersonId(), hsaSystem));
+            if (la.getLegalAuthenticatorHSAId() != null) {
+                c.setAsserter(practitionerRoleRef(la.getLegalAuthenticatorHSAId(), hsaSystem));
             }
-            if (la.getSignatureDate() != null) {
+            if (la.getSignatureTime() != null) {
                 Extension extAd = new Extension(EXT_ASSERTED_DATE);
-                extAd.setValue(new DateTimeType(RivDateParser.parse(la.getSignatureDate())));
+                extAd.setValue(new DateTimeType(RivDateParser.parse(la.getSignatureTime())));
                 c.addExtension(extAd);
             }
         }
 
-        // Provenance.recorded: samma källa som recordedDate (authorTime) – documentTime är 0..0
+        // Provenance.recorded: samma källa som recordedDate (authorTime).
+        // custodian/author: det riktiga schemat har inga careProviderHSAId/careUnitHSAId-fält
+        // på headern – vårdgivare/vårdenhet hämtas i stället från accountableHealthcareProfessional.
         Provenance prov = ProvenanceBuilder.build(
                 c.getId(),
-                header.getCareProviderHSAId(),
-                header.getCareUnitHSAId(),
+                careGiverHsaId,
+                ahp != null ? ahp.getHealthcareProfessionalCareUnitHSAId() : null,
                 ahp != null ? ahp.getAuthorTime() : null,
                 hsaSystem,
                 ctx);
@@ -188,13 +194,10 @@ public class GetDiagnosisMapper {
         return new MappedDiagnosisEntry(c, prov);
     }
 
-    private Reference practitionerRoleRef(PersonIdType personId, String defaultSystem) {
-        String system = personId.getRoot() != null
-                ? namingSystem.oidToUri(personId.getRoot())
-                : defaultSystem;
+    private Reference practitionerRoleRef(String hsaId, String defaultSystem) {
         return new Reference()
                 .setType(PRACTITIONER_ROLE_TYPE)
-                .setIdentifier(new Identifier().setSystem(system).setValue(personId.getExtension()));
+                .setIdentifier(new Identifier().setSystem(defaultSystem).setValue(hsaId));
     }
 
     private CodeableConcept codeable(String system, String code) {
@@ -206,8 +209,8 @@ public class GetDiagnosisMapper {
                 new Coding().setSystem(system).setCode(code).setDisplay(display));
     }
 
-    private boolean isValidPersonId(String extension) {
-        return extension != null && PERSONNUMMER_PATTERN.matcher(extension).matches();
+    private boolean isValidPersonId(String id) {
+        return id != null && PERSONNUMMER_PATTERN.matcher(id).matches();
     }
 
     private CodeableConcept dataAbsentReasonUnknown() {

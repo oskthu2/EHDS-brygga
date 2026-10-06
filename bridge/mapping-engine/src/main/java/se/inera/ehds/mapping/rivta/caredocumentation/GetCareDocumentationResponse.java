@@ -11,16 +11,16 @@ import java.util.List;
 
 @XmlRootElement(name = "GetCareDocumentationResponse")
 @XmlAccessorType(XmlAccessType.FIELD)
-@XmlType(name = "GetCareDocumentationResponseType", propOrder = {"result", "careDocumentation", "hasMore"})
+@XmlType(name = "GetCareDocumentationResponseType", propOrder = {"careDocumentation", "hasMore", "result"})
 public class GetCareDocumentationResponse {
-
-    private ResultType result;
 
     @XmlElement(name = "careDocumentation")
     private List<CareDocumentation> careDocumentation = new ArrayList<>();
 
     @XmlElement(name = "hasMore")
     private List<HasMore> hasMore = new ArrayList<>();
+
+    private ResultType result;
 
     public ResultType getResult() { return result; }
     public void setResult(ResultType result) { this.result = result; }

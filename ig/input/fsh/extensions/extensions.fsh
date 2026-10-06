@@ -20,7 +20,7 @@ Extension: ExtChronicCondition
 Id: ext-chronic-condition
 Title: "Chronic Condition"
 Description: """
-Anger om diagnosen är klassad som kronisk. Mappas från diagnosisBody.chronicCondition i GetDiagnosis.
+Anger om diagnosen är klassad som kronisk. Mappas från diagnosisBody.chronicDiagnosis i GetDiagnosis.
 """
 * ^url = "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition"
 * ^version = "0.1.0"

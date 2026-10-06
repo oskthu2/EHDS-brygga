@@ -17,7 +17,7 @@ import se.inera.ehds.mapping.rivta.GetDiagnosisResponse;
  */
 @WebService(
         name = "GetDiagnosisResponderInterface",
-        targetNamespace = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2"
+        targetNamespace = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2"
 )
 @SOAPBinding(parameterStyle = SOAPBinding.ParameterStyle.BARE)
 public interface GetDiagnosisResponderInterface {
@@ -25,7 +25,7 @@ public interface GetDiagnosisResponderInterface {
     @WebMethod(operationName = "GetDiagnosis")
     @WebResult(
             name = "GetDiagnosisResponse",
-            targetNamespace = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2"
+            targetNamespace = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2"
     )
     GetDiagnosisResponse getDiagnosis(
 
@@ -41,7 +41,7 @@ public interface GetDiagnosisResponderInterface {
             // Request body element
             @WebParam(
                     name = "GetDiagnosis",
-                    targetNamespace = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2"
+                    targetNamespace = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2"
             )
             GetDiagnosis parameters
     );

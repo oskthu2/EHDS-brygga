@@ -2,6 +2,7 @@ package se.inera.ehds.mapping.rivta.caredocumentation;
 
 import jakarta.xml.bind.annotation.XmlAccessType;
 import jakarta.xml.bind.annotation.XmlAccessorType;
+import jakarta.xml.bind.annotation.XmlElement;
 import jakarta.xml.bind.annotation.XmlType;
 
 /**
@@ -13,25 +14,31 @@ import jakarta.xml.bind.annotation.XmlType;
  */
 @XmlAccessorType(XmlAccessType.FIELD)
 @XmlType(name = "AccessControlHeaderType", propOrder = {
-        "patientId", "accountableHealthcareProvider", "accountableCareUnit",
+        "accountableHealthcareProvider", "accountableCareUnit", "patientId",
         "careProcessId", "blockComparisonTime", "approvedForPatient"
 })
 public class AccessControlHeader {
+    @XmlElement(namespace = CoreNamespace.VALUE)
+    private PersonIdType accountableHealthcareProvider;
+    @XmlElement(namespace = CoreNamespace.VALUE)
+    private PersonIdType accountableCareUnit;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private PersonIdType patientId;
-    private String accountableHealthcareProvider;
-    private String accountableCareUnit;
-    private String careProcessId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
+    private PersonIdType careProcessId;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private String blockComparisonTime;
+    @XmlElement(namespace = CoreNamespace.VALUE)
     private Boolean approvedForPatient;
 
+    public PersonIdType getAccountableHealthcareProvider() { return accountableHealthcareProvider; }
+    public void setAccountableHealthcareProvider(PersonIdType accountableHealthcareProvider) { this.accountableHealthcareProvider = accountableHealthcareProvider; }
+    public PersonIdType getAccountableCareUnit() { return accountableCareUnit; }
+    public void setAccountableCareUnit(PersonIdType accountableCareUnit) { this.accountableCareUnit = accountableCareUnit; }
     public PersonIdType getPatientId() { return patientId; }
     public void setPatientId(PersonIdType patientId) { this.patientId = patientId; }
-    public String getAccountableHealthcareProvider() { return accountableHealthcareProvider; }
-    public void setAccountableHealthcareProvider(String accountableHealthcareProvider) { this.accountableHealthcareProvider = accountableHealthcareProvider; }
-    public String getAccountableCareUnit() { return accountableCareUnit; }
-    public void setAccountableCareUnit(String accountableCareUnit) { this.accountableCareUnit = accountableCareUnit; }
-    public String getCareProcessId() { return careProcessId; }
-    public void setCareProcessId(String careProcessId) { this.careProcessId = careProcessId; }
+    public PersonIdType getCareProcessId() { return careProcessId; }
+    public void setCareProcessId(PersonIdType careProcessId) { this.careProcessId = careProcessId; }
     public String getBlockComparisonTime() { return blockComparisonTime; }
     public void setBlockComparisonTime(String blockComparisonTime) { this.blockComparisonTime = blockComparisonTime; }
     public Boolean getApprovedForPatient() { return approvedForPatient; }

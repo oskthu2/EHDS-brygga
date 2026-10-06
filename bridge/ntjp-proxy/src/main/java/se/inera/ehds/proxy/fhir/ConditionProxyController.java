@@ -29,7 +29,7 @@ import java.util.UUID;
 public class ConditionProxyController {
 
     private static final Logger log = LoggerFactory.getLogger(ConditionProxyController.class);
-    private static final String NS_RIV = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2";
+    private static final String NS_RIV = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2";
 
     private final GetDiagnosisClient soapClient;
     private final GetDiagnosisMapper mapper;

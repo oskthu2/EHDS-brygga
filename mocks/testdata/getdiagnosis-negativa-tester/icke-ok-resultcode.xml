@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<!--
+  Testfall: result.resultCode ar inte OK
+  Forvantat: Mapper returnerar tom lista trots att diagnosis-poster finns i svaret
+-->
+<ns2:GetDiagnosisResponse xmlns="urn:riv:clinicalprocess:healthcond:description:2" xmlns:ns2="urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2">
+    <ns2:diagnosis>
+        <diagnosisHeader>
+            <documentId>neg-test-doc-1</documentId>
+            <sourceSystemHSAId>SE2321000016-2769</sourceSystemHSAId>
+            <patientId>
+                <id>191212121212</id>
+                <type>1.2.752.129.2.1.3.1</type>
+            </patientId>
+            <accountableHealthcareProfessional>
+                <authorTime>20240101000000</authorTime>
+                <healthcareProfessionalCareUnitHSAId>SE2321000016-2769</healthcareProfessionalCareUnitHSAId>
+                <healthcareProfessionalCareGiverHSAId>SE2321000016-2769</healthcareProfessionalCareGiverHSAId>
+            </accountableHealthcareProfessional>
+            <approvedForPatient>true</approvedForPatient>
+        </diagnosisHeader>
+        <diagnosisBody>
+            <typeOfDiagnosis>Huvuddiagnos</typeOfDiagnosis>
+            <diagnosisTime>20240101000000</diagnosisTime>
+            <diagnosisCode>
+                <code>J18.9</code>
+                <codeSystem>1.2.752.116.1.1.1.1.3</codeSystem>
+                <displayName>Pneumoni, ospecificerad</displayName>
+            </diagnosisCode>
+        </diagnosisBody>
+    </ns2:diagnosis>
+    <ns2:result>
+        <resultCode>ERROR</resultCode>
+        <logId>neg-test-error</logId>
+    </ns2:result>
+</ns2:GetDiagnosisResponse>

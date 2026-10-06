@@ -89,23 +89,12 @@ class GetDiagnosisMapperTest {
     @Nested
     class KliniskStatus {
         @Test
-        void utan_slutdatum_ger_active() {
+        void alltid_active_eftersom_schema_saknar_slutdatum() {
+            // Det riktiga GetDiagnosis:2-schemat har ingen period/slutdatumskoncept
+            // (diagnosisTime är en enda tidpunkt) – clinicalStatus är därför alltid active.
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(minimalDiagnosis()), ctx);
             Condition c = result.get(0).condition();
             assertEquals("active", c.getClinicalStatus().getCodingFirstRep().getCode());
-        }
-
-        @Test
-        void med_slutdatum_ger_resolved() {
-            Diagnosis diag = minimalDiagnosis();
-            DatePeriodType period = new DatePeriodType();
-            period.setStart("20230101");
-            period.setEnd("20240101");
-            diag.getDiagnosisBody().setDiagnosisTimePeriod(period);
-
-            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
-            Condition c = result.get(0).condition();
-            assertEquals("resolved", c.getClinicalStatus().getCodingFirstRep().getCode());
         }
 
         @Test
@@ -119,9 +108,9 @@ class GetDiagnosisMapperTest {
     @Nested
     class DiagnosKategori {
         @Test
-        void HD_mappar_till_kv_diagnostyp_HD() {
+        void huvuddiagnos_mappar_till_kv_diagnostyp_HD() {
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisBody().setDiagnosisType("HD");
+            diag.getDiagnosisBody().setTypeOfDiagnosis("Huvuddiagnos");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
@@ -131,9 +120,9 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void BY_mappar_till_kv_diagnostyp_BY() {
+        void bidiagnos_mappar_till_kv_diagnostyp_BY() {
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisBody().setDiagnosisType("BY");
+            diag.getDiagnosisBody().setTypeOfDiagnosis("Bidiagnos");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
@@ -142,10 +131,10 @@ class GetDiagnosisMapperTest {
 
         @Test
         void okand_diagnostyp_ger_data_absent_reason_unknown_ingen_kodning() {
-            // DIAG-003: diagnosisType utan konceptmappning fyller inte category[diagnostyp]
+            // DIAG-003: typeOfDiagnosis utan konceptmappning fyller inte category[diagnostyp]
             // med en gissad kod – i stället anges data-absent-reason = unknown.
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisBody().setDiagnosisType("XX");
+            diag.getDiagnosisBody().setTypeOfDiagnosis("XX");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
@@ -161,9 +150,9 @@ class GetDiagnosisMapperTest {
     @Nested
     class KronikerOchRelateradDiagnos {
         @Test
-        void chronicCondition_true_ger_extension_chronicDiagnosis_true() {
+        void chronicDiagnosis_true_ger_extension_chronicDiagnosis_true() {
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisBody().setChronicCondition(true);
+            diag.getDiagnosisBody().setChronicDiagnosis(true);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
@@ -174,9 +163,9 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void chronicCondition_false_ger_extension_chronicDiagnosis_false() {
+        void chronicDiagnosis_false_ger_extension_chronicDiagnosis_false() {
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisBody().setChronicCondition(false);
+            diag.getDiagnosisBody().setChronicDiagnosis(false);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
@@ -187,7 +176,7 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void saknad_chronicCondition_ger_ingen_extension() {
+        void saknad_chronicDiagnosis_ger_ingen_extension() {
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(minimalDiagnosis()), ctx);
             Condition c = result.get(0).condition();
             assertNull(c.getExtensionByUrl(
@@ -199,7 +188,7 @@ class GetDiagnosisMapperTest {
             Diagnosis diag = minimalDiagnosis();
             RelatedDiagnosis related = new RelatedDiagnosis();
             related.setDocumentId("DOC-12345");
-            diag.getDiagnosisBody().setRelatedDiagnosis(related);
+            diag.getDiagnosisBody().setRelatedDiagnosis(List.of(related));
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
@@ -208,6 +197,24 @@ class GetDiagnosisMapperTest {
             assertNotNull(ext);
             Reference ref = (Reference) ext.getValue();
             assertEquals("DOC-12345", ref.getIdentifier().getValue());
+        }
+
+        @Test
+        void flera_relatedDiagnosis_ger_en_extension_per_post() {
+            Diagnosis diag = minimalDiagnosis();
+            RelatedDiagnosis first = new RelatedDiagnosis();
+            first.setDocumentId("DOC-1");
+            RelatedDiagnosis second = new RelatedDiagnosis();
+            second.setDocumentId("DOC-2");
+            diag.getDiagnosisBody().setRelatedDiagnosis(List.of(first, second));
+
+            List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
+            Condition c = result.get(0).condition();
+            List<Extension> exts = c.getExtensionsByUrl(
+                    "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition");
+            assertEquals(2, exts.size());
+            assertEquals("DOC-1", ((Reference) exts.get(0).getValue()).getIdentifier().getValue());
+            assertEquals("DOC-2", ((Reference) exts.get(1).getValue()).getIdentifier().getValue());
         }
 
         @Test
@@ -221,7 +228,7 @@ class GetDiagnosisMapperTest {
         @Test
         void relatedDiagnosis_utan_documentId_ger_ingen_extension() {
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisBody().setRelatedDiagnosis(new RelatedDiagnosis());
+            diag.getDiagnosisBody().setRelatedDiagnosis(List.of(new RelatedDiagnosis()));
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
@@ -284,8 +291,8 @@ class GetDiagnosisMapperTest {
         void personnummer_oid_konverteras_till_uri() {
             Diagnosis diag = minimalDiagnosis();
             PersonIdType pid = new PersonIdType();
-            pid.setRoot("1.2.752.129.2.1.3.1");
-            pid.setExtension("190101011234");
+            pid.setType("1.2.752.129.2.1.3.1");
+            pid.setId("190101011234");
             diag.getDiagnosisHeader().setPatientId(pid);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -299,8 +306,8 @@ class GetDiagnosisMapperTest {
         void okand_oid_ger_urn_fallback() {
             Diagnosis diag = minimalDiagnosis();
             PersonIdType pid = new PersonIdType();
-            pid.setRoot("9.9.9.9.9");
-            pid.setExtension("200001019999");
+            pid.setType("9.9.9.9.9");
+            pid.setId("200001019999");
             diag.getDiagnosisHeader().setPatientId(pid);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -310,13 +317,11 @@ class GetDiagnosisMapperTest {
     }
 
     @Nested
-    class TidperiodOchDatum {
+    class TidOchDatum {
         @Test
-        void onset_sätts_fran_startdatum() {
+        void onset_sätts_fran_diagnosisTime() {
             Diagnosis diag = minimalDiagnosis();
-            DatePeriodType period = new DatePeriodType();
-            period.setStart("20230601");
-            diag.getDiagnosisBody().setDiagnosisTimePeriod(period);
+            diag.getDiagnosisBody().setDiagnosisTime("20230601120000");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
@@ -324,16 +329,13 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void abatement_sätts_fran_slutdatum() {
+        void saknad_diagnosisTime_ger_ingen_onset() {
             Diagnosis diag = minimalDiagnosis();
-            DatePeriodType period = new DatePeriodType();
-            period.setStart("20230601");
-            period.setEnd("20231231");
-            diag.getDiagnosisBody().setDiagnosisTimePeriod(period);
+            diag.getDiagnosisBody().setDiagnosisTime(null);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
-            assertTrue(c.getAbatement().toString().contains("2023-12-31"));
+            assertFalse(c.hasOnset());
         }
 
         @Test
@@ -341,6 +343,7 @@ class GetDiagnosisMapperTest {
             Diagnosis diag = minimalDiagnosis();
             HealthcareProfessionalType ahp = new HealthcareProfessionalType();
             ahp.setAuthorTime("20240315");
+            ahp.setHealthcareProfessionalCareGiverHSAId("SE2321000016-PROV");
             diag.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -349,8 +352,9 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void saknad_authorTime_ger_ingen_recordedDate() {
+        void saknad_accountableHealthcareProfessional_ger_ingen_recordedDate() {
             Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisHeader().setAccountableHealthcareProfessional(null);
             diag.getDiagnosisHeader().setDocumentTime("20240315");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -359,10 +363,10 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void assertedDate_från_legalAuthenticator_signatureDate_läggs_till_som_extension() {
+        void assertedDate_från_legalAuthenticator_signatureTime_läggs_till_som_extension() {
             Diagnosis diag = minimalDiagnosis();
             LegalAuthenticatorType la = new LegalAuthenticatorType();
-            la.setSignatureDate("20240101");
+            la.setSignatureTime("20240101");
             diag.getDiagnosisHeader().setLegalAuthenticator(la);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -378,28 +382,23 @@ class GetDiagnosisMapperTest {
         void accountableHealthcareProfessional_mappar_till_recorder() {
             Diagnosis diag = minimalDiagnosis();
             HealthcareProfessionalType ahp = new HealthcareProfessionalType();
-            PersonIdType pid = new PersonIdType();
-            pid.setRoot("1.2.752.129.2.1.4.1");
-            pid.setExtension("SE2321000016-DOK");
-            ahp.setPersonId(pid);
+            ahp.setHealthcareProfessionalHSAId("SE2321000016-DOK");
+            ahp.setHealthcareProfessionalCareGiverHSAId("SE2321000016-PROV");
             diag.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Condition c = result.get(0).condition();
             assertNotNull(c.getRecorder());
             assertEquals("SE2321000016-DOK", c.getRecorder().getIdentifier().getValue());
+            assertEquals("urn:oid:1.2.752.129.2.1.4.1",
+                    c.getRecorder().getIdentifier().getSystem());
         }
 
         @Test
-        void legalAuthenticator_hcProfessional_mappar_till_asserter() {
+        void legalAuthenticator_mappar_till_asserter() {
             Diagnosis diag = minimalDiagnosis();
             LegalAuthenticatorType la = new LegalAuthenticatorType();
-            HealthcareProfessionalType prof = new HealthcareProfessionalType();
-            PersonIdType pid = new PersonIdType();
-            pid.setRoot("1.2.752.129.2.1.4.1");
-            pid.setExtension("SE2321000016-AUTH");
-            prof.setPersonId(pid);
-            la.setHcProfessional(prof);
+            la.setLegalAuthenticatorHSAId("SE2321000016-AUTH");
             diag.getDiagnosisHeader().setLegalAuthenticator(la);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -441,9 +440,10 @@ class GetDiagnosisMapperTest {
     @Nested
     class ProvenanceAgenter {
         @Test
-        void provenance_har_custodian_med_careProviderHsaId() {
+        void provenance_har_custodian_med_healthcareProfessionalCareGiverHSAId() {
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisHeader().setCareProviderHSAId("SE111-PROV");
+            HealthcareProfessionalType ahp = diag.getDiagnosisHeader().getAccountableHealthcareProfessional();
+            ahp.setHealthcareProfessionalCareGiverHSAId("SE111-PROV");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Provenance p = result.get(0).provenance();
@@ -452,9 +452,10 @@ class GetDiagnosisMapperTest {
         }
 
         @Test
-        void provenance_har_author_med_careUnitHsaId() {
+        void provenance_har_author_med_healthcareProfessionalCareUnitHSAId() {
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisHeader().setCareUnitHSAId("SE222-UNIT");
+            HealthcareProfessionalType ahp = diag.getDiagnosisHeader().getAccountableHealthcareProfessional();
+            ahp.setHealthcareProfessionalCareUnitHSAId("SE222-UNIT");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Provenance p = result.get(0).provenance();
@@ -472,9 +473,7 @@ class GetDiagnosisMapperTest {
         void provenance_recorded_kommer_fran_authorTime_inte_documentTime() {
             Diagnosis diag = minimalDiagnosis();
             diag.getDiagnosisHeader().setDocumentTime("20200101");
-            HealthcareProfessionalType ahp = new HealthcareProfessionalType();
-            ahp.setAuthorTime("20240315120000");
-            diag.getDiagnosisHeader().setAccountableHealthcareProfessional(ahp);
+            diag.getDiagnosisHeader().getAccountableHealthcareProfessional().setAuthorTime("20240315120000");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             Provenance p = result.get(0).provenance();
@@ -486,7 +485,9 @@ class GetDiagnosisMapperTest {
     class VardgivarFiltrering {
         // Två vårdgivare, BC_TEST_VG1 och BC_TEST_VG2, i samma system: många diagnoser
         // per vårdgivare i samma svar. Ett VG-scopat anrop (MapperContext.requestedVgHsaId)
-        // ska bara ge tillbaka poster för den efterfrågade vårdgivaren.
+        // ska bara ge tillbaka poster för den efterfrågade vårdgivaren. Vårdgivaren hämtas
+        // från accountableHealthcareProfessional.healthcareProfessionalCareGiverHSAId –
+        // den riktiga headern har inget eget careProviderHSAId-fält.
 
         @Test
         void vg_scopat_anrop_ger_bara_poster_for_efterfragad_vardgivare() {
@@ -539,9 +540,26 @@ class GetDiagnosisMapperTest {
             assertEquals(2, result.size());
         }
 
-        private Diagnosis diagnosisFor(String careProviderHsaId, String diagnosisCode) {
+        @Test
+        void saknad_accountableHealthcareProfessional_ger_null_safe_filtrering_inte_npe() {
+            // Malformat svar (schemat kräver accountableHealthcareProfessional, men mappningen
+            // ska inte krascha om det likväl saknas) – posten filtreras bort vid VG-scopat anrop
+            // eftersom careGiverHsaId blir null och aldrig matchar ett konkret requestedVgHsaId.
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisHeader().setCareProviderHSAId(careProviderHsaId);
+            diag.getDiagnosisHeader().setAccountableHealthcareProfessional(null);
+
+            MapperContext scoped = new MapperContext(
+                    "http://electronichealth.se/identifier/personnummer", "190101011234",
+                    "SE2321000999-EHDS", "BC_TEST_VG1");
+
+            assertDoesNotThrow(() -> mapper.map(responseWith(diag), scoped));
+            assertEquals(List.of(), mapper.map(responseWith(diag), scoped));
+        }
+
+        private Diagnosis diagnosisFor(String careGiverHsaId, String diagnosisCode) {
+            Diagnosis diag = minimalDiagnosis();
+            diag.getDiagnosisHeader().getAccountableHealthcareProfessional()
+                    .setHealthcareProfessionalCareGiverHSAId(careGiverHsaId);
             diag.getDiagnosisBody().getDiagnosisCode().setCode(diagnosisCode);
             return diag;
         }
@@ -570,11 +588,11 @@ class GetDiagnosisMapperTest {
 
         @Test
         void diagnostyp_utan_konceptmappning_ger_data_absent_reason_ingen_undantag() {
-            // DIAG-003 (dokumenterad i mapping-getdiagnosis.md): okänd diagnosisType fyller
+            // DIAG-003 (dokumenterad i mapping-getdiagnosis.md): okänd typeOfDiagnosis fyller
             // inte category[diagnostyp] med en gissad kod – data-absent-reason=unknown anges
             // i stället. Se även DiagnosKategori.okand_diagnostyp_ger_data_absent_reason_unknown_ingen_kodning.
             Diagnosis diag = minimalDiagnosis();
-            diag.getDiagnosisBody().setDiagnosisType("OKÄND-TYP");
+            diag.getDiagnosisBody().setTypeOfDiagnosis("OKÄND-TYP");
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
             assertEquals(1, result.size());
@@ -600,8 +618,8 @@ class GetDiagnosisMapperTest {
             // längd) stoppar posten på samma sätt som ett helt saknat personnummer.
             Diagnosis diag = minimalDiagnosis();
             PersonIdType pid = new PersonIdType();
-            pid.setRoot("1.2.752.129.2.1.3.1");
-            pid.setExtension("inte-ett-personnummer");
+            pid.setType("1.2.752.129.2.1.3.1");
+            pid.setId("inte-ett-personnummer");
             diag.getDiagnosisHeader().setPatientId(pid);
 
             List<MappedDiagnosisEntry> result = mapper.map(responseWith(diag), ctx);
@@ -612,8 +630,8 @@ class GetDiagnosisMapperTest {
         void personnummer_stoppar_posten_men_paverkar_inte_ovriga_i_samma_svar() {
             Diagnosis utanGiltigtPersonnummer = minimalDiagnosis();
             PersonIdType ogiltig = new PersonIdType();
-            ogiltig.setRoot("1.2.752.129.2.1.3.1");
-            ogiltig.setExtension("123");
+            ogiltig.setType("1.2.752.129.2.1.3.1");
+            ogiltig.setId("123");
             utanGiltigtPersonnummer.getDiagnosisHeader().setPatientId(ogiltig);
 
             List<MappedDiagnosisEntry> result =
@@ -647,15 +665,22 @@ class GetDiagnosisMapperTest {
     private Diagnosis minimalDiagnosis() {
         DiagnosisHeader header = new DiagnosisHeader();
         PersonIdType pid = new PersonIdType();
-        pid.setRoot("1.2.752.129.2.1.3.1");
-        pid.setExtension("190101011234");
+        pid.setType("1.2.752.129.2.1.3.1");
+        pid.setId("190101011234");
         header.setPatientId(pid);
         header.setDocumentTime("20240315");
-        header.setCareUnitHSAId("SE2321000016-4HK5");
-        header.setCareProviderHSAId("SE2321000016-PROV");
+        header.setDocumentId("doc-1");
+        header.setSourceSystemHSAId("SE2321000016-4HK5");
+        header.setApprovedForPatient(true);
+
+        HealthcareProfessionalType ahp = new HealthcareProfessionalType();
+        ahp.setAuthorTime("20240315");
+        ahp.setHealthcareProfessionalCareUnitHSAId("SE2321000016-4HK5");
+        ahp.setHealthcareProfessionalCareGiverHSAId("SE2321000016-PROV");
+        header.setAccountableHealthcareProfessional(ahp);
 
         DiagnosisBody body = new DiagnosisBody();
-        body.setDiagnosisType("HD");
+        body.setTypeOfDiagnosis("Huvuddiagnos");
         CVType cv = new CVType();
         cv.setCode("Z00");
         cv.setCodeSystem("1.2.752.116.1.1.1.1.3");

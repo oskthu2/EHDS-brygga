@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 
 class EiServiceTest {
 
-    private static final String NAMESPACE = "urn:riv:clinicalprocess:activity:conditions:GetDiagnosisResponder:2";
+    private static final String NAMESPACE = "urn:riv:clinicalprocess:healthcond:description:GetDiagnosisResponder:2";
     private static final String CANONICAL_PATIENT_SYSTEM = "http://electronichealth.se/identifier/personnummer";
 
     private RestTemplate rest;

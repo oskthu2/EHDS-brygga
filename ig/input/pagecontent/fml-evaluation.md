@@ -91,6 +91,32 @@ cd bridge && mvn -pl fml-mapping-poc exec:exec
 modul-split på JDK 17 och kastar en `loader constraint violation` på `QName`/
 `DatatypeConstants`; `exec:exec` kör i en riktig forkad process och undviker det.)
 
+### Redigering i VS Code: fhir-mapbuilder (matchbox-baserad)
+
+Ingen riktig WYSIWYG-/visuell-regelträd-editor för FML hittades. Det närmaste som finns är
+[`aphp/fhir-mapbuilder`](https://github.com/aphp/fhir-mapbuilder), en VS Code-extension med
+syntax highlighting, autocomplete mot FHIR-core och en "högerklicka → köra mot testdata"-
+funktion, backad av en Java/Spring Boot-tjänst som bäddar in
+[matchbox-engine](https://github.com/ahdis/matchbox).
+
+Provat i den här sessionen (utan GUI, direkt mot `fhir-mapbuilder-validation.jar`s REST-API):
+samma `.map`-fil, en JSON-källa byggd av `GetDiagnosisJsonSourceBuilder`, och ett minimalt
+FHIR-paket med `lm-diagnosis` + de två `ConceptMap`-resurserna gav, via matchbox-engine, en
+`Condition`-resurs **identisk** med vad vår egen `FmlEngine` producerar – ett oberoende
+motor-körning som stämmer, inte bara ett syntax-test.
+
+**Ett konkret kompatibilitetsfynd**: matchbox:s FML-parser (R5-baserad) tolkar `///`
+(trippel-slash) som reserverad metadata-syntax (`nyckel = värde`), inte en vanlig kommentar, och
+kastar en `FHIRLexerException` på fri text efter den. Vår egen motor (HAPI:s R4-baserade
+`StructureMapUtilities`, som `FmlEngine` kör) är toleratare och godtar `///` som vanlig
+kommentar. Alla fyra `.map`-filers inledande dokumentationskommentarer använde `///` av just den
+anledningen (större kommentarmarkör) – ändrat till `//` i hela modulen för korsmotor-
+portabilitet, utan någon funktionell skillnad för vår egen motor.
+
+**Slutsats**: `fhir-mapbuilder` är ett genuint användbart komplement till `FmlTestClient` för den
+som vill redigera `.map`-filerna direkt i VS Code (syntax + autocomplete + snabb testkörning),
+men ger ingen visuell mappningsbyggare – fortfarande textbaserat, bara i en annan editor.
+
 ## Täckning – vad är faktiskt översatt till FML
 
 Siffrorna nedan räknar fält/regler, inte rader kod, och är avstämda mot de nuvarande

@@ -1,11 +1,11 @@
-/// FML-utvärdering: GetCareDocumentation (RIVTA) -> DocumentReference. Källan är nu EHDS-TK:s
-/// publicerade logiska modell inera-ehds-lm-care-documentation, se
-/// GetCareDocumentationJsonSourceBuilder och fml-evaluation.md.
-///
-/// DocBook-fritext (clinicalDocumentNoteText) utelämnas helt av JSON-byggaren när innehållet
-/// ser ut som XML - DocBookToNarrativeTransformer och Strategy B-Compositionen kräver egen
-/// Java-kod och saknar FML-motsvarighet (arkitekturellt stoppad, oförändrat fynd).
-/// dissentingOpinion bär bara den första posten (dokumenterad begränsning, oförändrad).
+// FML-utvärdering: GetCareDocumentation (RIVTA) -> DocumentReference. Källan är nu EHDS-TK:s
+// publicerade logiska modell inera-ehds-lm-care-documentation, se
+// GetCareDocumentationJsonSourceBuilder och fml-evaluation.md.
+//
+// DocBook-fritext (clinicalDocumentNoteText) utelämnas helt av JSON-byggaren när innehållet
+// ser ut som XML - DocBookToNarrativeTransformer och Strategy B-Compositionen kräver egen
+// Java-kod och saknar FML-motsvarighet (arkitekturellt stoppad, oförändrat fynd).
+// dissentingOpinion bär bara den första posten (dokumenterad begränsning, oförändrad).
 map "http://ehds-brygga.inera.se/fhir/StructureMap/GetCareDocumentationToDocumentReference" = "GetCareDocumentationToDocumentReference"
 
 uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-care-documentation" alias LmCareDocumentation as source

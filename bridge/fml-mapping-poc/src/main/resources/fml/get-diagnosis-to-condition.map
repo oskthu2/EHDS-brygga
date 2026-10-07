@@ -1,17 +1,17 @@
-/// FML-utvärdering: GetDiagnosis (RIVTA) -> Condition.
-///
-/// Källan är nu en RIKTIG logisk modell: EHDS-TK:s publicerade
-/// inera-ehds-lm-diagnosis-StructureDefinition (kind=logical), registrerad i worker-kontexten
-/// av FmlEngine och instansierad från JSON byggd av GetDiagnosisJsonSourceBuilder - ingen
-/// Parameters-flattening längre. Se fml-evaluation.md "Rättelse: den logiska modellen behöver
-/// inte författas - den finns redan".
-///
-/// DIAG-001 (saknat/felaktigt personnummer stoppar hela posten) hanteras numera INTE här genom
-/// att bara hoppa över subject-regeln (som i den gamla Parameters-versionen) - FmlEngine
-/// evaluerar ett FHIRPath-villkor (se registry-posten "GetDiagnosisToCondition") INNAN
-/// transform() körs alls, och hoppar över hela anropet (ingen resurs skapas) om det slår fel.
-/// Det matchar Java-mapperns "return null"-beteende exakt, och gör stoppa-resursen-policyn
-/// konfigurerbar i registry:n i stället för hårdkodad i en where()-klausul i mappen.
+// FML-utvärdering: GetDiagnosis (RIVTA) -> Condition.
+//
+// Källan är nu en RIKTIG logisk modell: EHDS-TK:s publicerade
+// inera-ehds-lm-diagnosis-StructureDefinition (kind=logical), registrerad i worker-kontexten
+// av FmlEngine och instansierad från JSON byggd av GetDiagnosisJsonSourceBuilder - ingen
+// Parameters-flattening längre. Se fml-evaluation.md "Rättelse: den logiska modellen behöver
+// inte författas - den finns redan".
+//
+// DIAG-001 (saknat/felaktigt personnummer stoppar hela posten) hanteras numera INTE här genom
+// att bara hoppa över subject-regeln (som i den gamla Parameters-versionen) - FmlEngine
+// evaluerar ett FHIRPath-villkor (se registry-posten "GetDiagnosisToCondition") INNAN
+// transform() körs alls, och hoppar över hela anropet (ingen resurs skapas) om det slår fel.
+// Det matchar Java-mapperns "return null"-beteende exakt, och gör stoppa-resursen-policyn
+// konfigurerbar i registry:n i stället för hårdkodad i en where()-klausul i mappen.
 map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToCondition" = "GetDiagnosisToCondition"
 
 uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-diagnosis" alias LmDiagnosis as source

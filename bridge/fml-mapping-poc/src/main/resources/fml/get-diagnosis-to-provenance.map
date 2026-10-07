@@ -1,10 +1,10 @@
-/// FML-utvärdering: GetDiagnosis (RIVTA) -> Provenance. Delar källa (inera-ehds-lm-diagnosis)
-/// med get-diagnosis-to-condition.map - samma tjänstekontrakt, två olika målresurser, två
-/// StructureMap-filer (transform() stödjer bara en target per anrop, se fml-evaluation.md
-/// "Fjärde begränsningen"). custodian/author är de två agenter som kan härledas ur källan;
-/// assembler (bryggans eget HSA-id) och Provenance.target (korrelations-id mot den redan
-/// skapade Condition) är bryggans egna orkestreringsbeslut, inte RIVTA-data, och sätts av
-/// anropande kod efter transform() - inte i mappen, se FmlEngine-javadoc.
+// FML-utvärdering: GetDiagnosis (RIVTA) -> Provenance. Delar källa (inera-ehds-lm-diagnosis)
+// med get-diagnosis-to-condition.map - samma tjänstekontrakt, två olika målresurser, två
+// StructureMap-filer (transform() stödjer bara en target per anrop, se fml-evaluation.md
+// "Fjärde begränsningen"). custodian/author är de två agenter som kan härledas ur källan;
+// assembler (bryggans eget HSA-id) och Provenance.target (korrelations-id mot den redan
+// skapade Condition) är bryggans egna orkestreringsbeslut, inte RIVTA-data, och sätts av
+// anropande kod efter transform() - inte i mappen, se FmlEngine-javadoc.
 map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToProvenance" = "GetDiagnosisToProvenance"
 
 uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-diagnosis" alias LmDiagnosis as source

@@ -1,9 +1,9 @@
-/// FML-utvärdering: GetCareDocumentation (RIVTA) -> Provenance. Delar källa
-/// (inera-ehds-lm-care-documentation) med get-caredocumentation-to-documentreference.map -
-/// samma tjänstekontrakt, två olika målresurser. recorded: author.timestamp med
-/// record.timestamp som fallback (DOC-002, se GetCareDocumentationMapper.java) - FML kan
-/// inte uttrycka "A om den finns, annars B" som ett enda fält utan två komplementära regler,
-/// precis som för category-mapped/-absent i GetDiagnosis-mappen.
+// FML-utvärdering: GetCareDocumentation (RIVTA) -> Provenance. Delar källa
+// (inera-ehds-lm-care-documentation) med get-caredocumentation-to-documentreference.map -
+// samma tjänstekontrakt, två olika målresurser. recorded: author.timestamp med
+// record.timestamp som fallback (DOC-002, se GetCareDocumentationMapper.java) - FML kan
+// inte uttrycka "A om den finns, annars B" som ett enda fält utan två komplementära regler,
+// precis som för category-mapped/-absent i GetDiagnosis-mappen.
 map "http://ehds-brygga.inera.se/fhir/StructureMap/GetCareDocumentationToProvenance" = "GetCareDocumentationToProvenance"
 
 uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-care-documentation" alias LmCareDocumentation as source

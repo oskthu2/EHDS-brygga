@@ -1,0 +1,196 @@
+// FML-utvärdering: GetCareDocumentation (RIVTA) -> DocumentReference. Källan är nu EHDS-TK:s
+// publicerade logiska modell inera-ehds-lm-care-documentation, se
+// GetCareDocumentationJsonSourceBuilder och fml-evaluation.md.
+//
+// DocBook-fritext (clinicalDocumentNoteText) utelämnas helt av JSON-byggaren när innehållet
+// ser ut som XML - DocBookToNarrativeTransformer och Strategy B-Compositionen kräver egen
+// Java-kod och saknar FML-motsvarighet (arkitekturellt stoppad, oförändrat fynd).
+// dissentingOpinion bär bara den första posten (dokumenterad begränsning, oförändrad).
+map "http://ehds-brygga.inera.se/fhir/StructureMap/GetCareDocumentationToDocumentReference" = "GetCareDocumentationToDocumentReference"
+
+uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-care-documentation" alias LmCareDocumentation as source
+uses "http://hl7.org/fhir/StructureDefinition/DocumentReference" alias DocumentReference as target
+
+group GetCareDocumentationToDocumentReference(source src : LmCareDocumentation, target tgt : DocumentReference) {
+
+  // status: alltid 'current' - RIVTA-body saknar ett eget statusfält.
+  src -> tgt.status = 'current' "status";
+
+  src.careDocumentation as cd then {
+    cd.header as h then {
+
+      // masterIdentifier: record.recordId
+      h.record as rec then {
+        rec.recordId as rid then {
+          rid -> tgt.masterIdentifier = create('Identifier') as mid then {
+            rid.value as v -> mid.value = v "masterIdentifier-value";
+            rid.system as sys -> mid.system = sys "masterIdentifier-system";
+          } "masterIdentifier-id";
+        } "masterIdentifier";
+        // date: record.timestamp - instant, kräver create()-inpackning (castToInstant() saknar
+        // Element-fallback, se get-diagnosis-to-provenance.map). Bindningen måste gå via .value
+        // för att få en riktig StringType, se samma fynd där.
+        rec.timestamp as t then {
+          t.value as tv -> tgt.date = create('instant') as dateEl then {
+            tv -> dateEl.value = tv "date-value";
+          } "date-wrap";
+        } "date";
+      } "record";
+
+      // meta.source
+      h.sourceSystemId as src1 then {
+        src1.value as v -> tgt.meta = create('Meta') as m then {
+          v -> m.source = ('https://tjanstekatalogen.inera.se/Endpoint/' & v) "meta-source";
+        } "meta";
+      } "meta-block";
+
+      h.accessControlHeader as ach then {
+        // subject: patientId
+        ach.patientId as pid then {
+          pid -> tgt.subject = create('Reference') as subjRef then {
+            pid -> subjRef.identifier = create('Identifier') as subjId then {
+              pid.value as v -> subjId.value = v "subject-value";
+              pid.system as sys -> subjId.system = sys "subject-system";
+            } "subject-id";
+          } "subject-ref";
+        } "subject";
+
+        // context.related: careProcessId. Ingen create('DocumentReference_Context') - nästlade
+        // BackboneElements saknar en fristående StructureDefinition, se fml-evaluation.md fynd 4.
+        ach.careProcessId as cpid then {
+          cpid -> tgt.context as ctx then {
+            cpid -> ctx.related = create('Reference') as relRef then {
+              cpid -> relRef.identifier = create('Identifier') as relId then {
+                cpid.value as v -> relId.value = v "related-value";
+                cpid.system as sys -> relId.system = sys "related-system";
+              } "related-id";
+            } "related-ref";
+          } "context";
+        } "careProcessId";
+
+        // extension[blockComparisonTime]
+        ach.blockComparisonTime as bct -> tgt.extension = create('Extension') as bctExt then {
+          bct -> bctExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-block-comparison-time' "bct-url";
+          bct -> bctExt.value = bct "bct-value";
+        } "blockComparisonTime";
+      } "ach";
+
+      // author -> PractitionerRole (logisk referens)
+      h.author as author then {
+        author.authorId as aid then {
+          aid.value as v -> tgt.author = create('Reference') as authorRef then {
+            aid -> authorRef.type = 'PractitionerRole' "author-type";
+            author.name as nm -> authorRef.display = nm "author-display";
+            v -> authorRef.identifier = create('Identifier') as authorId then {
+              v -> authorId.value = v "author-id-value";
+            } "author-id";
+          } "author-ref";
+        } "authorId";
+      } "author";
+
+      // authenticator + extension[signatureTime] -> PractitionerRole (logisk referens)
+      h.signature as signature then {
+        signature.signatureId as sid then {
+          sid.value as v -> tgt.authenticator = create('Reference') as authnRef then {
+            sid -> authnRef.type = 'PractitionerRole' "authn-type";
+            signature.name as nm -> authnRef.display = nm "authn-display";
+            v -> authnRef.identifier = create('Identifier') as authnId then {
+              v -> authnId.value = v "authn-id-value";
+            } "authn-id";
+          } "authn-ref";
+        } "signatureId";
+        signature.timestamp as t -> tgt.extension = create('Extension') as sigExt then {
+          t -> sigExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-signature-time' "sig-url";
+          t -> sigExt.value = t "sig-value";
+        } "signatureTime";
+      } "signature";
+    } "header";
+
+    cd.body as body then {
+      // type: clinicalDocumentNoteCode
+      body.clinicalDocumentNoteCode as noteCode where coding.exists() -> tgt.type = create('CodeableConcept') as typeCC then {
+        noteCode.coding as nc then {
+          nc.system as sys -> typeCC.coding = create('Coding') as typeCoding then {
+            sys -> typeCoding.system = sys "type-system";
+            nc.code as v -> typeCoding.code = v "type-code";
+            nc.display as v -> typeCoding.display = v "type-display";
+          } "type-coding";
+        } "nc";
+        noteCode.text as v -> typeCC.text = v "type-text";
+      } "type";
+
+      // description: clinicalDocumentNoteTitle
+      body.clinicalDocumentNoteTitle as title -> tgt.description = title "description";
+
+      // content: clinicalDocumentNoteText (ren fritext) XOR multimediaEntry. Ingen
+      // create('DocumentReference_Content') - samma nästlade-BackboneElement-begränsning.
+      body.clinicalDocumentNoteText as noteTextSrc then {
+        noteTextSrc.value as noteText -> tgt.content as content1 then {
+          noteText -> content1.attachment = create('Attachment') as att1 then {
+            noteText -> att1.contentType = 'text/plain; charset=utf-8' "content-type";
+            noteText -> att1.data = create('base64Binary') as data1 then {
+              noteText -> data1.value = noteText "content-data";
+            } "content-data-el";
+            body.clinicalDocumentNoteTitle as title2 -> att1.title = title2 "content-title";
+          } "attachment";
+        } "content-plaintext-wrap";
+      } "content-plaintext";
+
+      body.multimediaEntry as media where value.exists() -> tgt.content as content2 then {
+        media -> content2.attachment = create('Attachment') as att2 then {
+          media.mediaType as mt -> att2.contentType = mt "media-contentType";
+          media.value as mediaVal then {
+            mediaVal.value as vv -> att2.data = create('base64Binary') as data2 then {
+              vv -> data2.value = vv "media-data-value";
+            } "media-data-wrap";
+          } "media-data-el";
+          body.clinicalDocumentNoteTitle as title3 -> att2.title = title3 "media-title";
+        } "media-attachment";
+      } "content-media-value";
+
+      body.multimediaEntry as media2 where reference.exists() -> tgt.content as content3 then {
+        media2.reference as ref -> content3.attachment = create('Attachment') as att3 then {
+          media2.mediaType as mt -> att3.contentType = mt "media-ref-contentType";
+          ref -> att3.url = ref "media-ref-url";
+          body.clinicalDocumentNoteTitle as title4 -> att3.title = title4 "media-ref-title";
+        } "media-ref-attachment";
+      } "content-media-ref";
+
+      // dissentingOpinion[0] -> extension (delad extension, ägs inte av denna IG).
+      body.dissentingOpinion as dissent then {
+        dissent -> tgt.extension = create('Extension') as dissentExt then {
+          dissent -> dissentExt.url = 'https://fhir.inera.se/StructureDefinition/dissenting-opinion' "dissent-url";
+          dissent.opinionId as oid then {
+            oid.value as oidLeaf then {
+              oidLeaf.value as v -> dissentExt.extension = create('Extension') as opinionIdExt then {
+                oid -> opinionIdExt.url = 'opinionId' "opinionId-url";
+                v -> opinionIdExt.value = v "opinionId-value";
+              } "opinionId-ext";
+            } "opinionId-wrap";
+          } "opinionId";
+          dissent.authorTime as t -> dissentExt.extension = create('Extension') as authorTimeExt then {
+            t -> authorTimeExt.url = 'authorTime' "authorTime-url";
+            t -> authorTimeExt.value = t "authorTime-value";
+          } "authorTime-ext";
+          dissent.opinion as op -> dissentExt.extension = create('Extension') as opinionExt then {
+            op -> opinionExt.url = 'opinion' "opinion-url";
+            op -> opinionExt.value = op "opinion-value";
+          } "opinion-ext";
+          dissent.personId as pid2 then {
+            pid2 -> dissentExt.extension = create('Extension') as personIdExt then {
+              pid2 -> personIdExt.url = 'personId' "personId-url";
+              pid2 -> personIdExt.value = create('Identifier') as personIdVal then {
+                pid2.value as v -> personIdVal.value = v "personId-value";
+                pid2.system as sys -> personIdVal.system = sys "personId-system";
+              } "personId-identifier";
+            } "personId-ext";
+          } "personId";
+          dissent.personName as pn -> dissentExt.extension = create('Extension') as personNameExt then {
+            pn -> personNameExt.url = 'personName' "personName-url";
+            pn -> personNameExt.value = pn "personName-value";
+          } "personName-ext";
+        } "dissent-ext";
+      } "dissentingOpinion";
+    } "body";
+  } "careDocumentation";
+}

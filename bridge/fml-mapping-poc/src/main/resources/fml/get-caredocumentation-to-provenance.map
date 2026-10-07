@@ -1,0 +1,58 @@
+// FML-utvärdering: GetCareDocumentation (RIVTA) -> Provenance. Delar källa
+// (inera-ehds-lm-care-documentation) med get-caredocumentation-to-documentreference.map -
+// samma tjänstekontrakt, två olika målresurser. recorded: author.timestamp med
+// record.timestamp som fallback (DOC-002, se GetCareDocumentationMapper.java) - FML kan
+// inte uttrycka "A om den finns, annars B" som ett enda fält utan två komplementära regler,
+// precis som för category-mapped/-absent i GetDiagnosis-mappen.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/GetCareDocumentationToProvenance" = "GetCareDocumentationToProvenance"
+
+uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-care-documentation" alias LmCareDocumentation as source
+uses "http://hl7.org/fhir/StructureDefinition/Provenance" alias Provenance as target
+
+group GetCareDocumentationToProvenance(source src : LmCareDocumentation, target tgt : Provenance) {
+  src.careDocumentation as cd then {
+    cd.header as h then {
+      // recorded: author.timestamp om author finns, annars record.timestamp.
+      h.author as author where timestamp.exists() then {
+        author.timestamp as t then {
+          t.value as tv -> tgt.recorded = create('instant') as rec1 then {
+            tv -> rec1.value = tv "recorded-author-value";
+          } "recorded-author-wrap";
+        } "recorded-author";
+      } "recorded-from-author";
+      h where author.timestamp.exists().not() then {
+        record.timestamp as t then {
+          t.value as tv -> tgt.recorded = create('instant') as rec2 then {
+            tv -> rec2.value = tv "recorded-record-value";
+          } "recorded-record-wrap";
+        } "recorded-record";
+      } "recorded-from-record";
+
+      h.accessControlHeader as ach then {
+        // custodian: accountableHealthcareProvider
+        ach.accountableHealthcareProvider as prov then {
+          prov.value as v -> tgt.agent as custodianAgent then {
+            v -> custodianAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'custodian') "custodian-type";
+            v -> custodianAgent.who = create('Reference') as custodianWho then {
+              v -> custodianWho.identifier = create('Identifier') as custodianId then {
+                v -> custodianId.value = v "custodian-id-value";
+              } "custodian-id";
+            } "custodian-who";
+          } "custodian-agent";
+        } "custodian";
+
+        // author: accountableCareUnit
+        ach.accountableCareUnit as unit then {
+          unit.value as v -> tgt.agent as authorAgent then {
+            v -> authorAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'author') "author-type";
+            v -> authorAgent.who = create('Reference') as authorWho then {
+              v -> authorWho.identifier = create('Identifier') as authorId then {
+                v -> authorId.value = v "author-id-value";
+              } "author-id";
+            } "author-who";
+          } "author-agent";
+        } "author";
+      } "ach";
+    } "header";
+  } "careDocumentation";
+}

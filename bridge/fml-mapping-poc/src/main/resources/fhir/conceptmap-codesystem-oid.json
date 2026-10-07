@@ -1,0 +1,38 @@
+{
+  "resourceType": "ConceptMap",
+  "url": "http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid",
+  "name": "CodeSystemOidToUri",
+  "status": "active",
+  "group": [
+    {
+      "source": "urn:ietf:rfc:3986",
+      "target": "https://www.icd10.se/",
+      "element": [
+        {
+          "code": "1.2.752.116.1.1.1.1.3",
+          "target": [ { "code": "1.2.752.116.1.1.1.1.3", "equivalence": "equivalent" } ]
+        }
+      ]
+    },
+    {
+      "source": "urn:ietf:rfc:3986",
+      "target": "http://hl7.org/fhir/sid/icd-10",
+      "element": [
+        {
+          "code": "2.16.840.1.113883.6.3",
+          "target": [ { "code": "2.16.840.1.113883.6.3", "equivalence": "equivalent" } ]
+        }
+      ]
+    },
+    {
+      "source": "urn:ietf:rfc:3986",
+      "target": "http://snomed.info/sct",
+      "element": [
+        {
+          "code": "2.16.840.1.113883.6.96",
+          "target": [ { "code": "2.16.840.1.113883.6.96", "equivalence": "equivalent" } ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,60 @@
+// FML-utvärdering: GetDiagnosis (RIVTA) -> Provenance. Delar källa (inera-ehds-lm-diagnosis)
+// med get-diagnosis-to-condition.map - samma tjänstekontrakt, två olika målresurser, två
+// StructureMap-filer (transform() stödjer bara en target per anrop, se fml-evaluation.md
+// "Fjärde begränsningen"). custodian/author är de två agenter som kan härledas ur källan;
+// assembler (bryggans eget HSA-id) och Provenance.target (korrelations-id mot den redan
+// skapade Condition) är bryggans egna orkestreringsbeslut, inte RIVTA-data, och sätts av
+// anropande kod efter transform() - inte i mappen, se FmlEngine-javadoc.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToProvenance" = "GetDiagnosisToProvenance"
+
+uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-diagnosis" alias LmDiagnosis as source
+uses "http://hl7.org/fhir/StructureDefinition/Provenance" alias Provenance as target
+
+group GetDiagnosisToProvenance(source src : LmDiagnosis, target tgt : Provenance) {
+  src.diagnosis as d then {
+    d.diagnosisHeader as h then {
+      h.accountableHealthcareProfessional as ahp then {
+        // recorded: samma källa som Condition.recordedDate (authorTime), men instant i stället
+        // för dateTime - castToInstant() saknar Element-fallback (till skillnad från
+        // castToDateTime()), så värdet måste packas in via create('instant') + bindning, samma
+        // mönster som base64Binary-fyndet i fml-evaluation.md.
+        ahp.authorTime as t then {
+          // Bindningen måste gå via .value för att få en riktig StringType (vars toString()
+          // ger rätt råtext) - annars anropas PrimitiveType.setProperty()'s
+          // setValueAsString(value.toString()) på det råa Element-objektet självt, samma
+          // typkonverteringsbugg som BooleanType-fyndet i fml-evaluation.md.
+          t.value as tv -> tgt.recorded = create('instant') as rec then {
+            tv -> rec.value = tv "recorded-value";
+          } "recorded-wrap";
+        } "recorded";
+
+        // custodian: careGiverHSAId. Ingen create('Provenance_Agent') - nästlade
+        // BackboneElements saknar en fristående StructureDefinition och create() kastar
+        // "Unknown Resource or Type Name" för dem; dest.makeProperty()-reflektionen skapar
+        // elementet själv om create() utelämnas helt, se fml-evaluation.md fynd 4.
+        ahp.healthcareProfessionalCareGiverHSAId as cg then {
+          cg.value as v -> tgt.agent as custodianAgent then {
+            v -> custodianAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'custodian') "custodian-type";
+            v -> custodianAgent.who = create('Reference') as custodianWho then {
+              v -> custodianWho.identifier = create('Identifier') as custodianId then {
+                v -> custodianId.value = v "custodian-id-value";
+              } "custodian-id";
+            } "custodian-who";
+          } "custodian-agent";
+        } "custodian";
+
+        // author: careUnitHSAId
+        ahp.healthcareProfessionalCareUnitHSAId as cu then {
+          cu.value as v -> tgt.agent as authorAgent then {
+            v -> authorAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'author') "author-type";
+            v -> authorAgent.who = create('Reference') as authorWho then {
+              v -> authorWho.identifier = create('Identifier') as authorId then {
+                v -> authorId.value = v "author-id-value";
+              } "author-id";
+            } "author-who";
+          } "author-agent";
+        } "author";
+      } "ahp";
+    } "header";
+  } "diagnosis";
+}

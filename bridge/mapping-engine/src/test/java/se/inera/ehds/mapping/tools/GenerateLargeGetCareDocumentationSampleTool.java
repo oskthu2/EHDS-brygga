@@ -34,9 +34,14 @@ import java.util.Random;
  *   mvn -pl mapping-engine dependency:build-classpath -Dmdep.outputFile=/tmp/cp.txt
  *   java -cp target/classes:target/test-classes:$(cat /tmp/cp.txt) \
  *        se.inera.ehds.mapping.tools.GenerateLargeGetCareDocumentationSampleTool \
- *        /tmp/out/getcaredocumentation-large-sample.xml 400
+ *        /tmp/out/getcaredocumentation-large-sample.xml 400 9000
  *
- * Argument: [outputPath] [antalDokument]. Standard: ./getcaredocumentation-large-sample.xml, 400.
+ * Argument: [outputPath] [antalDokument] [ordPerDokument]. Två uppmätta varianter som
+ * båda ger ~40 MB, bara med olika balans mellan antal och storlek per dokument:
+ *   - 380 dokument, 9000 ord/dokument  (standard — längre journalanteckningar)
+ *   - 2000 dokument, 1250 ord/dokument (fler, kortare poster)
+ * Tidsserien (16 år, 2011-01 till ca 2026-10) sprids alltid över samma period oavsett
+ * antal dokument — fler dokument ger tätare mellanrum, inte en längre tidsperiod.
  */
 public final class GenerateLargeGetCareDocumentationSampleTool {
 
@@ -122,13 +127,17 @@ public final class GenerateLargeGetCareDocumentationSampleTool {
                 "GetCareDocumentationResponse", documentCount, bytes / (1024.0 * 1024.0), outFile.getAbsolutePath());
     }
 
+    // Hela tidsserien spänner ~16 år (2011-01 till ca 2026-10) oavsett antal dokument —
+    // fler dokument ger tätare mellanrum snarare än ett längre förlopp.
+    private static final long TOTAL_SPAN_DAYS = 16L * 365;
+
     private static GetCareDocumentationResponse buildResponse(int documentCount, int wordsPerDocument) {
         List<CareDocumentation> documents = new ArrayList<>(documentCount);
-        // Dokument spridda över ~16 år (2011-01 till 2026-10), ungefär ett var 14:e dag.
+        long stepDays = Math.max(1, TOTAL_SPAN_DAYS / documentCount);
         LocalDateTime cursor = LocalDateTime.of(2011, 1, 10, 9, 0, 0);
         for (int i = 0; i < documentCount; i++) {
             documents.add(buildDocument(i, cursor, wordsPerDocument));
-            cursor = cursor.plusDays(14).plusHours((i % 5) - 2).plusMinutes((i % 7) * 3);
+            cursor = cursor.plusDays(stepDays).plusHours((i % 5) - 2).plusMinutes((i % 7) * 3);
         }
 
         ResultType result = new ResultType();

@@ -9,6 +9,7 @@ COPY mapping-engine/pom.xml mapping-engine/
 COPY soap-client/pom.xml soap-client/
 COPY fhir-server/pom.xml fhir-server/
 COPY ntjp-proxy/pom.xml ntjp-proxy/
+COPY malac-hd-mapping-poc/pom.xml malac-hd-mapping-poc/
 
 RUN mvn dependency:go-offline -q --no-transfer-progress
 
@@ -16,6 +17,7 @@ COPY mapping-engine/src mapping-engine/src
 COPY soap-client/src soap-client/src
 COPY fhir-server/src fhir-server/src
 COPY ntjp-proxy/src ntjp-proxy/src
+COPY malac-hd-mapping-poc/src malac-hd-mapping-poc/src
 
 RUN mvn package -DskipTests -q --no-transfer-progress
 

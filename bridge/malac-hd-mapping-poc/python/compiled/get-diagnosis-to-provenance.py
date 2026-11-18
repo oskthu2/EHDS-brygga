@@ -10,7 +10,7 @@ import decimal
 from datetime import datetime, time as datetime_time
 from malac.utils import date as dateutil, exceptions, html as htmlutil
 from html import escape as html_escape
-import rivta_getdiagnosis_model
+import lm_diagnosis_model
 import malac.models.fhir.r5
 from malac.models.fhir import utils
 from malac.utils import fhirpath
@@ -57,7 +57,7 @@ def _resolve_format(path, explicit, kind, json_supported):
 def _read_source(source_path, source_type):
     if source_type == 'xml':
         src = sys.stdin.buffer if source_path == '-' else source_path
-        return rivta_getdiagnosis_model.parse(src, silence=True)
+        return lm_diagnosis_model.parse(src, silence=True)
     raise ValueError('unknown source type: ' + str(source_type))
 
 def _write_target(target_path, target_type, result):
@@ -93,29 +93,31 @@ def GetDiagnosisToProvenance(src, tgt):
         for h in (getattr(d, 'diagnosisHeader', None) if isinstance(getattr(d, 'diagnosisHeader', None), list) else ([] if not getattr(d, 'diagnosisHeader', None) else [getattr(d, 'diagnosisHeader', None)])):
             for ahp in (getattr(h, 'accountableHealthcareProfessional', None) if isinstance(getattr(h, 'accountableHealthcareProfessional', None), list) else ([] if not getattr(h, 'accountableHealthcareProfessional', None) else [getattr(h, 'accountableHealthcareProfessional', None)])):
                 for giver in (getattr(ahp, 'healthcareProfessionalCareGiverHSAId', None) if isinstance(getattr(ahp, 'healthcareProfessionalCareGiverHSAId', None), list) else ([] if not getattr(ahp, 'healthcareProfessionalCareGiverHSAId', None) else [getattr(ahp, 'healthcareProfessionalCareGiverHSAId', None)])):
-                    custAgent = malac.models.fhir.r5.Provenance_Agent()
-                    tgt.agent.append(custAgent)
-                    custAgent.type_ = malac.models.fhir.r5.CodeableConcept(coding=[malac.models.fhir.r5.Coding(system=malac.models.fhir.r5.uri(value='http://terminology.hl7.org/CodeSystem/provenance-participant-type'), code=malac.models.fhir.r5.string(value='custodian'))])
-                    custWho = malac.models.fhir.r5.Reference()
-                    custAgent.who = custWho
-                    custId = malac.models.fhir.r5.Identifier()
-                    custWho.identifier = custId
-                    for giverV in (giver if isinstance(giver, list) else ([] if not giver else [giver])):
-                        custId.system = malac.models.fhir.r5.uri(value='urn:oid:1.2.752.129.2.1.4.1')
-                    for giverV2 in (giver if isinstance(giver, list) else ([] if not giver else [giver])):
-                        custId.value = (malac.models.fhir.r5.string(value=giverV2) if isinstance(giverV2, str) else malac.models.fhir.r5.string(value=giverV2.value))
+                    for giverVal in (getattr(giver, 'value', None) if isinstance(getattr(giver, 'value', None), list) else ([] if not getattr(giver, 'value', None) else [getattr(giver, 'value', None)])):
+                        custAgent = malac.models.fhir.r5.Provenance_Agent()
+                        tgt.agent.append(custAgent)
+                        custAgent.type_ = malac.models.fhir.r5.CodeableConcept(coding=[malac.models.fhir.r5.Coding(system=malac.models.fhir.r5.uri(value='http://terminology.hl7.org/CodeSystem/provenance-participant-type'), code=malac.models.fhir.r5.string(value='custodian'))])
+                        custWho = malac.models.fhir.r5.Reference()
+                        custAgent.who = custWho
+                        custId = malac.models.fhir.r5.Identifier()
+                        custWho.identifier = custId
+                        for giverValSys in (giverVal if isinstance(giverVal, list) else ([] if not giverVal else [giverVal])):
+                            custId.system = malac.models.fhir.r5.uri(value='urn:oid:1.2.752.129.2.1.4.1')
+                        for giverValV in (giverVal if isinstance(giverVal, list) else ([] if not giverVal else [giverVal])):
+                            custId.value = (malac.models.fhir.r5.string(value=giverValV) if isinstance(giverValV, str) else malac.models.fhir.r5.string(value=giverValV.value))
                 for unit in (getattr(ahp, 'healthcareProfessionalCareUnitHSAId', None) if isinstance(getattr(ahp, 'healthcareProfessionalCareUnitHSAId', None), list) else ([] if not getattr(ahp, 'healthcareProfessionalCareUnitHSAId', None) else [getattr(ahp, 'healthcareProfessionalCareUnitHSAId', None)])):
-                    authAgent = malac.models.fhir.r5.Provenance_Agent()
-                    tgt.agent.append(authAgent)
-                    authAgent.type_ = malac.models.fhir.r5.CodeableConcept(coding=[malac.models.fhir.r5.Coding(system=malac.models.fhir.r5.uri(value='http://terminology.hl7.org/CodeSystem/provenance-participant-type'), code=malac.models.fhir.r5.string(value='author'))])
-                    authWho = malac.models.fhir.r5.Reference()
-                    authAgent.who = authWho
-                    authId = malac.models.fhir.r5.Identifier()
-                    authWho.identifier = authId
-                    for unitV in (unit if isinstance(unit, list) else ([] if not unit else [unit])):
-                        authId.system = malac.models.fhir.r5.uri(value='urn:oid:1.2.752.129.2.1.4.1')
-                    for unitV2 in (unit if isinstance(unit, list) else ([] if not unit else [unit])):
-                        authId.value = (malac.models.fhir.r5.string(value=unitV2) if isinstance(unitV2, str) else malac.models.fhir.r5.string(value=unitV2.value))
+                    for unitVal in (getattr(unit, 'value', None) if isinstance(getattr(unit, 'value', None), list) else ([] if not getattr(unit, 'value', None) else [getattr(unit, 'value', None)])):
+                        authAgent = malac.models.fhir.r5.Provenance_Agent()
+                        tgt.agent.append(authAgent)
+                        authAgent.type_ = malac.models.fhir.r5.CodeableConcept(coding=[malac.models.fhir.r5.Coding(system=malac.models.fhir.r5.uri(value='http://terminology.hl7.org/CodeSystem/provenance-participant-type'), code=malac.models.fhir.r5.string(value='author'))])
+                        authWho = malac.models.fhir.r5.Reference()
+                        authAgent.who = authWho
+                        authId = malac.models.fhir.r5.Identifier()
+                        authWho.identifier = authId
+                        for unitValSys in (unitVal if isinstance(unitVal, list) else ([] if not unitVal else [unitVal])):
+                            authId.system = malac.models.fhir.r5.uri(value='urn:oid:1.2.752.129.2.1.4.1')
+                        for unitValV in (unitVal if isinstance(unitVal, list) else ([] if not unitVal else [unitVal])):
+                            authId.value = (malac.models.fhir.r5.string(value=unitValV) if isinstance(unitValV, str) else malac.models.fhir.r5.string(value=unitValV.value))
     asmAgent = malac.models.fhir.r5.Provenance_Agent()
     tgt.agent.append(asmAgent)
     asmAgent.type_ = malac.models.fhir.r5.CodeableConcept(coding=[malac.models.fhir.r5.Coding(system=malac.models.fhir.r5.uri(value='http://terminology.hl7.org/CodeSystem/provenance-participant-type'), code=malac.models.fhir.r5.string(value='assembler'))])

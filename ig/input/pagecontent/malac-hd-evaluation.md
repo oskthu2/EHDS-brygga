@@ -13,6 +13,15 @@ Allt arbete ligger i `bridge/malac-hd-mapping-poc/` – ett eget Maven-modul var
 är att jämföra; all faktisk FML/Python-mappning ligger under dess `python/`-katalog, inte i
 Java. `mapping-engine` är orörd.
 
+**Uppdatering (samma gren, samma PR, en andra arbetsomgång):** avsnitten nedan fram till
+"Feasibility-bedömning" beskriver den URSPRUNGLIGA PoC:n – MaLaC-HD ensamt, mot en egen
+`generateDS`-genererad RIVTA-modell. En andra fråga besvarades sedan på samma gren: kan den
+EXAKT SAMMA `.map`-filen köras av en ANNAN motor också – HAPI FHIR:s egen
+`StructureMapUtilities` (Java), samma motor som `fml-mapping-poc`/PR #39 redan kör – så att
+FML-filen själv blir en genuint delad, portabel artefakt mellan de två spåren, inte två
+isärglidande filuppsättningar? Se "Den enade källmodellen" och framåt för den delen; de nya
+avsnitten ersätter inget ovan utan bygger vidare på det.
+
 ## Vad som byggdes
 
 - **`python/model/`** – `rivta_getdiagnosis_model.py`, genererad direkt från de vendored RIVTA-
@@ -241,6 +250,230 @@ motorimplementationens villkor, och en jämförande testsvit mot den riktiga Jav
 `run_comparison.py` är) är det som faktiskt fångade punkt 1 ("`identifier` saknas i Java" hade
 annars varit lätt att missa åt andra hållet också).
 
+## Den enade källmodellen
+
+Den ursprungliga PoC:n (ovan) och `fml-mapping-poc`/PR #39 använde VARSIN källmodell för exakt
+samma `.map`-fil-par: `rivta_getdiagnosis_model.py` (generateDS, rå XSD-modell) här,
+`inera-ehds-lm-diagnosis` (EHDS-TK:s publicerade logiska modell, `lm-diagnosis.json`) där. Det
+gjorde `.map`-filerna strukturellt olika redan innan motorskillnaderna räknas – två
+mappningsuppsättningar som råkar göra samma sak, inte en delad artefakt. Den riktiga strukturella
+frågan den här arbetsomgången svarar på är: **byt till EN källmodell för båda spåren**, så att
+samma `.map`-fil blir meningsfull att jämföra, eller köra, på båda motorerna.
+
+Beslut: `inera-ehds-lm-diagnosis` (PR #39:s modell) vann, inte en tredje/ny modell och inte
+`rivta_getdiagnosis_model.py`. Skälen:
+
+- Den är redan en riktig FHIR `StructureDefinition` (`kind=logical`) – HAPI:s
+  `org.hl7.fhir.r4.elementmodel.JsonParser` kan läsa en instans av den direkt, ingen adapter
+  behövs på den sidan (oförändrat från PR #39).
+- MaLaC-HD kräver INGEN logisk modell för att köra den – se `lm_diagnosis_model.py`
+  (`python/model/`), som bara behöver uppfylla kompilatorns två faktiska kontrakt (ett
+  toppnivånamn vid kompileringstillfället, en `parse()`-funktion vid körning – se den filens
+  modulsträng för den fulla bekräftelsen, gjord genom att faktiskt kompilera och läsa
+  kompilatorns egen kod, inte genom att anta). `rivta_getdiagnosis_model.py` behövde därför
+  inte bytas ut mot en tredje Python-modell av samma logiska modell – samma generateDS-fria
+  "ingen logisk modell behövs"-fördel från den ursprungliga PoC:n håller även här, bara riktad
+  mot en annan källmodell.
+- `rivta_getdiagnosis_model.py` lever vidare OFÖRÄNDRAD, men ENDAST för de oberoende testbara
+  `lib-*.map`-referensfilerna (`model_plugin.py` registrerar nu två källmodeller sida vid
+  sida) – den används inte längre av `get-diagnosis-to-condition.map`/
+  `get-diagnosis-to-provenance.map`.
+
+Två JSON-byggare producerar nu EXAKT samma `lm-diagnosis`-formade instans från en RIVTA
+`<diagnosis>`-post: `python/lm_diagnosis_json_builder.py` (Python) och
+`se.inera.ehds.malac.hapi.LmDiagnosisJsonSourceBuilder` (Java, detta moduls `src/main/java`) –
+samma fältnamn, samma nästling, samma för-resolverade värden (se nästa avsnitt). Ingen av dem
+delar kod med den andra; de är oberoende implementationer av samma kontrakt, av samma skäl som
+`HapiFmlEngine`/`HapiMapperDump` (Java) nedan är skrivna från grunden mot PR #39:s
+`FmlEngine`/`GetDiagnosisJsonSourceBuilder` som förlaga, inte ett beroende av den ej
+sammanslagna grenen.
+
+### En tolkningsgenväg: "xml" ljuger om formatet
+
+En kuriositet värd att notera: MaLaC-HD:s kompilerade CLI-wrapper hårdkodar
+`_SOURCE_JSON_SUPPORTED = False` för varje källmodell som inte är en av dess egna inbyggda
+FHIR-modeller (`malac/hd/core/fhir/r5/generator/structuremap.py`), oavsett vad källmodellens
+egen `parse()`-funktion faktiskt gör – flaggan styr bara wrapperns EGEN `--source-type`-
+validering, aldrig anropet den till slut gör (`<modul>.parse(src, silence=True)`, alltid,
+oavsett deklarerad källtyp). `lm_diagnosis_model.parse()` läser riktig JSON. Så `run_pipeline.py`
+anropar den kompilerade filen med `-st xml` (en medveten "lögn" om formatet) och låter
+`parse()` läsa JSON i praktiken – enklaste sättet att hålla samma kommandoradskontrakt som
+innan, samtidigt som trådformatet byts till det enda format båda sidor nu delar.
+
+## Vilka buggar överlevde modellbytet
+
+Ingen av de ursprungliga tio buggarna (föregående avsnitt) antogs fortfarande gälla – varje en
+omprövades mot den nya modellen genom att faktiskt kompilera och köra, inte genom att läsa om
+den gamla listan.
+
+**Överlevde oförändrade (modelloberoende MaLaC-HD-kompilatorbeteenden, inte knutna till den
+gamla RIVTA-modellen):** punkt 1 (`imports` samma-katalog), 3 (inline `conceptmap{}` ignoreras),
+4 (`where()` måste vara `$this`-formen), 5 (höger-ledsnavigering på samma rad som `where()`
+tappas), 7 (färsk `as`-ombindning krävs för rå tilldelning), 9 (choice-element kräver namngiven
+variant), 10 (`tgt.meta` i två regler skriver över). Alla sju bekräftade oförändrade genom att
+de EXAKT SAMMA konstruktionerna dyker upp i det nya, delade `get-diagnosis-to-condition.map`
+och fortsätter kräva samma arbetsomgångar (se filens kommentarer rad för rad).
+
+**Överlevde, men nu en delad-fil-policy, inte bara en MaLaC-HD-bugg (punkt 6, `&`-
+konkatenering):** bekräftat fortfarande trasigt för `inera-ehds-lm-diagnosis`-sourcade
+variabler (samma `fhirpath_utils.get(None, ...)`-symptom som förut) – men eftersom filen nu
+måste kompilera IDENTISKT på HAPI också, och HAPI:s egen version av samma fil tidigare löste
+exakt detta med `&` direkt (se `fml-evaluation.md`), flyttades båda OID→URI-slagningarna och
+Endpoint-URL-bygget till BÅDA JSON-byggarna i stället för bara till MaLaC-HD-sidans
+preprocessing – ett beslut, inte ett tvång, så filen kan stanna byte-för-byte delad (se
+`lm_diagnosis_json_builder.py`s modulsträng för den fulla motiveringen).
+
+**Upphörde att vara relevant (var en konsekvens av `rivta_getdiagnosis_model.py`s flata
+strängfält, inte av den nya modellens nästlade `Identifier`/`CodeableConcept`-form):** punkt 2
+(`imports` + flera `-sr`-ConceptMaps kraschar) gäller fortfarande rent tekniskt för
+`lib-*.map`-filerna (oförändrade, oförändrad modell), men påverkar inte längre
+`get-diagnosis-to-condition.map`/`get-diagnosis-to-provenance.map` eftersom de aldrig anropat
+`imports` ändå (se "Det delade biblioteket i praktiken") – och den enda återstående
+`-sr`-ConceptMap:en (`diagnosis-type.json`) används ensam, aldrig tillsammans med en andra.
+`codesystem-oid.json`-ConceptMap:en som fanns i den gamla versionen refereras inte längre alls
+(se `compile.sh`s kommentar) – OID-slagningen sker nu helt utanför FML (föregående stycke), så
+den ConceptMap:en behövs inte.
+
+**Punkt 8 (uri-fält omsluts aldrig vid variabeltilldelning) överlevde på MaLaC-HD-sidan, men
+fick en ny HALVA på HAPI-sidan** – se nästa avsnitt, ny bugg "uri-fält".
+
+## Den portabla delmängden av FML
+
+Att köra SAMMA fil på två motorer avslöjade ett nytt lager konflikter utöver MaLaC-HD:s egna –
+platser där MaLaC-HD och HAPI kräver RAKT MOTSATTA FML-former för samma sak, inte bara platser
+där en motor råkar ha en egen begränsning. Hittade genom att faktiskt köra varje kombination
+mot båda motorerna och diffa resultatet (inte genom att läsa någon specifikation) – se
+`get-diagnosis-to-condition.map`s och `get-diagnosis-to-provenance.map`s egna
+header-kommentarer för den fulla, ordagrant bevarade redogörelsen; det här avsnittet
+sammanfattar.
+
+**11. `create('dateTime')` kraschar MaLaC-HD:s KOMPILATOR när källvärdet kommer från en egen
+modell.** `_handle_target_copy()` (`malac/hd/core/fhir/r5/generator/structuremap.py`) gör
+`hasattr(utils.get_module(src_type), 'dateTime')` för att avgöra om en sträng→dateTime-
+konvertering behövs, och kraschar med `'NoneType' object has no attribute '__module__'` när
+`src_type` är okänd – alltid sant för ett värde som kommer från en egen (icke-inbyggd)
+källmodell. En ny, annorlunda bugg än punkt 9 (som bara gäller körningstid/tyst tapp, inte en
+kompilatorkrasch).
+
+**12. Choice-element av typ `dateTime`, sourcat från en egen källmodell, har INGEN FML-form som
+fungerar på BÅDA motorerna.** Fyra kombinationer testade, alla fyra trasiga på minst en motor:
+
+| Form | MaLaC-HD | HAPI |
+|---|---|---|
+| Namngiven variant, rå tilldelning (`tgt.onsetDateTime = v`) | OK (punkt 9 ovan) | `Attempt to write to invalid property 'onsetDateTime'` |
+| Generisk variant, rå tilldelning (`tgt.onset = v`) | Tyst tappad (punkt 9) | OK |
+| Generisk variant + `create('dateTime')` | Kompilatorkrasch (punkt 11) | OK |
+| Namngiven variant + `create('dateTime')` | Kompilatorkrasch (punkt 11) | Samma fel som rad 1 |
+
+Löst genom att INTE sätta `Condition.onset[x]` eller `ext-asserted-date`-extensionens
+`Extension.value[x]` i FML alls – draget till drivrutinen (`run_pipeline.py`/
+`HapiMapperDump.java`), som sätter dem direkt på `transform()`-resultatet, exakt som
+`Provenance.target`/`.recorded` redan gjorde (en riktig `transform()`-anrop har bara EN target
+och kan aldrig känna till sin "syskon"-resurs – samma skäl, en annan kategori av fält).
+
+**13. Tre `uri`-typade fält (`Meta.source`, `Identifier.system`, `Coding.system`) korrumperas
+TYST av HAPI när de sätts via `create('uri')` från ett NAVIGERAT (icke-literalt) käll-Element –
+även när MaLaC-HD:s punkt 8-workaround (explicit `create('uri')`) används.** Bekräftat genom
+att faktiskt dumpa och läsa HAPI-sidans utdata, inte genom att anta att punkt 8:s fix
+portabelt löste problemet: `meta.source` blev `"value=string[https://tjanstekatalogen...]"`,
+`subject.identifier.system` blev `"system=uri[http://electronichealth...]"` – HAPI:s generiska
+`Element`s egen `toString()`-representation (`namn=typ[värde]`), inte värdet självt, läckte
+rakt in i resultatet, UTAN fel eller varning. Samma `create('uri')`/`.value =`-mönster fungerar
+korrekt på HAPI när högerledet är en FML-STRÄNGLITERAL (`meta.profile` i samma fil, oberört).
+Eftersom `create('uri')` är precis det MaLaC-HD kräver (punkt 8) OCH precis det som korrumperar
+värdet på HAPI, finns ingen enda form som är korrekt på båda – samma "dra ut ur FML"-lösning
+som punkt 12, tillämpad på dessa tre fält i stället (se
+`run_pipeline.py::_set_uri_fields`/`HapiMapperDump.java::setUriFields`, som läser de redan
+resolverade värdena direkt ur samma JSON-instans transformen just konsumerade).
+
+**14. En enda kombinerad flerstegsnavigering (`b.chronicDiagnosis.value as chronic`) kollapsar
+TYST till bara första steget i MaLaC-HD:s genererade kod** (`getattr(b, 'chronicDiagnosis',
+None)`, `.value`-steget försvinner helt) – bekräftat genom att läsa den genererade koden rad
+för rad. HAPI:s generiska Element-modell omsluter ÄVEN bara-primitiva fält (samma anledning som
+punkt 13), så `.value` behövs där för att nå det riktiga booleska värdet. Löst genom att dela
+upp navigeringen i TVÅ separata regler (bind fältet, SEDAN navigera `.value` i en nästlad
+regel) – samma mönster som redan användes för varje annan flerstegssökväg i filen (t.ex.
+`sourceSystemHSAId.value`), nu bekräftat nödvändigt här också. `lm_diagnosis_model.py`s
+`_BoolValue`-klass finns ENDAST för att göra denna `.value`-navigering till en korrekt no-op
+även på MaLaC-HD-sidan (en bar Python-bool skulle annars inte ha något `.value` att navigera
+till) – en liten, medveten form-matchning mellan de två sidornas källmodeller, inte en
+generaliserad "omslut allt"-lösning.
+
+**15. `create('Provenance_Agent')` (explicit, nästlad `BackboneElement`-typ) fungerar på
+MaLaC-HD men AVVISAS av HAPI** ("Unknown Resource or Type Name" – en nästlad
+`BackboneElement` utan egen fristående `StructureDefinition` kan inte namnges så). Att HELT
+UTELÄMNA `create()` och låta vardera motorn räkna ut typen genom reflektion
+(`tgt.agent as x then { ... }`) fungerar korrekt på BÅDA – MER portabelt än den ursprungliga
+MaLaC-HD-bara formen, inte mindre. `get-diagnosis-to-provenance.map` använder den utelämnade
+formen genomgående.
+
+**Sammanfattning – den portabla delmängden**, för en `.map`-fil som ska kompilera OCH köra
+identiskt på MaLaC-HD 1.10.0 och HAPI:s `StructureMapUtilities`, källa en egen/logisk
+(icke-inbyggd) modell:
+
+- Undvik `&`-strängkonkatenering med en källmodell-sourcad variabel helt (punkt 6) – gör
+  strängbygget i värdspråket, i båda JSON-byggarna om filen är delad.
+- Undvik att sätta ett choice-element (`x[x]`) från en källmodell-sourcad variabel helt (punkt
+  12) – sätt det på `transform()`-resultatet i drivrutinen i stället.
+- Undvik att sätta ett `uri`-typat fält från en NAVIGERAD (icke-literal) källmodell-variabel
+  via `create('uri')` (punkt 13) – sätt det på resultatet i drivrutinen, precis som choice-
+  elementet. En FML-strängliteral in i samma `uri`-fält är fortfarande säker.
+  `create('<primitiv typ>')` + en FML-LITERAL är alltså fortsatt portabelt; det är bara
+  "navigerat värde in i en skapad primitiv" som är den gemensamma riskzonen.
+  BackboneElement-typer (`Provenance.agent`), tvärtom: UTELÄMNA alltid `create()`, låt
+  reflektionen sköta det (punkt 15).
+- Navigera ALDRIG mer än ETT steg per regelrad – dela upp i nästlade regler, en navigering per
+  steg (punkt 5, 14). Gäller oavsett om det är en modellvariabel eller ett primitivt
+  Element-omslutet fält.
+- Skriv `where()` i sin bara `$this`-form, aldrig omkvalificerad med ett `as`-alias (punkt 4).
+- Gör en FÄRSK `as`-ombindning precis vid varje tilldelningspunkt, aldrig en återanvänd
+  modell-bunden variabel direkt (punkt 7).
+- Namnge choice-varianten explicit när ett värde FAKTISKT kan sättas i FML (`ext.valueBoolean`,
+  inte `ext.value`) – punkt 9, oförändrad.
+- Håll varje toppnivåfält som kan nås från flera regler (t.ex. `tgt.meta`) i ETT delat,
+  bundet `then{}`-block (punkt 10).
+
+## Den nya tredje jämförelsen: HAPI/Java som en tredje motor
+
+`se.inera.ehds.malac.hapi.HapiFmlEngine` (detta moduls `src/main/java`) kör EXAKT samma
+`.map`-filer direkt från disk (`python/fml/get-diagnosis-to-condition.map` och
+`...-provenance.map` – inga kopior) via `org.hl7.fhir.r4.utils.StructureMapUtilities`,
+designmönstret lånat som förlaga från PR #39:s `FmlEngine`/`GetDiagnosisJsonSourceBuilder` men
+skriven om från grunden i den här modulen, utan beroende av den ej sammanslagna grenen.
+`HapiMapperDump`/`HapiMapperDumpTest` dumpar dess utdata för samma två testmeddelanden till
+`target/hapi-mapper-dump/*.json`, och `compare/run_comparison.py` jämför nu alla TRE parvis
+(produktions-`GetDiagnosisMapper.java`, Python/MaLaC-HD, Java/HAPI) i stället för bara två.
+
+**Resultat (samma två testmeddelanden som tidigare):**
+
+- **`get-diagnosis-ogiltigt-personnummer.xml`: identiskt på alla tre** – tom lista från alla
+  tre, DIAG-001-vakten stoppar posten lika på alla tre spår (två gånger utanför FML, en gång
+  dessutom en andra FHIRPath-baserad kontroll inuti `HapiFmlEngine` för paritet med PR #39:s
+  mönster).
+- **`get-diagnosis-huvuddiagnos.xml`: TVÅ skillnader, båda förklarade, ingen oförklarad:**
+  1. `condition.identifier` (`documentId`): finns i Python/MaLaC-HD OCH Java/HAPI, saknas i
+     produktions-Java – samma medvetna, dokumenterade tillägg som den ursprungliga PoC:n redan
+     hittade (se "Täckning" ovan), nu bekräftat att BÅDA FML-körningarna gör det lika, eftersom
+     det är samma delade `.map`-fil.
+  2. `category[0].coding[0].display` ("Huvuddiagnos"): finns i produktions-Java OCH
+     Python/MaLaC-HD, saknas ENDAST i Java/HAPI. ConceptMap:en (`diagnosis-type.json`) har
+     `display` på målelementet; MaLaC-HD:s genererade `translate()`-kod kopierar det, HAPI:s
+     inbyggda `StructureMapUtilities.translate()`-implementation gör det inte för denna
+     "Coding"-läges-`translate()`, trots att samma ConceptMap-resurs är cachead och synlig för
+     båda. En genuin, ny, isolerad HAPI-begränsning, inte en bugg i den delade `.map`-filen
+     eller i något av de två spårens kod – rapporterad här, inte "fixad runt" i FML, eftersom
+     det inte finns något FML-mönster som tvingar HAPI:s inbyggda `translate()` att fylla i
+     `display` utan en riktig terminologitjänst.
+
+Ingen oförklarad skillnad återstår. Samma slutsats som den ursprungliga tvåvägsjämförelsen,
+nu bekräftad över en TREDJE, oberoende motorimplementation också.
+
+## HealthSamurai/Aidbox
+
+Ingen integration försöktes och inget nytt researcharbete lades ned – redan känt och
+vidarebefordrat till Oskar: HealthSamurai/Aidbox har ingen FML/StructureMap-motor alls, så det
+finns inget att köra den här delade `.map`-filen mot där.
+
 ## Feasibility-bedömning av Oskars pipeline-idé
 
 Den föreslagna pipelinen – tjänstekontraktsspecifik FML + ett delat FML-bibliotek av RIVTA-
@@ -273,3 +506,18 @@ icke-trivial regel (ConceptMap-fallback, choice-element, `uri`-fält, delad grup
 att faktiskt köra motorn och läsa genererad Python-kod för att hitta rätt arbetsomgång. Att
 fortsätta pipelinen till fler tjänstekontrakt är rimligt, men bör budgetera tid för att hitta
 samma klass av tysta motor-quirks igen, inte bara tid för att skriva `.map`-filerna.
+
+### Tillägg efter modellbytet och det tredje motortestet
+
+Slutsatsen ovan håller, men med en skärpning: "verifierat likvärdig" gäller nu över TRE
+oberoende motorimplementationer av samma `.map`-fil (produktions-Java, MaLaC-HD, HAPI), inte
+bara två, och den delade filen visade sig behöva FEM till arbetsomgångar (punkt 11–15) utöver
+de tio ursprungliga – alla av en strängare sort: inte en motors egen begränsning, utan platser
+där de två FML-motorerna kräver RAKT MOTSATTA konstruktioner för samma sak, så att "dra ut ur
+FML och sätt på `transform()`-resultatet i stället" blev den enda portabla lösningen, inte ett
+sista utvägsval. Den positiva nyheten är att detta mönster redan fanns etablerat
+(`Provenance.target`/`.recorded`, som aldrig kunde vara något annat ändå) – punkt 11–13
+utökar bara samma mönster till fler fält, de kräver inget nytt arkitektoniskt grepp. Den enda
+oförklarade kvarvarande skillnaden efter allt detta är `category[0].coding[0].display` som
+HAPI:s inbyggda `translate()` inte fyller i – ett genuint, litet, isolerat HAPI-fynd, inte ett
+fel i den delade filen eller i någon av drivrutinerna.

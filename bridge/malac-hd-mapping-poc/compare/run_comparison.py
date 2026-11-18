@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
-"""Diffs GetDiagnosisMapper.java's actual output (dumped by JavaMapperDumpTest, see
-../target/java-mapper-dump/*.json) against the MaLaC-HD/Python pipeline's output for the
-SAME two fixtures (../python/run_pipeline.py over ../src/test/resources/testmessages/*.xml),
-field by field, and reports every difference found.
+"""THREE-WAY comparison, same fixtures, all pairs: GetDiagnosisMapper.java's actual production
+output (dumped by JavaMapperDumpTest, ../target/java-mapper-dump/*.json) vs. the MaLaC-HD/
+Python pipeline's output (../python/run_pipeline.py) vs. HAPI FHIR's StructureMapUtilities
+running the SAME shared ../python/fml/*.map files (dumped by HapiMapperDumpTest,
+../target/hapi-mapper-dump/*.json) - field by field, every difference found, for all three
+pairings (java-python, java-hapi, python-hapi).
 
 Random, per-invocation identifiers (Condition.id, Provenance.id, Provenance.target[].reference
-- "urn:uuid:" + that same Condition.id) are normalized away before comparing, since neither
-mapper is expected to produce the SAME random UUID as the other.
+- "urn:uuid:" + that same Condition.id) are normalized away before comparing, since none of
+the three mappers is expected to produce the SAME random UUID as another.
 
 Usage: python3 run_comparison.py
 """
@@ -19,6 +21,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 POC_ROOT = HERE.parent
 JAVA_DUMP_DIR = POC_ROOT / "target" / "java-mapper-dump"
+HAPI_DUMP_DIR = POC_ROOT / "target" / "hapi-mapper-dump"
 PYTHON_DIR = POC_ROOT / "python"
 FIXTURES_DIR = POC_ROOT / "src" / "test" / "resources" / "testmessages"
 
@@ -71,57 +74,73 @@ def _sort_key_for_unordered_list(items):
     return sorted(items, key=key)
 
 
-def diff_values(path, a, b, diffs):
+def diff_values(path, a, b, label_a, label_b, diffs):
     if isinstance(a, dict) and isinstance(b, dict):
         for key in sorted(set(a) | set(b)):
             if key not in a:
-                diffs.append("%s: missing in Java, present in Python = %r" % (path + "." + key, b[key]))
+                diffs.append("%s: missing in %s, present in %s = %r" % (path + "." + key, label_a, label_b, b[key]))
             elif key not in b:
-                diffs.append("%s: present in Java = %r, missing in Python" % (path + "." + key, a[key]))
+                diffs.append("%s: present in %s = %r, missing in %s" % (path + "." + key, label_a, a[key], label_b))
             else:
-                diff_values(path + "." + key, a[key], b[key], diffs)
+                diff_values(path + "." + key, a[key], b[key], label_a, label_b, diffs)
     elif isinstance(a, list) and isinstance(b, list):
         if len(a) != len(b):
-            diffs.append("%s: Java has %d item(s), Python has %d item(s)" % (path, len(a), len(b)))
+            diffs.append("%s: %s has %d item(s), %s has %d item(s)" % (path, label_a, len(a), label_b, len(b)))
             return
         a_sorted = _sort_key_for_unordered_list(a)
         b_sorted = _sort_key_for_unordered_list(b)
         for i, (av, bv) in enumerate(zip(a_sorted, b_sorted)):
-            diff_values("%s[%d]" % (path, i), av, bv, diffs)
+            diff_values("%s[%d]" % (path, i), av, bv, label_a, label_b, diffs)
     else:
         if a != b:
-            diffs.append("%s: Java = %r, Python = %r" % (path, a, b))
+            diffs.append("%s: %s = %r, %s = %r" % (path, label_a, a, label_b, b))
+
+
+def compare_pair(label_a, entries_a, label_b, entries_b):
+    """Prints and returns the diff list for one pair of {"condition", "provenance"} entry
+    lists over the SAME fixture."""
+    if len(entries_a) != len(entries_b):
+        print("    DIFFERENT ENTRY COUNT: %s=%d, %s=%d" % (label_a, len(entries_a), label_b, len(entries_b)))
+        return None
+    if not entries_a:
+        print("    %s vs %s: OK - both empty (record correctly dropped)" % (label_a, label_b))
+        return []
+
+    diffs = []
+    for i, (ea, eb) in enumerate(zip(entries_a, entries_b)):
+        diff_values("[%d].condition" % i, ea["condition"], eb["condition"], label_a, label_b, diffs)
+        diff_values("[%d].provenance" % i, ea["provenance"], eb["provenance"], label_a, label_b, diffs)
+
+    if not diffs:
+        print("    %s vs %s: OK - identical (modulo normalized UUIDs)" % (label_a, label_b))
+    else:
+        print("    %s vs %s: %d difference(s):" % (label_a, label_b, len(diffs)))
+        for d in diffs:
+            print("      - " + d)
+    return diffs
+
+
+def _load_dump(dump_dir, json_name, engine_label):
+    path = dump_dir / json_name
+    if not path.exists():
+        print("  SKIPPED (%s) - %s not found; run `mvn test -pl malac-hd-mapping-poc` first." % (engine_label, path))
+        return None
+    with open(path) as f:
+        return normalize(json.load(f))
 
 
 def compare_fixture(xml_name, java_json_name):
     print("=== %s ===" % xml_name)
-    java_path = JAVA_DUMP_DIR / java_json_name
-    if not java_path.exists():
-        print("  SKIPPED - %s not found; run `mvn test -pl malac-hd-mapping-poc` first." % java_path)
-        return
-    with open(java_path) as f:
-        java_entries = normalize(json.load(f))
-
+    java_entries = _load_dump(JAVA_DUMP_DIR, java_json_name, "Java/production")
+    hapi_entries = _load_dump(HAPI_DUMP_DIR, java_json_name, "Java/HAPI")
     python_entries = normalize(run_python_pipeline(FIXTURES_DIR / xml_name))
 
-    if len(java_entries) != len(python_entries):
-        print("  DIFFERENT ENTRY COUNT: Java=%d, Python=%d" % (len(java_entries), len(python_entries)))
-        return
-    if not java_entries:
-        print("  OK - both empty (record correctly dropped)")
-        return
-
-    diffs = []
-    for i, (je, pe) in enumerate(zip(java_entries, python_entries)):
-        diff_values("[%d].condition" % i, je["condition"], pe["condition"], diffs)
-        diff_values("[%d].provenance" % i, je["provenance"], pe["provenance"], diffs)
-
-    if not diffs:
-        print("  OK - identical (modulo normalized UUIDs)")
-    else:
-        print("  %d difference(s):" % len(diffs))
-        for d in diffs:
-            print("    - " + d)
+    if java_entries is not None:
+        compare_pair("Java/production", java_entries, "Python/MaLaC-HD", python_entries)
+    if java_entries is not None and hapi_entries is not None:
+        compare_pair("Java/production", java_entries, "Java/HAPI", hapi_entries)
+    if hapi_entries is not None:
+        compare_pair("Python/MaLaC-HD", python_entries, "Java/HAPI", hapi_entries)
 
 
 def main():

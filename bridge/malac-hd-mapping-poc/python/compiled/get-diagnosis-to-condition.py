@@ -10,7 +10,7 @@ import decimal
 from datetime import datetime, time as datetime_time
 from malac.utils import date as dateutil, exceptions, html as htmlutil
 from html import escape as html_escape
-import rivta_getdiagnosis_model
+import lm_diagnosis_model
 import malac.models.fhir.r4
 from malac.models.fhir import utils
 from malac.utils import fhirpath
@@ -57,7 +57,7 @@ def _resolve_format(path, explicit, kind, json_supported):
 def _read_source(source_path, source_type):
     if source_type == 'xml':
         src = sys.stdin.buffer if source_path == '-' else source_path
-        return rivta_getdiagnosis_model.parse(src, silence=True)
+        return lm_diagnosis_model.parse(src, silence=True)
     raise ValueError('unknown source type: ' + str(source_type))
 
 def _write_target(target_path, target_type, result):
@@ -99,86 +99,79 @@ def GetDiagnosisToCondition(src, tgt):
                 for docId2 in (docId if isinstance(docId, list) else ([] if not docId else [docId])):
                     docIdentifier.value = (malac.models.fhir.r4.string(value=docId2) if isinstance(docId2, str) else malac.models.fhir.r4.string(value=docId2.value))
             for srcSys in (getattr(h, 'sourceSystemHSAId', None) if isinstance(getattr(h, 'sourceSystemHSAId', None), list) else ([] if not getattr(h, 'sourceSystemHSAId', None) else [getattr(h, 'sourceSystemHSAId', None)])):
-                m = malac.models.fhir.r4.Meta()
-                tgt.meta = m
-                for srcSys2 in (srcSys if isinstance(srcSys, list) else ([] if not srcSys else [srcSys])):
-                    metaSrc = malac.models.fhir.r4.uri()
-                    m.source = metaSrc
-                    metaSrc.value = srcSys2
-                profSe = malac.models.fhir.r4.canonical()
-                m.profile.append(profSe)
-                profSe.value = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition'
-                profEu = malac.models.fhir.r4.canonical()
-                m.profile.append(profEu)
-                profEu.value = 'http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps'
+                for srcSysVal in (getattr(srcSys, 'value', None) if isinstance(getattr(srcSys, 'value', None), list) else ([] if not getattr(srcSys, 'value', None) else [getattr(srcSys, 'value', None)])):
+                    m = malac.models.fhir.r4.Meta()
+                    tgt.meta = m
+                    profSe = malac.models.fhir.r4.canonical()
+                    m.profile.append(profSe)
+                    profSe.value = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition'
+                    profEu = malac.models.fhir.r4.canonical()
+                    m.profile.append(profEu)
+                    profEu.value = 'http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps'
             for pid in (getattr(h, 'patientId', None) if isinstance(getattr(h, 'patientId', None), list) else ([] if not getattr(h, 'patientId', None) else [getattr(h, 'patientId', None)])):
                 subjRef = malac.models.fhir.r4.Reference()
                 tgt.subject = subjRef
                 subjId = malac.models.fhir.r4.Identifier()
                 subjRef.identifier = subjId
-                for pidVal in (getattr(pid, 'id', None) if isinstance(getattr(pid, 'id', None), list) else ([] if not getattr(pid, 'id', None) else [getattr(pid, 'id', None)])):
+                for pidVal in (getattr(pid, 'value', None) if isinstance(getattr(pid, 'value', None), list) else ([] if not getattr(pid, 'value', None) else [getattr(pid, 'value', None)])):
                     subjId.value = (malac.models.fhir.r4.string(value=pidVal) if isinstance(pidVal, str) else malac.models.fhir.r4.string(value=pidVal.value))
-                for pidType in (getattr(pid, 'type_', None) if isinstance(getattr(pid, 'type_', None), list) else ([] if not getattr(pid, 'type_', None) else [getattr(pid, 'type_', None)])):
-                    subjIdSys = malac.models.fhir.r4.uri()
-                    subjId.system = subjIdSys
-                    subjIdSys.value = pidType
             for ahp in (getattr(h, 'accountableHealthcareProfessional', None) if isinstance(getattr(h, 'accountableHealthcareProfessional', None), list) else ([] if not getattr(h, 'accountableHealthcareProfessional', None) else [getattr(h, 'accountableHealthcareProfessional', None)])):
-                for recHsa in (getattr(ahp, 'healthcareProfessionalHSAId', None) if isinstance(getattr(ahp, 'healthcareProfessionalHSAId', None), list) else ([] if not getattr(ahp, 'healthcareProfessionalHSAId', None) else [getattr(ahp, 'healthcareProfessionalHSAId', None)])):
-                    recorderRef = malac.models.fhir.r4.Reference()
-                    tgt.recorder = recorderRef
-                    recorderRef.type_ = malac.models.fhir.r4.uri(value='PractitionerRole')
-                    recorderId = malac.models.fhir.r4.Identifier()
-                    recorderRef.identifier = recorderId
-                    for recHsaV in (recHsa if isinstance(recHsa, list) else ([] if not recHsa else [recHsa])):
-                        recorderId.system = malac.models.fhir.r4.uri(value='urn:oid:1.2.752.129.2.1.4.1')
-                    for recHsaV2 in (recHsa if isinstance(recHsa, list) else ([] if not recHsa else [recHsa])):
-                        recorderId.value = (malac.models.fhir.r4.string(value=recHsaV2) if isinstance(recHsaV2, str) else malac.models.fhir.r4.string(value=recHsaV2.value))
+                for rec in (getattr(ahp, 'healthcareProfessionalHSAId', None) if isinstance(getattr(ahp, 'healthcareProfessionalHSAId', None), list) else ([] if not getattr(ahp, 'healthcareProfessionalHSAId', None) else [getattr(ahp, 'healthcareProfessionalHSAId', None)])):
+                    for recVal in (getattr(rec, 'value', None) if isinstance(getattr(rec, 'value', None), list) else ([] if not getattr(rec, 'value', None) else [getattr(rec, 'value', None)])):
+                        recorderRef = malac.models.fhir.r4.Reference()
+                        tgt.recorder = recorderRef
+                        recorderRef.type_ = malac.models.fhir.r4.uri(value='PractitionerRole')
+                        recorderId = malac.models.fhir.r4.Identifier()
+                        recorderRef.identifier = recorderId
+                        for recValSys in (recVal if isinstance(recVal, list) else ([] if not recVal else [recVal])):
+                            recorderId.system = malac.models.fhir.r4.uri(value='urn:oid:1.2.752.129.2.1.4.1')
+                        for recValV in (recVal if isinstance(recVal, list) else ([] if not recVal else [recVal])):
+                            recorderId.value = (malac.models.fhir.r4.string(value=recValV) if isinstance(recValV, str) else malac.models.fhir.r4.string(value=recValV.value))
                 for authorTime in (getattr(ahp, 'authorTime', None) if isinstance(getattr(ahp, 'authorTime', None), list) else ([] if not getattr(ahp, 'authorTime', None) else [getattr(ahp, 'authorTime', None)])):
                     tgt.recordedDate = malac.models.fhir.r4.dateTime(value=dateutil.parse(authorTime).isoformat())
             for la in (getattr(h, 'legalAuthenticator', None) if isinstance(getattr(h, 'legalAuthenticator', None), list) else ([] if not getattr(h, 'legalAuthenticator', None) else [getattr(h, 'legalAuthenticator', None)])):
-                for assHsa in (getattr(la, 'legalAuthenticatorHSAId', None) if isinstance(getattr(la, 'legalAuthenticatorHSAId', None), list) else ([] if not getattr(la, 'legalAuthenticatorHSAId', None) else [getattr(la, 'legalAuthenticatorHSAId', None)])):
-                    asserterRef = malac.models.fhir.r4.Reference()
-                    tgt.asserter = asserterRef
-                    asserterRef.type_ = malac.models.fhir.r4.uri(value='PractitionerRole')
-                    asserterId = malac.models.fhir.r4.Identifier()
-                    asserterRef.identifier = asserterId
-                    for assHsaV in (assHsa if isinstance(assHsa, list) else ([] if not assHsa else [assHsa])):
-                        asserterId.system = malac.models.fhir.r4.uri(value='urn:oid:1.2.752.129.2.1.4.1')
-                    for assHsaV2 in (assHsa if isinstance(assHsa, list) else ([] if not assHsa else [assHsa])):
-                        asserterId.value = (malac.models.fhir.r4.string(value=assHsaV2) if isinstance(assHsaV2, str) else malac.models.fhir.r4.string(value=assHsaV2.value))
+                for ass in (getattr(la, 'legalAuthenticatorHSAId', None) if isinstance(getattr(la, 'legalAuthenticatorHSAId', None), list) else ([] if not getattr(la, 'legalAuthenticatorHSAId', None) else [getattr(la, 'legalAuthenticatorHSAId', None)])):
+                    for assVal in (getattr(ass, 'value', None) if isinstance(getattr(ass, 'value', None), list) else ([] if not getattr(ass, 'value', None) else [getattr(ass, 'value', None)])):
+                        asserterRef = malac.models.fhir.r4.Reference()
+                        tgt.asserter = asserterRef
+                        asserterRef.type_ = malac.models.fhir.r4.uri(value='PractitionerRole')
+                        asserterId = malac.models.fhir.r4.Identifier()
+                        asserterRef.identifier = asserterId
+                        for assValSys in (assVal if isinstance(assVal, list) else ([] if not assVal else [assVal])):
+                            asserterId.system = malac.models.fhir.r4.uri(value='urn:oid:1.2.752.129.2.1.4.1')
+                        for assValV in (assVal if isinstance(assVal, list) else ([] if not assVal else [assVal])):
+                            asserterId.value = (malac.models.fhir.r4.string(value=assValV) if isinstance(assValV, str) else malac.models.fhir.r4.string(value=assValV.value))
                 for sigTime in (getattr(la, 'signatureTime', None) if isinstance(getattr(la, 'signatureTime', None), list) else ([] if not getattr(la, 'signatureTime', None) else [getattr(la, 'signatureTime', None)])):
                     assertedDateExt = malac.models.fhir.r4.Extension()
                     tgt.extension.append(assertedDateExt)
                     assertedDateExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date'
-                    for sigTime2 in (sigTime if isinstance(sigTime, list) else ([] if not sigTime else [sigTime])):
-                        assertedDateExt.valueDateTime = malac.models.fhir.r4.dateTime(value=dateutil.parse(sigTime2).isoformat())
         for b in (getattr(d, 'diagnosisBody', None) if isinstance(getattr(d, 'diagnosisBody', None), list) else ([] if not getattr(d, 'diagnosisBody', None) else [getattr(d, 'diagnosisBody', None)])):
-            for onsetTime in (getattr(b, 'diagnosisTime', None) if isinstance(getattr(b, 'diagnosisTime', None), list) else ([] if not getattr(b, 'diagnosisTime', None) else [getattr(b, 'diagnosisTime', None)])):
-                tgt.onsetDateTime = malac.models.fhir.r4.dateTime(value=dateutil.parse(onsetTime).isoformat())
-            for diagType in (getattr(b, 'typeOfDiagnosis', None) if isinstance(getattr(b, 'typeOfDiagnosis', None), list) else ([] if not getattr(b, 'typeOfDiagnosis', None) else [getattr(b, 'typeOfDiagnosis', None)])):
-                if fhirpath.single(fhirpath_utils.matches(diagType, ['^(Huvuddiagnos|Bidiagnos)$'])):
-                    catMapped = malac.models.fhir.r4.CodeableConcept()
-                    tgt.category.append(catMapped)
-                    for diagType0 in (diagType if isinstance(diagType, list) else ([] if not diagType else [diagType])):
-                        catMapped.coding.append(translate_single('http://ehds-brygga.inera.se/fhir/ConceptMap/diagnosis-type', code=(diagType0 if isinstance(diagType0, str) else diagType0.value), out_type='Coding'))
-            for diagType2 in (getattr(b, 'typeOfDiagnosis', None) if isinstance(getattr(b, 'typeOfDiagnosis', None), list) else ([] if not getattr(b, 'typeOfDiagnosis', None) else [getattr(b, 'typeOfDiagnosis', None)])):
-                if fhirpath.single(fhirpath_utils.bool_not(fhirpath_utils.matches(diagType2, ['^(Huvuddiagnos|Bidiagnos)$']))):
-                    catAbsent = malac.models.fhir.r4.CodeableConcept()
-                    tgt.category.append(catAbsent)
-                    darExt = malac.models.fhir.r4.Extension()
-                    catAbsent.extension.append(darExt)
-                    darExt.url = 'http://hl7.org/fhir/StructureDefinition/data-absent-reason'
-                    darCode = malac.models.fhir.r4.code()
-                    darExt.valueCode = darCode
-                    darCode.value = 'unknown'
-            for chronic in (getattr(b, 'chronicDiagnosis', None) if isinstance(getattr(b, 'chronicDiagnosis', None), list) else ([] if not getattr(b, 'chronicDiagnosis', None) else [getattr(b, 'chronicDiagnosis', None)])):
-                chronicExt = malac.models.fhir.r4.Extension()
-                tgt.extension.append(chronicExt)
-                chronicExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition'
-                chronicVal = malac.models.fhir.r4.boolean()
-                chronicExt.valueBoolean = chronicVal
-                for chronic2 in (chronic if isinstance(chronic, list) else ([] if not chronic else [chronic])):
-                    chronicVal.value = chronic2
+            for tod in (getattr(b, 'typeOfDiagnosis', None) if isinstance(getattr(b, 'typeOfDiagnosis', None), list) else ([] if not getattr(b, 'typeOfDiagnosis', None) else [getattr(b, 'typeOfDiagnosis', None)])):
+                for dtc in (getattr(tod, 'coding', None) if isinstance(getattr(tod, 'coding', None), list) else ([] if not getattr(tod, 'coding', None) else [getattr(tod, 'coding', None)])):
+                    if fhirpath.single([v2 for v1 in fhirpath_utils.get(dtc,'code') for v2 in fhirpath_utils.matches(v1, ['^(Huvuddiagnos|Bidiagnos)$'])]):
+                        catMapped = malac.models.fhir.r4.CodeableConcept()
+                        tgt.category.append(catMapped)
+                        for dtcCode in (getattr(dtc, 'code', None) if isinstance(getattr(dtc, 'code', None), list) else ([] if not getattr(dtc, 'code', None) else [getattr(dtc, 'code', None)])):
+                            catMapped.coding.append(translate_single('http://ehds-brygga.inera.se/fhir/ConceptMap/diagnosis-type', code=(dtcCode if isinstance(dtcCode, str) else dtcCode.value), out_type='Coding'))
+                for dtc2 in (getattr(tod, 'coding', None) if isinstance(getattr(tod, 'coding', None), list) else ([] if not getattr(tod, 'coding', None) else [getattr(tod, 'coding', None)])):
+                    if fhirpath.single(fhirpath_utils.bool_not([v2 for v1 in fhirpath_utils.get(dtc2,'code') for v2 in fhirpath_utils.matches(v1, ['^(Huvuddiagnos|Bidiagnos)$'])])):
+                        catAbsent = malac.models.fhir.r4.CodeableConcept()
+                        tgt.category.append(catAbsent)
+                        darExt = malac.models.fhir.r4.Extension()
+                        catAbsent.extension.append(darExt)
+                        darExt.url = 'http://hl7.org/fhir/StructureDefinition/data-absent-reason'
+                        darCode = malac.models.fhir.r4.code()
+                        darExt.valueCode = darCode
+                        darCode.value = 'unknown'
+            for chronicEl in (getattr(b, 'chronicDiagnosis', None) if isinstance(getattr(b, 'chronicDiagnosis', None), list) else ([] if not getattr(b, 'chronicDiagnosis', None) else [getattr(b, 'chronicDiagnosis', None)])):
+                for chronic in (getattr(chronicEl, 'value', None) if isinstance(getattr(chronicEl, 'value', None), list) else ([] if not getattr(chronicEl, 'value', None) else [getattr(chronicEl, 'value', None)])):
+                    chronicExt = malac.models.fhir.r4.Extension()
+                    tgt.extension.append(chronicExt)
+                    chronicExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition'
+                    chronicVal = malac.models.fhir.r4.boolean()
+                    chronicExt.valueBoolean = chronicVal
+                    for chronic2 in (chronic if isinstance(chronic, list) else ([] if not chronic else [chronic])):
+                        chronicVal.value = chronic2
             for rel in (getattr(b, 'relatedDiagnosis', None) if isinstance(getattr(b, 'relatedDiagnosis', None), list) else ([] if not getattr(b, 'relatedDiagnosis', None) else [getattr(b, 'relatedDiagnosis', None)])):
                 for relDocId in (getattr(rel, 'documentId', None) if isinstance(getattr(rel, 'documentId', None), list) else ([] if not getattr(rel, 'documentId', None) else [getattr(rel, 'documentId', None)])):
                     relatedExt = malac.models.fhir.r4.Extension()
@@ -193,23 +186,21 @@ def GetDiagnosisToCondition(src, tgt):
             for dCode in (getattr(b, 'diagnosisCode', None) if isinstance(getattr(b, 'diagnosisCode', None), list) else ([] if not getattr(b, 'diagnosisCode', None) else [getattr(b, 'diagnosisCode', None)])):
                 codeCc = malac.models.fhir.r4.CodeableConcept()
                 tgt.code = codeCc
-                codeCoding = malac.models.fhir.r4.Coding()
-                codeCc.coding.append(codeCoding)
-                for codeVal in (getattr(dCode, 'code', None) if isinstance(getattr(dCode, 'code', None), list) else ([] if not getattr(dCode, 'code', None) else [getattr(dCode, 'code', None)])):
-                    codeCoding.code = malac.models.fhir.r4.string(value=codeVal)
-                for dispVal in (getattr(dCode, 'displayName', None) if isinstance(getattr(dCode, 'displayName', None), list) else ([] if not getattr(dCode, 'displayName', None) else [getattr(dCode, 'displayName', None)])):
-                    codeCoding.display = (malac.models.fhir.r4.string(value=dispVal) if isinstance(dispVal, str) else malac.models.fhir.r4.string(value=dispVal.value))
-                for cs in (getattr(dCode, 'codeSystem', None) if isinstance(getattr(dCode, 'codeSystem', None), list) else ([] if not getattr(dCode, 'codeSystem', None) else [getattr(dCode, 'codeSystem', None)])):
-                    codeCodingSys = malac.models.fhir.r4.uri()
-                    codeCoding.system = codeCodingSys
-                    codeCodingSys.value = cs
-                for origText in (getattr(dCode, 'originalText', None) if isinstance(getattr(dCode, 'originalText', None), list) else ([] if not getattr(dCode, 'originalText', None) else [getattr(dCode, 'originalText', None)])):
+                for dCoding in (getattr(dCode, 'coding', None) if isinstance(getattr(dCode, 'coding', None), list) else ([] if not getattr(dCode, 'coding', None) else [getattr(dCode, 'coding', None)])):
+                    codeCoding = malac.models.fhir.r4.Coding()
+                    codeCc.coding.append(codeCoding)
+                    for codeVal in (getattr(dCoding, 'code', None) if isinstance(getattr(dCoding, 'code', None), list) else ([] if not getattr(dCoding, 'code', None) else [getattr(dCoding, 'code', None)])):
+                        codeCoding.code = malac.models.fhir.r4.string(value=codeVal)
+                    for dispVal in (getattr(dCoding, 'display', None) if isinstance(getattr(dCoding, 'display', None), list) else ([] if not getattr(dCoding, 'display', None) else [getattr(dCoding, 'display', None)])):
+                        codeCoding.display = (malac.models.fhir.r4.string(value=dispVal) if isinstance(dispVal, str) else malac.models.fhir.r4.string(value=dispVal.value))
+                for origText in (getattr(dCode, 'text', None) if isinstance(getattr(dCode, 'text', None), list) else ([] if not getattr(dCode, 'text', None) else [getattr(dCode, 'text', None)])):
                     if [origText]:
                         codeCc.text = (malac.models.fhir.r4.string(value=origText) if isinstance(origText, str) else malac.models.fhir.r4.string(value=origText.value))
                 for dCode2 in (dCode if isinstance(dCode, list) else ([] if not dCode else [dCode])):
-                    if not fhirpath_utils.get(dCode2,'originalText'):
-                        for dispVal2 in (getattr(dCode2, 'displayName', None) if isinstance(getattr(dCode2, 'displayName', None), list) else ([] if not getattr(dCode2, 'displayName', None) else [getattr(dCode2, 'displayName', None)])):
-                            codeCc.text = (malac.models.fhir.r4.string(value=dispVal2) if isinstance(dispVal2, str) else malac.models.fhir.r4.string(value=dispVal2.value))
+                    if not fhirpath_utils.get(dCode2,'text'):
+                        for dCoding2 in (getattr(dCode2, 'coding', None) if isinstance(getattr(dCode2, 'coding', None), list) else ([] if not getattr(dCode2, 'coding', None) else [getattr(dCode2, 'coding', None)])):
+                            for dispVal2 in (getattr(dCoding2, 'display', None) if isinstance(getattr(dCoding2, 'display', None), list) else ([] if not getattr(dCoding2, 'display', None) else [getattr(dCoding2, 'display', None)])):
+                                codeCc.text = (malac.models.fhir.r4.string(value=dispVal2) if isinstance(dispVal2, str) else malac.models.fhir.r4.string(value=dispVal2.value))
 
 # output
 # 1..1 result (boolean)
@@ -367,72 +358,6 @@ conceptMap_as_7dimension_dict["http://ehds-brygga.inera.se/fhir/ConceptMap/diagn
                                 "display": "Bidiagnos"
                             },
                             "source": "http://ehds-brygga.inera.se/fhir/ConceptMap/diagnosis-type"
-                        }
-                    ]
-                }
-            }
-        }
-    }
-}
-
-conceptMap_as_7dimension_dict["http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid"] = {
-    "%": {
-        "%": {
-            "urn:oid:source": {
-                "urn:ietf:na": {
-                    "1.2.752.129.2.1.3.1": [
-                        {
-                            "relationship": "equivalent",
-                            "concept": {
-                                "system": "urn:ietf:na",
-                                "code": "http://electronichealth.se/identifier/personnummer",
-                                "display": "Personnummer"
-                            },
-                            "source": "http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid"
-                        }
-                    ],
-                    "1.2.752.129.2.1.3.3": [
-                        {
-                            "relationship": "equivalent",
-                            "concept": {
-                                "system": "urn:ietf:na",
-                                "code": "http://electronichealth.se/identifier/samordningsnummer",
-                                "display": "Samordningsnummer"
-                            },
-                            "source": "http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid"
-                        }
-                    ],
-                    "1.2.752.116.1.1.1.1.3": [
-                        {
-                            "relationship": "equivalent",
-                            "concept": {
-                                "system": "urn:ietf:na",
-                                "code": "https://www.icd10.se/",
-                                "display": "ICD-10-SE"
-                            },
-                            "source": "http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid"
-                        }
-                    ],
-                    "2.16.840.1.113883.6.3": [
-                        {
-                            "relationship": "equivalent",
-                            "concept": {
-                                "system": "urn:ietf:na",
-                                "code": "http://hl7.org/fhir/sid/icd-10",
-                                "display": "ICD-10 (international)"
-                            },
-                            "source": "http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid"
-                        }
-                    ],
-                    "2.16.840.1.113883.6.96": [
-                        {
-                            "relationship": "equivalent",
-                            "concept": {
-                                "system": "urn:ietf:na",
-                                "code": "http://snomed.info/sct",
-                                "display": "SNOMED CT"
-                            },
-                            "source": "http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid"
                         }
                     ]
                 }

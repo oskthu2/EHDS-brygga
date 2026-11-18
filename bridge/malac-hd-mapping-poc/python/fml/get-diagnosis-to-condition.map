@@ -1,0 +1,243 @@
+// GetDiagnosis (RIVTA) -> Condition. Mirrors GetDiagnosisMapper.java field for field,
+// exhaustively against the vendored XSD (clinicalprocess_healthcond_description_2.1.xsd +
+// GetDiagnosisResponder_2.0.xsd). See malac-hd-evaluation.md for the full field-by-field
+// account of what is mapped, what is deliberately skipped and why, and the diff against the
+// Java mapper's actual output.
+//
+// Deliberately self-contained (no "imports"): a confirmed MaLaC-HD 1.10.0 engine bug
+// (malac/hd/resources.py, SupportingResource.parse() mutates its cached resource dict on
+// first parse and crashes with KeyError('@node') on a second parse of the SAME resource)
+// means that as soon as this compile registers the two -sr ConceptMaps it needs
+// (diagnosis-type, codesystem-oid), it cannot ALSO use "imports" to pull in another .map
+// file - regardless of whether that other file calls translate() itself. See
+// lib-person-id-type.map and malac-hd-evaluation.md for the isolated repro. The
+// person-id/CV-type rules below mirror lib-person-id-type.map/lib-cv-type.map rule for rule;
+// the HSA-id-keyed recorder/asserter rules mirror the inlined pattern
+// get-diagnosis-to-provenance.map had to use for the same (different, unrelated) reason.
+//
+// Source fields assumed ALREADY converted by preprocess.py before this map ever sees them:
+//   - accountableHealthcareProfessional.authorTime, legalAuthenticator.signatureTime and
+//     diagnosisBody.diagnosisTime: rewritten to ISO-8601 dateTime strings with an explicit
+//     Europe/Stockholm UTC offset (GENERAL-001, see lib-timestamp-type.map).
+//   - patientId.type and diagnosisCode.codeSystem: rewritten from a bare OID to the resolved
+//     URI (urn:oid: fallback for an unknown OID) - this map therefore does NOT call
+//     translate()/ConceptMap for these two fields, even though lib-person-id-type.map and
+//     lib-cv-type.map demonstrate that exact translate() pattern working correctly in
+//     isolation. A second confirmed MaLaC-HD 1.10.0 bug (the FML `&` string-concatenation
+//     operator silently drops its right-hand operand whenever it comes from this proof of
+//     concept's custom RIVTA model, producing "urn:oid:" with the OID missing rather than an
+//     error) makes the unmapped-OID fallback branch unusable in FML for this engine version,
+//     so the whole oid-to-uri resolution (mapped and fallback) is done once, safely, in
+//     Python instead. See malac-hd-evaluation.md, "En motorbugg: strangkonkatenering (&)".
+//   - sourceSystemHSAId: rewritten to the full tjänstekatalogen Endpoint URL (meta.source's
+//     final value) for the exact same reason - no "&" concatenation happens in this file at
+//     all.
+// diagnosisType -> category is NOT affected (translate() alone, no concatenation) and still
+// goes through the diagnosis-type ConceptMap below, exactly as asked.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToCondition" = "GetDiagnosisToCondition"
+
+uses "http://ehds-brygga.inera.se/fhir/rivta/getdiagnosis/GetDiagnosisResponseType" alias RivtaResponse as source
+uses "http://hl7.org/fhir/StructureDefinition/Condition" alias Condition as target
+
+group GetDiagnosisToCondition(source src : RivtaResponse, target tgt : Condition) {
+
+  src -> tgt.clinicalStatus = cc('http://terminology.hl7.org/CodeSystem/condition-clinical', 'active') "clinicalStatus";
+  src -> tgt.verificationStatus = cc('http://terminology.hl7.org/CodeSystem/condition-ver-status', 'confirmed') "verificationStatus";
+
+  src.diagnosis as d then {
+    d.diagnosisHeader as h then {
+
+      // documentId -> Condition.identifier. NOT mapped by GetDiagnosisMapper.java today - a
+      // genuine addition this exhaustive pass makes, flagged as a concrete diff in
+      // malac-hd-evaluation.md.
+      // NOTE: "as docId2" is a FRESH re-binding in the SAME micro-rule that assigns it,
+      // not a reuse of the outer "docId" by name - reusing an already-bound RIVTA-sourced
+      // variable directly as a value (rather than rebinding it at the point of use) is the
+      // SAME confirmed MaLaC-HD 1.10.0 quirk as lib-hsa-reference.map's original
+      // "'str' object has no attribute 'exportJson'" failure, just without a nested group
+      // call this time - see malac-hd-evaluation.md.
+      h.documentId as docId -> tgt.identifier = create('Identifier') as docIdentifier then {
+        docId as docId2 -> docIdentifier.value = docId2 "documentId-value";
+      } "documentId";
+
+      // meta.source: already the full tjänstekatalogen Endpoint URL by the time this map
+      // sees it (preprocess.py) - a plain copy, no concatenation in this file.
+      // NOTE: a THIRD confirmed MaLaC-HD 1.10.0 quirk, distinct from bug #8 above: assigning a
+      // bound RIVTA-sourced variable directly to a target field typed "uri" (Meta.source,
+      // Identifier.system, Coding.system, ...) is NEVER auto-wrapped into
+      // malac.models.fhir.r4.uri(value=...) by the generated code, even with a fresh "as"
+      // rebind right at the point of use - unlike a "string"-typed field (Identifier.value,
+      // Coding.code/display), which the generator DOES wrap with an isinstance-conditional. A
+      // LITERAL assigned to a "uri" field (see recorder/asserter identifier.system below) IS
+      // wrapped correctly, so the gap is specific to variable-sourced "uri" assignments. Fixed
+      // by explicitly constructing the "uri" element ourselves via create('uri') instead of
+      // relying on the generator to wrap a bare scalar - the same workaround subject/code had
+      // to use for a different reason (see those comments). See malac-hd-evaluation.md, "En
+      // tredje motorbugg: ej inslagna 'uri'-falt".
+      // NOTE: meta.source AND meta.profile are built in ONE rule/then-block, reusing the
+      // SAME bound "m" variable throughout - two separate top-level rules each doing
+      // "tgt.meta = create('Meta') as ..." would each silently REPLACE the whole tgt.meta,
+      // losing whatever the other rule set (the same single-field-assigned-twice variant of
+      // the "multi-segment target path" issue noted for subject/code above).
+      h.sourceSystemHSAId as srcSys -> tgt.meta = create('Meta') as m then {
+        srcSys as srcSys2 -> m.source = create('uri') as metaSrc then {
+          srcSys2 -> metaSrc.value = srcSys2 "meta-source-value";
+        } "meta-source";
+        // meta.profile: GetDiagnosisMapper.java always sets these two fixed canonical profile
+        // URLs (se-ehds-condition + the EU eHDS cross-border profile), unconditionally - not
+        // derived from any RIVTA field, so plain literals.
+        srcSys -> m.profile = create('canonical') as profSe then {
+          srcSys -> profSe.value = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition' "profile-se-value";
+        } "profile-se";
+        srcSys -> m.profile = create('canonical') as profEu then {
+          srcSys -> profEu.value = 'http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps' "profile-eu-value";
+        } "profile-eu";
+      } "meta";
+
+      // subject: patientId {id, type} -> Reference.identifier, a LOGICAL identifier
+      // reference (GENERAL-002), never a resolved Patient resource reference. type is
+      // already the resolved identifier-system URI by the time this map sees it
+      // (preprocess.py - see the file header comment).
+      // NOTE: built as ONE nested chain, reusing the same bound "subjId" variable for both
+      // the id.value AND id.system rules below - a separate top-level rule re-navigating
+      // "tgt.subject.identifier.system" after the fact silently replaces the whole
+      // tgt.subject with a bare string instead of setting the nested field (a confirmed
+      // MaLaC-HD 1.10.0 quirk, see malac-hd-evaluation.md, "Flerstegs mål-sökväg skriver
+      // över hela fältet").
+      h.patientId as pid then {
+        pid -> tgt.subject = create('Reference') as subjRef then {
+          pid -> subjRef.identifier = create('Identifier') as subjId then {
+            pid.id as pidVal -> subjId.value = pidVal "subject-value";
+            // .system is "uri"-typed - see the meta.source comment above for why this needs
+            // an explicit create('uri') wrapper rather than a bare variable assignment.
+            pid.type as pidType -> subjId.system = create('uri') as subjIdSys then {
+              pidType -> subjIdSys.value = pidType "subject-system-value";
+            } "subject-system";
+          } "subject-identifier";
+        } "subject-ref";
+      } "patientId";
+
+      // recorder / recordedDate: accountableHealthcareProfessional.
+      h.accountableHealthcareProfessional as ahp then {
+        ahp.healthcareProfessionalHSAId as recHsa -> tgt.recorder = create('Reference') as recorderRef then {
+          recHsa -> recorderRef.type = 'PractitionerRole' "recorder-type";
+          recHsa -> recorderRef.identifier = create('Identifier') as recorderId then {
+            recHsa as recHsaV -> recorderId.system = 'urn:oid:1.2.752.129.2.1.4.1' "recorder-identifier-system";
+            recHsa as recHsaV2 -> recorderId.value = recHsaV2 "recorder-identifier-value";
+          } "recorder-identifier";
+        } "recorder-ref";
+        ahp.authorTime as authorTime -> tgt.recordedDate = authorTime "recordedDate";
+      } "ahp";
+
+      // asserter / ext-asserted-date: legalAuthenticator.
+      h.legalAuthenticator as la then {
+        la.legalAuthenticatorHSAId as assHsa -> tgt.asserter = create('Reference') as asserterRef then {
+          assHsa -> asserterRef.type = 'PractitionerRole' "asserter-type";
+          assHsa -> asserterRef.identifier = create('Identifier') as asserterId then {
+            assHsa as assHsaV -> asserterId.system = 'urn:oid:1.2.752.129.2.1.4.1' "asserter-identifier-system";
+            assHsa as assHsaV2 -> asserterId.value = assHsaV2 "asserter-identifier-value";
+          } "asserter-identifier";
+        } "asserter-ref";
+        la.signatureTime as sigTime -> tgt.extension = create('Extension') as assertedDateExt then {
+          sigTime -> assertedDateExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date' "assertedDate-url";
+          // Same choice-element issue as Condition.onset[x] above: Extension.value[x] has no
+          // generic "value" field, only valueDateTime/valueString/... - must name the
+          // concrete variant explicitly or nothing is emitted.
+          sigTime as sigTime2 -> assertedDateExt.valueDateTime = sigTime2 "assertedDate-value";
+        } "assertedDate-ext";
+      } "la";
+    } "header";
+
+    d.diagnosisBody as b then {
+
+      // onset: diagnosisTime - a SINGLE instant, never a period (the real schema has no
+      // end-date/resolution concept for GetDiagnosis - see GetDiagnosisMapper.java's comment
+      // and GENERAL-001/the project's "abatement[x] is never set" decision). Already
+      // preprocessed to an ISO-8601 dateTime with offset.
+      // Condition.onset[x] is a CHOICE element with no generic "onset" field in the model
+      // (only onsetDateTime/onsetAge/onsetPeriod/onsetRange/onsetString exist) - the compiler
+      // accepts "tgt.onset = ..." without complaint but it silently sets an undeclared
+      // attribute that the JSON exporter never looks at, so nothing is emitted at all. Must
+      // target the concrete "onsetDateTime" choice-variant field explicitly.
+      b.diagnosisTime as onsetTime -> tgt.onsetDateTime = onsetTime "onset";
+
+      // category: typeOfDiagnosis (Huvuddiagnos/Bidiagnos) via the diagnosis-type
+      // ConceptMap. No entry -> category[absent] with data-absent-reason=unknown (DIAG-003),
+      // never a guessed code. Same mutually-exclusive two-rule pattern as the codesystem-oid
+      // lookups below - translate()'s ConceptMap.group.unmapped mode can only fall back to a
+      // FIXED code, never switch to a different element SHAPE (an extension instead of a
+      // coding), so the two outcomes need two separate rules with literally negated
+      // conditions (see fml-evaluation.md, point 1, for the identical HAPI-engine finding).
+      b.typeOfDiagnosis as diagType where matches('^(Huvuddiagnos|Bidiagnos)$')
+          -> tgt.category = create('CodeableConcept') as catMapped then {
+        diagType as diagType0 -> catMapped.coding = translate(diagType0, 'http://ehds-brygga.inera.se/fhir/ConceptMap/diagnosis-type', 'Coding') "category-mapped";
+      } "category-mapped-cc";
+      b.typeOfDiagnosis as diagType2 where matches('^(Huvuddiagnos|Bidiagnos)$').not()
+          -> tgt.category = create('CodeableConcept') as catAbsent then {
+        diagType2 -> catAbsent.extension = create('Extension') as darExt then {
+          diagType2 -> darExt.url = 'http://hl7.org/fhir/StructureDefinition/data-absent-reason' "dar-url";
+          diagType2 -> darExt.value = create('code') as darCode then {
+            diagType2 -> darCode.value = 'unknown' "dar-value";
+          } "dar-code";
+        } "dar-ext";
+      } "category-absent-cc";
+
+      // chronicDiagnosis: extension[chronicDiagnosis] boolean.
+      b.chronicDiagnosis as chronic -> tgt.extension = create('Extension') as chronicExt then {
+        chronic -> chronicExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition' "chronic-url";
+        chronic -> chronicExt.value = create('boolean') as chronicVal then {
+          chronic as chronic2 -> chronicVal.value = chronic2 "chronic-value";
+        } "chronic-el";
+      } "chronicDiagnosis";
+
+      // relatedDiagnosis: 0..* - one extension per entry.
+      b.relatedDiagnosis as rel then {
+        rel.documentId as relDocId -> tgt.extension = create('Extension') as relatedExt then {
+          relDocId -> relatedExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition' "related-url";
+          relDocId -> relatedExt.value = create('Reference') as relatedRef then {
+            relDocId -> relatedRef.identifier = create('Identifier') as relatedId then {
+              relDocId as relDocId2 -> relatedId.value = relDocId2 "related-identifier-value";
+            } "related-identifier";
+          } "related-value";
+        } "related-ext";
+      } "relatedDiagnosis";
+
+      // code: diagnosisCode. codeSystem is already the resolved URI (or urn:oid: fallback)
+      // by the time this map sees it (preprocess.py - see the file header comment).
+      // NOTE: again one nested chain (see the "subject" comment above) - the whole Coding
+      // is built on the single bound "codeCoding" variable.
+      b.diagnosisCode as dCode then {
+        dCode -> tgt.code = create('CodeableConcept') as codeCc then {
+          dCode -> codeCc.coding = create('Coding') as codeCoding then {
+            dCode.code as codeVal -> codeCoding.code = codeVal "code-value";
+            dCode.displayName as dispVal -> codeCoding.display = dispVal "code-display";
+            // .system is "uri"-typed - see the meta.source comment above.
+            dCode.codeSystem as cs -> codeCoding.system = create('uri') as codeCodingSys then {
+              cs -> codeCodingSys.value = cs "code-system-value";
+            } "code-system";
+          } "code-coding";
+          // code.text: GetDiagnosisMapper.java uses originalText when present, ELSE falls
+          // back to displayName (never leaves text unset as long as either is present) -
+          // mutually-exclusive two-rule pattern, same shape as the category/person-id/CV
+          // ConceptMap fallbacks above.
+          // where() uses the bare/implicit-$this form throughout (never re-qualified with
+          // the "as" alias) - see the category-mapping comment above / malac-hd-evaluation.md
+          // point (e) for the confirmed engine bug this works around.
+          dCode.originalText as origText where exists()
+              -> codeCc.text = origText "code-text-original";
+          // NOTE: a FOURTH confirmed MaLaC-HD 1.10.0 quirk: a right-hand-side navigation off a
+          // freshly-"as"-bound custom-model variable, on the SAME rule line as a where()
+          // guard (e.g. "dCode2 where ... -> codeCc.text = dCode2.displayName"), silently
+          // compiles away the ".displayName" navigation and assigns the whole dCode2 object
+          // instead - confirmed by inspecting the generated code
+          // ("codeCc.text = ... dCode2.value ...", never ".displayName"). Fixed by moving the
+          // navigation into its OWN nested rule inside a then{} block, same as every other
+          // field in this file.
+          dCode as dCode2 where originalText.empty() then {
+            dCode2.displayName as dispVal2 -> codeCc.text = dispVal2 "code-text-fallback-value";
+          } "code-text-fallback";
+        } "code-cc";
+      } "diagnosisCode";
+    } "body";
+  } "diagnosis";
+}

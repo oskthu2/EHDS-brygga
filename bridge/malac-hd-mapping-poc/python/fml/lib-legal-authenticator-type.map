@@ -1,0 +1,28 @@
+// Shared RIVTA building block: LegalAuthenticatorType. Produces TWO reusable groups, because
+// the StructureMap/FML engine (confirmed for MaLaC-HD too, same as the HAPI-based FML track,
+// see fml-evaluation.md "en transform() tar bara EN target") only lets a single group have a
+// single target type, and GetDiagnosisMapper.java derives two DIFFERENT FHIR elements from
+// this one RIVTA type: Condition.asserter (a Reference) and the ext-asserted-date extension
+// (signatureTime). Each is its own group here, both callable from one composed map.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LibLegalAuthenticatorType" = "LibLegalAuthenticatorType"
+
+uses "http://ehds-brygga.inera.se/fhir/rivta/getdiagnosis/LegalAuthenticatorType" alias RivtaLA as source
+uses "http://hl7.org/fhir/StructureDefinition/Reference" alias Reference as target
+uses "http://hl7.org/fhir/StructureDefinition/Extension" alias Extension as target
+
+// NOTE: see lib-org-unit-type.map - the HSA-id identifier is inlined, not a call to
+// lib-hsa-reference.map's HsaIdToIdentifier, for the same reason.
+group LegalAuthenticatorToAsserterReference(source src : RivtaLA, target tgt : Reference) {
+  src -> tgt.type = 'PractitionerRole' "la-type";
+  src.legalAuthenticatorHSAId as hsa -> tgt.identifier = create('Identifier') as idf then {
+    hsa as hsaV -> idf.system = 'urn:oid:1.2.752.129.2.1.4.1' "la-identifier-system";
+    hsa as hsaV2 -> idf.value = hsaV2 "la-identifier-value";
+  } "la-identifier";
+  src.legalAuthenticatorName as n -> tgt.display = n "la-display";
+}
+
+// signatureTime must already be an ISO-8601 string with an explicit UTC offset when it
+// reaches this rule - see lib-timestamp-type.map and preprocess.py (GENERAL-001).
+group LegalAuthenticatorToAssertedDateExtension(source src : RivtaLA, target tgt : Extension) {
+  src.signatureTime as t -> tgt.value = t "la-assertedDate-value";
+}

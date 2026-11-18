@@ -1,0 +1,20 @@
+// Shared RIVTA building block: an HSAIdType field (a plain xs:string in the RIVTA schema -
+// HSA-id carries no OID of its own in the XML, unlike PersonIdType/IIType) -> a FHIR
+// Identifier using the fixed HSA-id namingsystem URI, the same constant
+// NamingSystemRegistry.oidToUri(HSA_OID_INERA) resolves to in the Java mapper
+// (GetDiagnosisMapper.HSA_OID_INERA = "1.2.752.129.2.1.4.1", see naming-systems.yaml: that
+// OID's uri is literally "urn:oid:1.2.752.129.2.1.4.1" - a fixed string, not a per-row
+// lookup, so a plain literal is correct here and needs no ConceptMap/translate().
+//
+// Reused (via "imports") by lib-healthcare-professional-type.map, lib-org-unit-type.map and
+// lib-legal-authenticator-type.map for recorder/asserter/orgUnit references - and by
+// get-diagnosis-to-provenance.map for its three agents, see malac-hd-evaluation.md.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LibHsaReference" = "LibHsaReference"
+
+uses "http://hl7.org/fhir/StructureDefinition/string" alias HsaIdString as source
+uses "http://hl7.org/fhir/StructureDefinition/Identifier" alias Identifier as target
+
+group HsaIdToIdentifier(source src : HsaIdString, target tgt : Identifier) {
+  src as v -> tgt.system = 'urn:oid:1.2.752.129.2.1.4.1' "hsa-system";
+  src as v2 -> tgt.value = v2 "hsa-value";
+}

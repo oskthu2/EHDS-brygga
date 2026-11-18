@@ -1,0 +1,87 @@
+// GetDiagnosis (RIVTA) -> Provenance. Mirrors ProvenanceBuilder.build() in
+// se.inera.ehds.mapping.tk.ProvenanceBuilder (mapping-engine).
+//
+// Unlike get-diagnosis-to-condition.map, this map needs NO ConceptMap/translate() at all: the
+// three agents are keyed by plain HSAIdType strings with a single fixed HSA namingsystem URI
+// (see lib-hsa-reference.map), not by a per-record OID lookup - so it is NOT affected by the
+// "@node" imports+ConceptMap bug documented in lib-person-id-type.map. It still does not
+// literally "imports" lib-hsa-reference.map's HsaIdToIdentifier group, though: a SECOND,
+// independent MaLaC-HD 1.10.0 bug means a FHIR-primitive-typed group parameter is only
+// auto-wrapped when the caller passes a literal or a navigation into a properly FHIR-typed
+// source - a raw Python str read straight off careGiverHSAId/careUnitHSAId (our generateDS
+// custom model has no wrapper class for a bare HSAIdType) is passed through unwrapped and
+// crashes the JSON exporter. See malac-hd-evaluation.md, "En motorbugg: oinslagna primitiv
+// över grupp-gränsen", for the repro; the two-line system/value pattern is inlined below
+// instead, same as lib-org-unit-type.map, lib-healthcare-professional-type.map and
+// lib-legal-authenticator-type.map all had to.
+//
+// Provenance.target and Provenance.recorded are intentionally left for the driver
+// (run_pipeline.py) to fill in after both this map and get-diagnosis-to-condition.map have
+// run against the same record: target needs the Condition's own generated id (the two
+// resources are produced by two separate compiled transforms, see fml-evaluation.md's
+// "Fjärde begränsningen - en transform() tar bara EN target", confirmed true for MaLaC-HD
+// too), and recorded needs authorTime converted to a true UTC instant rather than the
+// local-offset dateTime get-diagnosis-to-condition.map's recordedDate uses for the SAME raw
+// field - two different conversions of one source value, done once each by preprocess.py
+// (see lib-timestamp-type.map).
+//
+// assembler's HSA-id (the bridge's own identity) is not part of the RIVTA source at all - it
+// is a per-deployment configuration constant, so it can only be a literal here (a real
+// StructureMap can declare only ONE source input per group, see fml-evaluation.md point 4 -
+// the same single-source-input limitation holds in MaLaC-HD; adding a second "source" input
+// for this constant was tried and rejected by the same engine for the same reason).
+map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToProvenance" = "GetDiagnosisToProvenance"
+
+uses "http://ehds-brygga.inera.se/fhir/rivta/getdiagnosis/GetDiagnosisResponseType" alias RivtaResponse as source
+uses "http://hl7.org/fhir/StructureDefinition/Provenance" alias Provenance as target
+
+group GetDiagnosisToProvenance(source src : RivtaResponse, target tgt : Provenance) {
+  src.diagnosis as d then {
+    d.diagnosisHeader as h then {
+      h.accountableHealthcareProfessional as ahp then {
+        // NOTE: lib-hsa-reference.map's HsaIdToIdentifier group is NOT called here (even
+        // though this is exactly the shape it produces) - a confirmed MaLaC-HD 1.10.0 quirk
+        // means a FHIR-primitive-typed group parameter (its "source src : HsaIdString")
+        // is only auto-wrapped into malac.models.fhir.r5.string(...) when the caller's
+        // argument is itself a literal or a navigation into a properly FHIR-typed source;
+        // a raw Python str read straight off our generateDS (non-FHIR) custom model, as
+        // careGiverHSAId/careUnitHSAId are, is passed through UNWRAPPED and crashes the
+        // JSON exporter ("'str' object has no attribute 'exportJson'"). The two-line
+        // system/value pattern is inlined at each use site instead - see
+        // malac-hd-evaluation.md, "En motorbugg: oinslagna primitiv över grupp-gränsen".
+        ahp.healthcareProfessionalCareGiverHSAId as giver -> tgt.agent = create('Provenance_Agent') as custAgent then {
+          giver -> custAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'custodian') "custodian-type";
+          giver -> custAgent.who = create('Reference') as custWho then {
+            giver -> custWho.identifier = create('Identifier') as custId then {
+              giver as giverV -> custId.system = 'urn:oid:1.2.752.129.2.1.4.1' "custodian-identifier-system";
+              giver as giverV2 -> custId.value = giverV2 "custodian-identifier-value";
+            } "custodian-identifier";
+          } "custodian-who";
+        } "custodian-agent";
+        ahp.healthcareProfessionalCareUnitHSAId as unit -> tgt.agent = create('Provenance_Agent') as authAgent then {
+          unit -> authAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'author') "author-type";
+          unit -> authAgent.who = create('Reference') as authWho then {
+            unit -> authWho.identifier = create('Identifier') as authId then {
+              unit as unitV -> authId.system = 'urn:oid:1.2.752.129.2.1.4.1' "author-identifier-system";
+              unit as unitV2 -> authId.value = unitV2 "author-identifier-value";
+            } "author-identifier";
+          } "author-who";
+        } "author-agent";
+      } "ahp";
+    } "header";
+  } "diagnosis";
+
+  // Assembler: the bridge's own identity - a fixed, per-deployment configuration value, not
+  // part of the RIVTA source (see the file header comment). Matches
+  // GetDiagnosisMapperTest's MapperContext bridgeHsaId literal ("SE2321000999-EHDS") so the
+  // two outputs are directly comparable.
+  src -> tgt.agent = create('Provenance_Agent') as asmAgent then {
+    src -> asmAgent.type = cc('http://terminology.hl7.org/CodeSystem/provenance-participant-type', 'assembler') "assembler-type";
+    src -> asmAgent.who = create('Reference') as asmWho then {
+      src -> asmWho.identifier = create('Identifier') as asmId then {
+        src -> asmId.system = 'urn:oid:1.2.752.129.2.1.4.1' "assembler-identifier-system";
+        src -> asmId.value = 'SE2321000999-EHDS' "assembler-identifier-value";
+      } "assembler-identifier";
+    } "assembler-who";
+  } "assembler-agent";
+}

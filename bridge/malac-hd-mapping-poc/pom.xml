@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>se.inera.ehds</groupId>
+    <artifactId>ehds-brygga-bridge</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>malac-hd-mapping-poc</artifactId>
+  <name>EHDS Brygga – MaLaC-HD mapping POC (Java comparison harness)</name>
+
+  <!--
+    This module is ONLY a comparison harness: it dumps GetDiagnosisMapper.java's actual
+    output (the production Java mapper, unmodified) to JSON so the Python side
+    (../compare/run_comparison.py) can diff it against the MaLaC-HD/Python-generated output
+    for the SAME fixtures. It depends on mapping-engine read-only and changes nothing there.
+    The real MaLaC-HD mapping track itself lives entirely under ../python/ (FML, ConceptMaps,
+    the generateDS model, preprocess.py, run_pipeline.py) - this module has no Python/FML
+    content of its own.
+  -->
+
+  <dependencies>
+    <dependency>
+      <groupId>se.inera.ehds</groupId>
+      <artifactId>mapping-engine</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-structures-r4</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

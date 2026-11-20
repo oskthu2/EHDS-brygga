@@ -1,0 +1,33 @@
+// Shared RIVTA building block: TimeStampType.
+//
+// This file is deliberately NOT a real conversion. TimeStampType is a plain, pattern-
+// constrained xs:string in the RIVTA schema (YYYYMMDDhhmmss, Europe/Stockholm local time,
+// see clinicalprocess_healthcond_description_2.1.xsd) - generateDS therefore hands it to FML
+// as an ordinary Python str, with no date semantics attached at all. GENERAL-001 requires a
+// DST-aware Europe/Stockholm -> explicit-UTC-offset (or true-UTC "Z" instant) conversion, and
+// there is no FHIRPath/FML function that can compute a historical DST offset for an arbitrary
+// date (FHIRPath has no timezone-database access). This is the exact same conclusion the
+// HAPI/FML track reached (fml-evaluation.md, GENERAL-001: "FML-reglerna kopierar bara redan-
+// konverterade strängar rakt av") and it holds for MaLaC-HD too: the conversion MUST happen
+// before the value reaches any .map file.
+//
+// In this track that pre-conversion is preprocess.py (the Python equivalent of
+// RivDateParser.parse()/parseInstant()), run once per fixture against a copy of the raw
+// RIVTA XML before MaLaC-HD ever sees it. Every other .map file in this proof of concept
+// (get-diagnosis-to-condition.map, get-diagnosis-to-provenance.map, and
+// lib-legal-authenticator-type.map's assertedDate group) assumes its TimeStampType-typed
+// source fields are ALREADY ISO-8601 strings with an explicit offset (or "Z") by the time
+// FML sees them, and simply copies the string across - which is itself the one concrete
+// thing worth demonstrating here: a plain generateDS string value CAN be assigned directly
+// to a FHIR dateTime/instant target field without any create()/cast ceremony, once the text
+// is already valid ISO-8601 (verified against both RivDateParser.parse()'s dateTime shape and
+// RivDateParser.parseInstant()'s instant shape as part of this proof of concept, see
+// malac-hd-evaluation.md, "RivDateParser-motsvarigheten").
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LibTimeStampType" = "LibTimeStampType"
+
+uses "http://hl7.org/fhir/StructureDefinition/string" alias PreConvertedTimestamp as source
+uses "http://hl7.org/fhir/StructureDefinition/Extension" alias Extension as target
+
+group TimeStampToExtensionValue(source src : PreConvertedTimestamp, target tgt : Extension) {
+  src -> tgt.value = src "timestamp-value";
+}

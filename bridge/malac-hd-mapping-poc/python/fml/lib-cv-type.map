@@ -1,0 +1,18 @@
+// Shared RIVTA building block: CVType (code, codeSystem, codeSystemName, displayName,
+// originalText) -> FHIR Coding, codeSystem OID -> URI via the same codesystem-oid ConceptMap.
+//
+// Same note as lib-person-id-type.map applies: independently testable and correct as its own
+// compile (-sr ../conceptmaps), but mirrored rather than "imports"-ed into
+// get-diagnosis-to-condition.map because of the @node engine bug - see
+// malac-hd-evaluation.md.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LibCVType" = "LibCVType"
+
+uses "http://ehds-brygga.inera.se/fhir/rivta/getdiagnosis/CVType" alias RivtaCVType as source
+uses "http://hl7.org/fhir/StructureDefinition/Coding" alias Coding as target
+
+group CVTypeToCoding(source src : RivtaCVType, target tgt : Coding) {
+  src.code as v -> tgt.code = v "cv-code";
+  src.displayName as v -> tgt.display = v "cv-display";
+  src.codeSystem as cs where matches('^(1\.2\.752\.116\.1\.1\.1\.1\.3|2\.16\.840\.1\.113883\.6\.3|2\.16\.840\.1\.113883\.6\.96)$') -> tgt.system = translate(cs, 'http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid', 'code') "cv-system-mapped";
+  src.codeSystem as cs2 where matches('^(1\.2\.752\.116\.1\.1\.1\.1\.3|2\.16\.840\.1\.113883\.6\.3|2\.16\.840\.1\.113883\.6\.96)$').not() -> tgt.system = ('urn:oid:' & cs2) "cv-system-fallback";
+}

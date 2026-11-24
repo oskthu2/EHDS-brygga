@@ -17,16 +17,21 @@ another `fixtures dir` + another static-trace table, without changing the tree/S
 
 ## Running it
 
-One-time setup (installs nothing new - `lxml` is already in `../python/requirements.txt`,
-already used by the rest of this module; this just warms the Java classpath cache so the first
-`java` request isn't slow):
+One-time setup. First, install this module's Python dependencies (a fresh checkout, e.g. a
+GitHub Codespace, won't have them yet):
+
+```bash
+cd bridge/malac-hd-mapping-poc/python
+pip install -r requirements.txt
+```
+
+Then warm the Java classpath cache so the first `java` request from the viewer isn't slow
+(optional - the backend will run this itself on first use if you skip it, see `engines.py`):
 
 ```bash
 cd bridge/malac-hd-mapping-poc
 mvn -q compile dependency:build-classpath -Dmdep.outputFile=target/classpath.txt
 ```
-
-(The backend will run this itself on first use if you skip it - see `engines.py`.)
 
 Start the backend:
 

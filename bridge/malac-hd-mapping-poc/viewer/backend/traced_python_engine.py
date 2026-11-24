@@ -117,7 +117,7 @@ class _TrackingList(list):
     see this module's docstring, point 3. The compiled code always appends the new Extension
     BEFORE setting its .url (confirmed by reading get-diagnosis-to-condition.py: "tgt.extension.
     append(relatedExt); relatedExt.url = '...'"), so .url cannot be checked AT append() time -
-    _export_and_filter_hits() below re-checks it against the FINAL exported JSON instead,
+    run_traced_python_engine() below re-checks it against the FINAL exported JSON instead,
     once every assignment has happened, before trusting any hint."""
 
     def __init__(self, sink: list):

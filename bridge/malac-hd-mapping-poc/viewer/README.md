@@ -25,6 +25,16 @@ cd bridge/malac-hd-mapping-poc/python
 pip install -r requirements.txt
 ```
 
+Then build and install this module's sibling dependency (`mapping-engine`) into your local
+Maven repo - a fresh checkout has nothing installed yet, so `mvn dependency:build-classpath` run
+from this module alone fails with "Could not find artifact
+se.inera.ehds:mapping-engine:jar:0.1.0-SNAPSHOT" unless this has been run at least once:
+
+```bash
+cd bridge
+mvn install -pl malac-hd-mapping-poc -am -DskipTests -q
+```
+
 Then warm the Java classpath cache so the first `java` request from the viewer isn't slow
 (optional - the backend will run this itself on first use if you skip it, see `engines.py`):
 

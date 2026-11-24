@@ -31,6 +31,27 @@ import java.nio.file.Path;
  * <p>Unlike that branch's registry-driven, multi-contract design, this engine is deliberately
  * narrow (GetDiagnosis -&gt; Condition/Provenance only) - the SAME scope as the MaLaC-HD track
  * it compares against. See malac-hd-evaluation.md for the full account.
+ *
+ * <p><b>Why this class has no real execution tracing, unlike the Python/MaLaC-HD track's
+ * {@code traced_python_engine.py}:</b> the exact pinned {@code org.hl7.fhir.r4:6.3.11} jar was
+ * decompiled and inspected directly for a usable hook (not just documentation/web search).
+ * {@code StructureMapUtilities}'s constructor DOES accept an {@code ITransformerServices}
+ * callback, and its private {@code log(String)} method routes every debug line through
+ * {@code services.log(...)} instead of {@code System.out} once one is supplied - including one
+ * call, in {@code executeRule()}, of exactly {@code log(rule.getName() + " / " +
+ * vars.summary())} per rule EXECUTION (confirmed by running it - see the {@code rule : ... ;
+ * vars = ...} lines a plain {@code mvn test} prints for this module, currently going to
+ * {@code System.out} because no {@code ITransformerServices} is supplied here). That is real,
+ * and more than nothing, but it fires at rule ENTRY with a free-text {@code
+ * Variables.summary()} snapshot, not at the point a property is actually SET on the target
+ * (that logic - {@code processTarget}/{@code runTransform} - is private, with no hook of any
+ * kind). Turning it into a real, concrete-index trace would mean parsing yet another piece of
+ * free text, which is not a clear improvement in rigor over what it would replace; going
+ * further still (wrapping the private target-processing methods via reflection, or
+ * instrumenting {@code Base.setProperty()} itself) would need something close to a Java
+ * agent/bytecode-weaving approach, judged disproportionate for this dev tool. See
+ * {@code viewer/README.md}'s "How the source -&gt; target lineage is computed" for the full
+ * account and what this means for {@code relatedDiagnosis} index resolution specifically.
  */
 public final class HapiFmlEngine {
 

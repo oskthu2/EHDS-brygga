@@ -18,6 +18,31 @@ const state = {
 
 const el = (sel) => document.querySelector(sel);
 
+// How trustworthy a given lineage edge's resolved target index is - see lineage.py's module
+// docstring ("Part 3") for the full account of what each one means. "value" (new, highest):
+// value-matching found this edge's REAL, known-transform-aware value uniquely in the REAL
+// output JSON of an actually-executed, unmodified run - works identically for either engine.
+// "runtime": traced_python_engine.py's real observed index (Python engine only, only when
+// value-matching itself did not already resolve the edge). "heuristic": the order-based
+// assumption (Java engine's relatedDiagnosis fallback only). "static": a single,
+// already-unambiguous candidate - correct by construction, just not independently
+// value-verified (e.g. a field with no known transform, or a ConceptMap/translate() edge,
+// which stays on this static trace by design - see lineage.py).
+const MATCH_SOURCE_LABEL = {
+  value: "värde-matchade (verklig output)",
+  runtime: "körtid (python, instrumenterad)",
+  heuristic: "heuristik (ordningsantagande)",
+  static: "statisk/entydig",
+};
+
+function matchSourceClass(matchSource) {
+  if (typeof matchSource !== "string") return "static";
+  if (matchSource.startsWith("value")) return "value";
+  if (matchSource.startsWith("runtime")) return "runtime";
+  if (matchSource.startsWith("heuristic")) return "heuristic";
+  return "static";
+}
+
 async function loadFixtures() {
   const res = await fetch("/api/fixtures");
   state.fixtures = await res.json();
@@ -65,11 +90,20 @@ async function loadMap() {
   const traceNote = el("#trace-note");
   if (data.related_index_source) {
     traceNote.textContent = "relatedDiagnosis-index: " + data.related_index_source;
-    traceNote.className = data.related_index_source === "runtime" ? "trace-runtime" : "trace-heuristic";
+    traceNote.className = "trace-" + matchSourceClass(data.related_index_source);
   } else {
     traceNote.textContent = "";
     traceNote.className = "";
   }
+  const summary = el("#match-summary");
+  const counts = data.match_source_counts || {};
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  summary.textContent = total
+    ? "kedjor: " + ["value", "runtime", "heuristic", "static"]
+        .filter((k) => counts[k])
+        .map((k) => counts[k] + " " + MATCH_SOURCE_LABEL[k])
+        .join(", ")
+    : "";
   buildIndexes(data);
   render(data);
 }
@@ -81,9 +115,9 @@ function buildIndexes(data) {
   for (const e of data.lineage) {
     const tKey = e.resource + "." + e.target_path;
     if (!state.bySource.has(e.source_path)) state.bySource.set(e.source_path, []);
-    state.bySource.get(e.source_path).push({ resource: e.resource, target_path: e.target_path });
+    state.bySource.get(e.source_path).push({ resource: e.resource, target_path: e.target_path, match_source: e.match_source });
     if (!state.byTarget.has(tKey)) state.byTarget.set(tKey, []);
-    state.byTarget.get(tKey).push({ lm_path: e.source_path });
+    state.byTarget.get(tKey).push({ lm_path: e.source_path, match_source: e.match_source });
   }
   for (const link of data.cross_target_links || []) {
     const fromKey = link.from_resource + "." + link.from_path;
@@ -199,7 +233,7 @@ function onHover(row) {
       const tRow = findTargetRow(t.resource, t.target_path);
       if (tRow) {
         tRow.classList.add("hl-target");
-        pairs.push({ a: row, b: tRow, kind: "lineage" });
+        pairs.push({ a: row, b: tRow, kind: "lineage", matchSource: t.match_source });
       }
     }
   } else if (row.dataset.respath) {
@@ -211,7 +245,7 @@ function onHover(row) {
     for (const s of sources) {
       for (const sRow of findSourceRowsByLmPath(s.lm_path)) {
         sRow.classList.add("hl-source");
-        pairs.push({ a: sRow, b: row, kind: "lineage" });
+        pairs.push({ a: sRow, b: row, kind: "lineage", matchSource: s.match_source });
       }
     }
     // A container row (e.g. "extension[2]") also inherits its children's edges visually -
@@ -222,7 +256,7 @@ function onHover(row) {
         for (const s of srcs) {
           for (const sRow of findSourceRowsByLmPath(s.lm_path)) {
             sRow.classList.add("hl-source");
-            pairs.push({ a: sRow, b: row, kind: "lineage" });
+            pairs.push({ a: sRow, b: row, kind: "lineage", matchSource: s.match_source });
           }
         }
       }
@@ -243,7 +277,7 @@ function drawLines(pairs) {
   const svg = el("#lines");
   svg.innerHTML = "";
   const layoutRect = el("#layout").getBoundingClientRect();
-  for (const { a, b, kind } of pairs) {
+  for (const { a, b, kind, matchSource } of pairs) {
     const ra = a.getBoundingClientRect();
     const rb = b.getBoundingClientRect();
     // Source rows sit to the left of target rows in every pairing we draw (source->condition,
@@ -257,7 +291,8 @@ function drawLines(pairs) {
     const d = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
     const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
     path.setAttribute("d", d);
-    path.setAttribute("class", (kind === "crosslink" ? "crosslink" : "lineage") + " active");
+    const kindClass = kind === "crosslink" ? "crosslink" : "lineage match-" + matchSourceClass(matchSource);
+    path.setAttribute("class", kindClass + " active");
     svg.appendChild(path);
   }
 }

@@ -23,9 +23,12 @@
   </label>
   <span id="note"></span>
   <span id="trace-note"></span>
+  <span id="match-summary"></span>
   <span class="legend">
-    <span><span class="swatch" style="background:#5fb3ff"></span>kedja (hovrad k&auml;lla)</span>
-    <span><span class="swatch" style="background:#ff9f5f"></span>kedja (hovrad m&aring;l/korsl&auml;nk)</span>
+    <span><span class="swatch" style="background:#2dd4bf"></span>v&auml;rde-matchad (verklig output)</span>
+    <span><span class="swatch" style="background:#1a7f37"></span>k&ouml;rtid (python)</span>
+    <span><span class="swatch" style="background:#9a6700"></span>heuristik</span>
+    <span><span class="swatch" style="background:#5fb3ff"></span>statisk/entydig</span>
     <span>gr&aring; rad = inte mappad till FHIR</span>
   </span>
 </header>
@@ -39,8 +42,10 @@
   Demo-verktyg, inte del av produktionsbryggan eller Maven-bygget. K&auml;ll&rarr;m&aring;l-kedjan kommer fr&aring;n en statisk tolkning av
   <code>get-diagnosis-to-{condition,provenance}.map</code> plus <code>driver-fields.json</code> (den ENDA deklarativa listan &ouml;ver
   f&auml;lt drivrutinen s&auml;tter direkt p&aring; resultatet &mdash; onset, assertedDate, de tre "uri"-f&auml;lten, Provenance.recorded).
-  F&ouml;r Python/MaLaC-HD-motorn &auml;r index f&ouml;r upprepade element (t.ex. <code>relatedDiagnosis</code>) en VERKLIG, observerad k&ouml;rtidsfakta,
-  inte en gissning &mdash; se "related_index_source" ovan och README.md.
+  F&ouml;r b&aring;da motorerna f&ouml;rs&ouml;ker en tredje, mest tillf&ouml;rlitliga niv&aring; f&ouml;rst: v&auml;rde-matchning s&ouml;ker upp det k&auml;nda,
+  typ-s&auml;kra transformerade v&auml;rdet i den VERKLIGA output-JSON:en fr&aring;n en faktiskt k&ouml;rd, om&auml;ndrad transform &mdash; se
+  linjef&auml;rgen/legenden ovan och README.md ("Part 3"). Python/MaLaC-HD-motorns k&ouml;rtidssp&aring;rning av upprepade element
+  (t.ex. <code>relatedDiagnosis</code>) anv&auml;nds bara d&auml;r v&auml;rde-matchning inte redan l&ouml;ser det entydigt.
 </footer>
 <script src="app.js"></script>
 </body>

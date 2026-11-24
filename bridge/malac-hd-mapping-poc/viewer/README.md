@@ -82,11 +82,20 @@ viewer/backend/
                     provenance}.map - extracts "source field -> target field" per named rule
   lineage.py         combines fml_parser's static trace with driver-fields.json's declarative
                     list (via python/driver_fields.py), then resolves every edge's "[]"
-                    placeholders against one concrete record - using the REAL indices
-                    traced_python_engine.py observed where it has them (Python engine only),
-                    falling back to a content/order-based resolver otherwise
+                    placeholders against one concrete record - PRIMARILY via value_match.py's
+                    value-matching (works for either engine's real output), falling back to
+                    the REAL indices traced_python_engine.py observed (Python engine only) or
+                    a content/order-based resolver, in that order - see the README's "How the
+                    source -> target lineage is computed", Part 3
+  value_match.py     Oskar's "traceability anchor" idea, made concrete: given a source leaf's
+                    raw XML value and its FML/driver rule's KNOWN transform (if any), reusing
+                    the real conversion code in python/riv_date.py, returns what the REAL,
+                    unmodified transform's output should contain for it - lineage.py then
+                    searches the REAL output JSON for that value
   source_tree.py     RIVTA XML -> navigable tree, each leaf annotated with its resolved
-                    lm-diagnosis JSON path (or None - a genuinely unmapped field)
+                    lm-diagnosis JSON path (or None - a genuinely unmapped field);
+                    flatten_lm_values() flattens that tree into {lm_path: raw_xml_value} for
+                    value_match.py/lineage.py to look up a given edge's raw source value by
   target_tree.py     generic FHIR-JSON -> navigable tree (used for both Condition and
                     Provenance)
 
@@ -211,34 +220,152 @@ The lineage trace itself still combines two pieces:
    itself - was judged to require something close to a Java agent/bytecode-weaving approach,
    which the task's own guidance says is disproportionate for this dev tool. So the Java engine
    keeps the content/order-based fallback for `relatedDiagnosis` specifically, clearly labelled
-   as such: the `/api/map` response's `related_index_source` field says `"runtime"` for the
-   Python engine and `"heuristic (order-based assumption - ...)"` for Java, and the frontend
-   shows this next to the fixture/engine picker rather than presenting both as equally trustworthy.
+   as such, for whenever it is actually reached: the `/api/map` response's
+   `related_index_source` field said `"runtime"` for the Python engine and `"heuristic
+   (order-based assumption - ...)"` for Java, and the frontend showed this next to the
+   fixture/engine picker rather than presenting both as equally trustworthy. **This remains
+   true in principle, but Part 3 below (value-matching) now reaches this fallback for neither
+   engine on any of this module's current fixtures** - see Part 3 and the "Verified example"
+   section for why, and for what `related_index_source` actually reports today.
 
    A third category - `Provenance.target[].reference` <-> `Condition.id` - is not a RIVTA-field
    lineage edge at all (both engines just mint a fresh UUID and copy it across), so it is kept
    in its own `cross_target_links` list and drawn/highlighted the same way, but as a
    target-to-target link rather than a source-to-target one.
 
+#### Part 3: value-matching - a "traceability anchor" that needs no injected marker
+
+Oskar's own next question (his words, relayed via the orchestrating session): could the trace
+become "even more dynamic and honest" by introducing a kind of traceability anchor that
+travels along with a mapped value through the FML mapping, so the viewer can find the target
+attribute in the real output? A literal, arbitrary marker string can't be injected into every
+field to answer that literally - plenty of target fields are type- or terminology-validated
+(a `boolean`, a `dateTime`, a ConceptMap-translated `code` that must exist in the real code
+system, a syntactically-valid `uri`): a fake sentinel would either fail FHIR type validation
+or fail to match in a real `translate()` ConceptMap lookup, so it would stop tracing the REAL
+mapping behaviour for that field and start tracing a broken one instead.
+
+What is implemented instead, in `value_match.py` and the rest of `lineage.py`
+(`resolve_target_path`/`_disambiguate`), is the achievable version of the same idea:
+
+1. **The test fixtures were audited and fixed so every leaf value is globally unique within
+   its own fixture** (see `../src/test/resources/testmessages/*.xml`). The original
+   `get-diagnosis-huvuddiagnos.xml` had `sourceSystemHSAId`, `healthcareProfessionalHSAId` AND
+   `healthcareProfessionalCareGiverHSAId` all sharing `"SE2321000016-4HK5"` (a three-way
+   collision, not just the two-way one first spotted), and `authorTime`/`diagnosisTime`
+   sharing the same raw timestamp (so `Condition.recordedDate` and `Condition.onsetDateTime`
+   came out byte-for-byte identical too). Both are now distinct
+   (`SE2321000016-SRC1`/`-4HK5`/`-CG99`, and `diagnosisTime` moved 5 days earlier). This
+   fixture is also mirrored, field-for-field, by `JavaMapperDump.huvuddiagnosFixture()` (Java
+   POJO, used by `run_comparison.py`'s production/HAPI-dump pairing) and asserted against by
+   `DriverFieldsConfigTest` - both were updated to match, so nothing silently drifted out of
+   sync. `get-diagnosis-ogiltigt-personnummer.xml` (same base fields, three fields
+   overridden - see `JavaMapperDump.ogiltigtPersonnummerFixture()`) got the same base fixes
+   for consistency, though it never actually reaches Condition/Provenance mapping (DIAG-001
+   drops it) so there was no real ambiguity risk there either way.
+   `get-diagnosis-flera-relaterade.xml` is viewer-only (no Java mirror, confirmed by
+   grepping - nothing outside this viewer reads it), so it was free to get entirely fresh,
+   fully-unique HSA-ids/timestamps instead of just de-duplicating.
+2. **`value_match.py`** answers one question: "given the RAW XML leaf value a
+   `source_tree.py` leaf carries, what should the REAL transform's output contain for it?" -
+   identity passthrough for the (large majority of) fields FML copies through unchanged, or,
+   for the handful of fields with a known, FHIR-type-safe transform (every one of
+   `driver-fields.json`'s five fields, plus `recordedDate`/`chronic-value` from the `.map`
+   files themselves), that transform's real result. Every transform function is **the exact
+   same code the real pipeline already runs** - `riv_date.riv_to_offset_datetime`/
+   `riv_to_utc_instant`/`oid_to_uri`/`TJANSTEKATALOG_BASE`, the SAME module
+   `lm_diagnosis_json_builder.py` imports and runs against this exact raw value before either
+   engine ever sees it - never a second, independently-reasoned-about reimplementation of what
+   a transform does.
+3. **`lineage.py`'s `resolve_target_path`/`_disambiguate`** use this as the PRIMARY mechanism:
+   while walking a `target_path` pattern, at every repeating container ("[]" - `extension`,
+   `agent`, `coding`, `identifier`, `category`) it checks each candidate index's REAL value (in
+   the REAL `condition`/`provenance` JSON an actual, unmodified run of EITHER engine just
+   produced) against the expected value computed in step 2; a UNIQUE match wins outright, and
+   even a pattern with no array at all gets its single candidate's value double-checked the
+   same way. This needs no engine-specific code whatsoever beyond "which JSON did this value
+   come out of" - it is exactly as applicable to HAPI's Java output as to MaLaC-HD's Python
+   output, closing the gap between the two engines without any bytecode weaving or internal
+   hooking. Every edge in the `/api/map` response's `"lineage"` list now carries a
+   `match_source` field: `"value"` (this layer resolved it - the new, highest-confidence
+   level), `"runtime"` (Python's `traced_python_engine.py`, only reached when value-matching
+   itself didn't already resolve the edge), `"heuristic"` (the Java order-based fallback,
+   likewise only reached as a last resort), or `"static"` (a single, already-unambiguous
+   candidate with no known transform to check it against - still correct, just not
+   independently value-verified).
+4. **ConceptMap/`translate()`-driven fields are deliberately NOT value-matched** (Oskar's own
+   follow-up, relayed via the orchestrating session): `typeOfDiagnosis -> category[0].coding`
+   stays on the static-rule-based trace at WHOLE-ELEMENT granularity. The `.map` file's
+   `translate()` call plus the `diagnosis-type` ConceptMap resource (the SAME file
+   `HapiFmlEngine.java`/the Python compiled code both actually load) IS the authoritative
+   definition of where a coded element lands; re-verifying a sub-field of it (`.code` vs.
+   `.display`) by searching for a specific value would be solving an already-solved problem
+   with a less reliable technique, not strengthening it. `lineage.py`'s `resolve_edges()`
+   skips value-matching outright for any edge with `kind == "translate"`.
+5. **No marker-injection/tag+strip mechanism was added.** A later refinement was floated
+   (append an invisible per-path suffix to a free-text fixture value, find it in the real
+   output, strip it back off before display) as a way to force uniqueness without relying on
+   genuinely-unique fixture data. It was not implemented: fixture-uniqueness (step 1) already
+   makes every value-matching attempt in this viewer unambiguous on its own, a tag would mean
+   feeding the REAL transform a value that is not actually the real field's value (undermining
+   "unmodified input" - the whole point of this layer being more honest than instrumentation),
+   and it would add a second mechanism to maintain for no field this viewer currently needs it
+   for. If a future field genuinely cannot be made unique any other way, tag+strip remains a
+   reasonable option to revisit then - restricted, as originally scoped, to plain free-text
+   fields FML copies through unchanged, never to a typed/dateTime/boolean/ConceptMap-validated
+   one.
+6. **The Python engine's `traced_python_engine.py` real execution-frame tracing (Part 2) was
+   kept, not removed**, even though value-matching now resolves the SAME `relatedDiagnosis`
+   case it exists for (see the verified example below - both are "value" now, on both
+   engines). It sits as a genuine, REAL (not heuristic) fallback strictly between
+   value-matching and the order-based assumption: if a future fixture ever reintroduces a
+   value collision that defeats value-matching's uniqueness check, the Python engine still
+   has one more real layer of evidence to fall back on before reaching the heuristic - an
+   asymmetry with the Java engine that costs nothing extra to keep, since the code already
+   exists, is tested, and works.
+
 ### Verified example
 
-`get-diagnosis-flera-relaterade.xml` (added for this - a QA/test fixture Oskar can also use
-directly, with TWO `relatedDiagnosis` entries instead of the old fixtures' zero-or-one) proves
-the real tracing end to end: running it through the Python engine, `relatedDiagnosis[0]`
-(`doc-0`) resolves to `Condition.extension[1]` and `relatedDiagnosis[1]` (`doc-2`) to
-`Condition.extension[2]` - and the response's `related_index_source` says `"runtime"`, meaning
-these two concrete indices came from actually observing `traced_python_engine.py`'s
-instrumented `.append()` calls during a real run, not from assuming list order. The SAME
-fixture through the Java engine resolves to `extension[2]`/`extension[3]` instead (HAPI builds
-one more `Condition.extension` entry than MaLaC-HD does for this input - a pre-existing,
-unrelated engine difference, not a bug in this viewer) with `related_index_source` honestly
-reported as the order-based fallback.
+`get-diagnosis-flera-relaterade.xml` (added in the previous pass on this viewer - a QA/test
+fixture Oskar can also use directly, with TWO `relatedDiagnosis` entries instead of the other
+fixtures' zero-or-one) proves value-matching end to end, confirmed by actually running the
+tool against both engines after the fixture-uniqueness fixes above: running it through the
+**Python** engine, `relatedDiagnosis[0]` (`doc-0`) resolves to `Condition.extension[1]` and
+`relatedDiagnosis[1]` (`doc-2`) to `Condition.extension[2]`; through the **Java/HAPI** engine
+the SAME record resolves to `extension[2]`/`extension[3]` instead (HAPI builds one more
+`Condition.extension` entry than MaLaC-HD does for this input - a pre-existing, unrelated
+engine difference, not a bug in this viewer). **Both engines' `related_index_source` now says
+`"value (real output, searched for the real transformed input - see README)"`** - this is the
+concrete proof that value-matching closes the Java/HAPI gap: before the fixture fix, the Java
+side's relatedDiagnosis pairing could only ever be the amber order-based `"heuristic"` (no
+real execution hook exists or was judged worth building for HAPI's internals - see Part 2
+above); it now resolves exactly as confidently as the Python side, with no HAPI-internals
+hook of any kind, purely by finding each relatedDiagnosis's own (now-unique) `documentId`
+value at the right position in HAPI's own real output JSON. The SAME run's
+`match_source_counts` is `{"value": 15, "static": 6}` for Java-via-huvuddiagnos and similarly
+dominated by `"value"` for every fixture/engine combination - the two
+remaining `"static"` edges on every run are `category-mapped` and `code-text-original`,
+both deliberately/structurally left off the value-matching layer (see Part 3, points 4 and
+the `code-text-original`/`code-text-fallback-value` pair, which share one real target path
+with only one of the two ever having a RIVTA source value present to check in these
+fixtures).
+
+Two more edges that were previously resolved only by (already-deterministic, but not
+independently value-verified) content-matching now also show `match_source: "value"` on both
+engines: `custodian-identifier-value` (`healthcareProfessionalCareGiverHSAId` ->
+`Provenance.agent[0].who.identifier.value`) and `author-identifier-value`
+(`healthcareProfessionalCareUnitHSAId` -> `Provenance.agent[1].who.identifier.value`) - the
+`assembler` agent has no RIVTA source value at all (a per-deployment literal, see
+`get-diagnosis-to-provenance.map`'s header comment) so it was never a lineage edge to begin
+with and stays off this story.
 
 Hovering **`documentId: doc-1`** under `diagnosis[0].diagnosisHeader` in the source tree
-highlights **`identifier[0].value: doc-1`** in the Condition tree (rule `documentId-value`), for
-both the Python and the Java engine, confirmed by actually running the tool. Hovering
-**`chronicDiagnosis: true`** highlights **`extension[1].valueBoolean: true`**. Hovering
+highlights **`identifier[0].value: doc-1`** in the Condition tree (rule `documentId-value`,
+now drawn in the new teal "value-matched" color), for both the Python and the Java engine,
+confirmed by actually running the tool. Hovering **`chronicDiagnosis: true`** highlights
+**`extension[1].valueBoolean: true`** (also value-matched). Hovering
 **`healthcareProfessionalCareGiverHSAId`** highlights
-**`Provenance.agent[0].who.identifier.value`** (the custodian agent) - and the reverse
-direction (hovering that Provenance row) highlights back to the same source row. Hovering
-`Condition.id` highlights `Provenance.target[0].reference` via the cross-target link.
+**`Provenance.agent[0].who.identifier.value`** (the custodian agent, value-matched) - and the
+reverse direction (hovering that Provenance row) highlights back to the same source row.
+Hovering `Condition.id` highlights `Provenance.target[0].reference` via the cross-target link
+(unchanged - still not a RIVTA-field edge, so it is never value-matched, by design).

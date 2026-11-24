@@ -82,7 +82,7 @@ class DriverFieldsConfigTest {
         assertEquals(idsOf(config.getAsJsonArray("condition")), appliedCondition,
                 "huvuddiagnos-fixturen ska ha ett killvarde for varje driver-satt condition-falt");
         assertTrue(condition.hasOnset(), "driver-onset ska ha satt Condition.onsetDateTime");
-        assertEquals("https://tjanstekatalogen.inera.se/Endpoint/SE2321000016-4HK5",
+        assertEquals("https://tjanstekatalogen.inera.se/Endpoint/SE2321000016-SRC1",
                 condition.getMeta().getSource(), "driver-meta-source ska ha satt Condition.meta.source");
 
         String provJsonText = sourceBuilder.toJson(diag, true);

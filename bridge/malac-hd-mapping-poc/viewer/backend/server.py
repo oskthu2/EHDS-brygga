@@ -9,8 +9,11 @@ Routes:
   GET /api/fixtures             -> [{"name": ..., "diagnosisCount": ...}, ...]
   GET /api/map?fixture=<name>&engine=python|java[&diagnosis=<index>]
                                  -> {source_tree, target_condition_tree, target_provenance_tree,
-                                     lineage, cross_target_links, guard_ok, diagnosis_count,
-                                     related_count, engine, fixture, diagnosis_index}
+                                     lineage (each edge now also carries "match_source": one
+                                     of "value"/"runtime"/"heuristic"/"static" - see
+                                     lineage.py), cross_target_links, match_source_counts,
+                                     guard_ok, diagnosis_count, related_count,
+                                     related_index_source, engine, fixture, diagnosis_index}
 """
 import json
 import sys
@@ -92,19 +95,37 @@ def build_response(fixture_name: str, engine_name: str, diagnosis_index: int):
         else:
             raise ValueError("unknown engine %r (want 'python' or 'java')" % engine_name)
 
+        lm_values = source_tree.flatten_lm_values(src_tree)
         lineage_edges = lineage.resolve_edges(
-            diagnosis_index, related_count, {"condition": condition, "provenance": provenance}, runtime_hints
+            diagnosis_index, related_count, {"condition": condition, "provenance": provenance},
+            runtime_hints, lm_values,
         )
         cross_links = lineage.resolve_cross_target_links({"condition": condition, "provenance": provenance})
 
     # Honest provenance of the relatedDiagnosis -> extension[] pairing specifically (the one
     # place a repeating target container's index used to be an order-based ASSUMPTION rather
-    # than a FACT - see lineage.py/traced_python_engine.py) - shown by the frontend so nobody
-    # mistakes the Java engine's fallback for a real trace.
-    related_index_source = (
-        "runtime" if (runtime_hints or {}).get("related_extension_index") else
-        "heuristic (order-based assumption - no real execution trace for this engine, see README)"
-    ) if related_count and guard_ok else None
+    # than a FACT - see lineage.py/traced_python_engine.py) - now DERIVED from the actual
+    # per-edge `match_source` the "related-identifier-value" edges resolved to (see
+    # lineage.py's docstring, "Part 3"), rather than from runtime_hints alone, so this summary
+    # can never disagree with what the frontend's own per-edge colouring shows. "value" means
+    # value-matching (the most trustworthy layer, real-input/real-output, either engine) found
+    # the pairing unambiguously; "runtime" means traced_python_engine.py's real observed index
+    # did (Python only, and only when value-matching itself didn't already resolve it);
+    # anything else falls back to the order-based assumption, clearly labelled as such so
+    # nobody mistakes it for a real trace.
+    related_match_sources = {e["match_source"] for e in lineage_edges if e["rule"] == "related-identifier-value"}
+    if not related_count or not guard_ok:
+        related_index_source = None
+    elif related_match_sources and related_match_sources <= {"value"}:
+        related_index_source = "value (real output, searched for the real transformed input - see README)"
+    elif "runtime" in related_match_sources:
+        related_index_source = "runtime"
+    else:
+        related_index_source = "heuristic (order-based assumption - no real execution trace for this engine, see README)"
+
+    match_source_counts = {}
+    for e in lineage_edges:
+        match_source_counts[e["match_source"]] = match_source_counts.get(e["match_source"], 0) + 1
 
     return {
         "fixture": fixture_name,
@@ -113,6 +134,7 @@ def build_response(fixture_name: str, engine_name: str, diagnosis_index: int):
         "diagnosis_count": len(all_diag),
         "related_count": related_count,
         "related_index_source": related_index_source,
+        "match_source_counts": match_source_counts,
         "guard_ok": guard_ok,
         "note": note,
         "source_tree": src_tree,

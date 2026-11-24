@@ -31,7 +31,7 @@ public final class JavaMapperDump {
     public static GetDiagnosisResponse huvuddiagnosFixture() {
         DiagnosisHeader header = new DiagnosisHeader();
         header.setDocumentId("doc-1");
-        header.setSourceSystemHSAId("SE2321000016-4HK5");
+        header.setSourceSystemHSAId("SE2321000016-SRC1");
 
         PersonIdType pid = new PersonIdType();
         pid.setId("191212121212");
@@ -43,7 +43,7 @@ public final class JavaMapperDump {
         ahp.setHealthcareProfessionalHSAId("SE2321000016-4HK5");
         ahp.setHealthcareProfessionalName("Anna Andersson");
         ahp.setHealthcareProfessionalCareUnitHSAId("SE2321000016-1001");
-        ahp.setHealthcareProfessionalCareGiverHSAId("SE2321000016-4HK5");
+        ahp.setHealthcareProfessionalCareGiverHSAId("SE2321000016-CG99");
         header.setAccountableHealthcareProfessional(ahp);
 
         LegalAuthenticatorType la = new LegalAuthenticatorType();
@@ -55,7 +55,7 @@ public final class JavaMapperDump {
         DiagnosisBody body = new DiagnosisBody();
         body.setTypeOfDiagnosis("Huvuddiagnos");
         body.setChronicDiagnosis(true);
-        body.setDiagnosisTime("20240315090000");
+        body.setDiagnosisTime("20240310080000");
 
         CVType cv = new CVType();
         cv.setCode("J45.9");

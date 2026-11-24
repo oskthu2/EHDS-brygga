@@ -9,6 +9,15 @@
   --accent2: #ff9f5f;
   --unmapped: #4a3030;
   --line: #3a4150;
+  /* Trace confidence (lineage.py's `match_source` per edge - see its module docstring,
+     "Part 3"): value-matched (real output, searched for the real transformed input - highest
+     confidence) > runtime (real observed index, Python-only) > heuristic (order-based
+     assumption) > static (a single, already-unambiguous candidate, correct by construction
+     but not independently value-verified). */
+  --match-value: #2dd4bf;
+  --match-runtime: #1a7f37;
+  --match-heuristic: #9a6700;
+  --match-static: var(--accent);
 }
 
 * { box-sizing: border-box; }
@@ -65,14 +74,24 @@ select {
   border-radius: 3px;
 }
 
+#trace-note.trace-value {
+  color: var(--match-value);
+  background: rgba(45, 212, 191, 0.14);
+}
+
 #trace-note.trace-runtime {
-  color: #1a7f37;
+  color: var(--match-runtime);
   background: rgba(26, 127, 55, 0.12);
 }
 
 #trace-note.trace-heuristic {
-  color: #9a6700;
+  color: var(--match-heuristic);
   background: rgba(154, 103, 0, 0.12);
+}
+
+#match-summary {
+  font-size: 11px;
+  color: var(--muted);
 }
 
 #layout {
@@ -147,10 +166,14 @@ svg#lines path.lineage {
   opacity: 0.35;
 }
 svg#lines path.lineage.active {
-  stroke: var(--accent);
+  stroke: var(--match-static);
   stroke-width: 2;
   opacity: 0.95;
 }
+svg#lines path.lineage.match-value.active { stroke: var(--match-value); }
+svg#lines path.lineage.match-runtime.active { stroke: var(--match-runtime); }
+svg#lines path.lineage.match-heuristic.active { stroke: var(--match-heuristic); }
+svg#lines path.lineage.match-static.active { stroke: var(--match-static); }
 svg#lines path.crosslink.active {
   stroke: var(--accent2);
   stroke-width: 2;

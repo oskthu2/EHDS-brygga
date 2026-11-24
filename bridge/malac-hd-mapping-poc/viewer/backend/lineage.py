@@ -17,12 +17,31 @@ relevant target list instrumented, and resolve_edges()'s `runtime_hints` carries
 given (see resolve_target_path()'s docstring). The Java/HAPI engine has no such hook (see
 ../README.md and HapiFmlEngine.java's Javadoc for why) and keeps the order-based fallback,
 clearly labelled as such by server.py's "related_index_source" response field.
+
+A THIRD, now PRIMARY, layer of evidence sits above both of those (Oskar's "traceability
+anchor" idea - see the PR task description and value_match.py's module docstring for the full
+account of why it is VALUE-MATCHING rather than literal marker injection): for every edge
+whose rule has a known, FHIR-type-safe transform (value_match.expected_value()), this module
+computes what the REAL transform should have produced from the raw XML leaf value this
+record actually carries, and - while walking a repeating target container ("[]") - checks
+each candidate index's real value against it. A UNIQUE match wins outright, for EITHER
+engine's real, unmodified output, with no engine-specific code at all beyond "which JSON did
+this value come out of" - strictly more trustworthy than both the static parse (Part 1) and
+the order/runtime-hint fallback (Part 2) below, since it is attested by an actually-executed
+transform's real output, not inferred from the .map file's text or from list order. Each edge
+resolve_edges() returns now carries a `match_source` field: "value" (this layer resolved it
+uniquely), "runtime" (traced_python_engine.py's real observed index, Python only),
+"heuristic" (the order-based assumption, Java's relatedDiagnosis fallback), or "static" (a
+single, already-unambiguous candidate - correct by construction, just not independently
+value-verified, e.g. a field with no known transform in value_match.py, or an edge
+value_match.py deliberately skips - see resolve_edges()'s handling of `kind == "translate"`).
 """
 import os
 import re
 import sys
 
 import fml_parser
+import value_match
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 FML_DIR = os.path.join(HERE, "..", "..", "python", "fml")
@@ -30,6 +49,8 @@ PYTHON_DIR = os.path.join(HERE, "..", "..", "python")
 if PYTHON_DIR not in sys.path:
     sys.path.insert(0, PYTHON_DIR)
 import driver_fields  # noqa: E402
+
+_UNSET = object()
 
 CHRONIC_EXT_URL = "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition"
 RELATED_EXT_URL = "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition"
@@ -89,101 +110,200 @@ def _rule_prefix(rule: str) -> str:
     return m.group(1) if m else rule
 
 
-def resolve_target_path(pattern: str, resource_json: dict, rule: str, related_k, related_index_hint=None):
+def _get_path(obj, tokens):
+    """Plain navigation of `tokens` (dotted/"[]" path segments, e.g. ["who", "identifier",
+    "value"]) off ONE candidate array item - any further "[]" token along the way always
+    resolves to index 0 (consistent with _disambiguate's own rule for category/coding/
+    identifier, the only further-nested array fields either .map file ever produces).
+    Returns None if the path does not fully resolve - used ONLY to pull a comparison leaf
+    value out of a candidate while value-matching (see _disambiguate), never to build the
+    final target_path itself."""
+    cur = obj
+    for token in tokens:
+        m = _ARRAY_TOKEN_RE.match(token)
+        if not m:
+            return None
+        name, is_arr = m.group(1), bool(m.group(2))
+        cur = cur.get(name) if isinstance(cur, dict) else None
+        if cur is None:
+            return None
+        if is_arr:
+            if not isinstance(cur, list) or not cur:
+                return None
+            cur = cur[0]
+    return cur
+
+
+def resolve_target_path(pattern: str, resource_json: dict, rule: str, related_k,
+                         related_index_hint=None, expected_value=_UNSET):
     """Walks `pattern` (e.g. "extension[].valueReference.identifier.value") against the
     ACTUAL resource JSON, replacing every "name[]" token with a concrete "name[idx]" - see
     the module docstring for how each ambiguous array field is disambiguated. Returns
-    (concrete_path, ok) - ok=False means this record simply has no matching element (e.g. no
-    chronicDiagnosis extension was created at all), so the caller should drop the edge.
+    (concrete_path, ok, match_source) - ok=False means this record simply has no matching
+    element (e.g. no chronicDiagnosis extension was created at all), so the caller should drop
+    the edge. match_source is "value" wherever VALUE-MATCHING (see value_match.py) resolved
+    an array token uniquely, or confirmed the final leaf's value outright when the pattern had
+    no array token at all to disambiguate; otherwise "runtime"/"heuristic" (set by
+    _disambiguate, "related" rule only) or "static" (no array ambiguity / no known transform
+    to check against).
 
     `related_index_hint`: for the "related" rule's extension[] ONLY, the REAL Condition.
     extension[] index observed while the Python/MaLaC-HD engine actually ran (see
-    traced_python_engine.py) - when given, _disambiguate() uses it directly instead of its
-    order-based assumption. None (the Java engine, or any other rule) falls back to that
-    assumption, unchanged."""
+    traced_python_engine.py) - used as a fallback when VALUE-MATCHING itself can't resolve the
+    index uniquely (see _disambiguate). `expected_value`: value_match.expected_value()'s
+    result for this edge's (rule, raw source value) - _UNSET/None disables value-matching for
+    this call entirely (falls back to the pre-existing behaviour unchanged)."""
     parts = pattern.split(".")
     cur = resource_json
     out = []
-    for token in parts:
+    match_source = "static"
+    for i, token in enumerate(parts):
         m = _ARRAY_TOKEN_RE.match(token)
         if not m:
-            return None, False
+            return None, False, match_source
         name, is_arr = m.group(1), bool(m.group(2))
         if not is_arr:
             out.append(name)
             cur = cur.get(name) if isinstance(cur, dict) else None
             if cur is None:
-                return None, False
+                return None, False, match_source
             continue
         lst = cur.get(name) if isinstance(cur, dict) else None
         if not isinstance(lst, list) or not lst:
-            return None, False
-        idx = _disambiguate(name, lst, rule, related_k, related_index_hint)
+            return None, False, match_source
+        idx, match_source = _disambiguate(
+            name, lst, rule, related_k, related_index_hint, parts[i + 1 :], expected_value
+        )
         if idx is None or idx >= len(lst):
-            return None, False
+            return None, False, match_source
         out.append("%s[%d]" % (name, idx))
         cur = lst[idx]
-    return ".".join(out), True
+    if (
+        match_source == "static"
+        and expected_value is not _UNSET
+        and expected_value is not None
+        and cur == expected_value
+    ):
+        # No array token needed disambiguating at all (a single, already-unambiguous
+        # candidate) - but the REAL value at that one candidate position still equals what
+        # the real transform should have produced, so this edge is just as value-verified as
+        # one that needed disambiguating. Promote it from "static" to "value" rather than
+        # under-selling a perfectly good match just because there was nothing to pick between.
+        match_source = "value"
+    return ".".join(out), True, match_source
 
 
-def _disambiguate(name, lst, rule, related_k, related_index_hint=None):
+def _disambiguate(name, lst, rule, related_k, related_index_hint=None,
+                   remaining_tokens=None, expected_value=_UNSET):
+    value_idx = None
+    if expected_value is not _UNSET and expected_value is not None:
+        candidates = [
+            i for i, item in enumerate(lst)
+            if _get_path(item, remaining_tokens or []) == expected_value
+        ]
+        if len(candidates) == 1:
+            value_idx = candidates[0]
     if name in ("category", "coding", "identifier"):
-        return 0
+        if value_idx is not None:
+            return value_idx, "value"
+        return 0, "static"
     if name == "agent":
+        if value_idx is not None:
+            return value_idx, "value"
         expected = AGENT_CODE_BY_RULE_PREFIX.get(_rule_prefix(rule))
         for i, item in enumerate(lst):
             codings = ((item.get("type") or {}).get("coding")) or []
             if codings and codings[0].get("code") == expected:
-                return i
-        return None
+                return i, "static"
+        return None, "static"
     if name == "extension":
         expected_url = EXTENSION_URL_BY_RULE_PREFIX.get(_rule_prefix(rule))
         matches = [i for i, item in enumerate(lst) if item.get("url") == expected_url]
         if not matches:
-            return None
+            return None, "static"
+        if value_idx is not None and value_idx in matches:
+            # A REAL match against the actual output of an unmodified run (see
+            # value_match.py) - the most trustworthy evidence this viewer can produce,
+            # stronger than either the runtime hint or the order-based assumption below.
+            return value_idx, "value"
         if _rule_prefix(rule) == "related":
             if related_index_hint is not None and related_index_hint in matches:
                 # A REAL index, observed while the actual generated code ran (see
                 # traced_python_engine.py) - not an assumption, so it wins outright, even if
                 # it disagrees with list order.
-                return related_index_hint
+                return related_index_hint, "runtime"
             k = related_k or 0
-            return matches[k] if k < len(matches) else None
-        return matches[0]
-    return 0
+            return (matches[k] if k < len(matches) else None), "heuristic"
+        return matches[0], "static"
+    if value_idx is not None:
+        return value_idx, "value"
+    return 0, "static"
 
 
-def resolve_edges(diagnosis_index: int, related_count: int, resource_jsons: dict, runtime_hints: dict = None):
+def resolve_edges(diagnosis_index: int, related_count: int, resource_jsons: dict,
+                   runtime_hints: dict = None, lm_values: dict = None):
     """resource_jsons: {"condition": <dict>, "provenance": <dict>}. Returns a flat list of
-    {source_path, resource, target_path, rule, kind, conceptmap} - the "diagnosis[]" and
-    "relatedDiagnosis[]" placeholders resolved using diagnosis_index/related_count (known
-    directly from the chosen fixture's XML, see server.py), everything else resolved against
-    the actual resource JSON (see resolve_target_path). `runtime_hints`: whatever the engine
-    that produced resource_jsons observed while actually running (see engines.py) - currently
-    just {"related_extension_index": {k: real Condition.extension[] index}}, non-empty only
-    for the Python engine; {} (the Java engine) means "no real hints, use the fallback"."""
+    {source_path, resource, target_path, rule, kind, conceptmap, match_source} - the
+    "diagnosis[]" and "relatedDiagnosis[]" placeholders resolved using diagnosis_index/
+    related_count (known directly from the chosen fixture's XML, see server.py), everything
+    else resolved against the actual resource JSON (see resolve_target_path). `runtime_hints`:
+    whatever the engine that produced resource_jsons observed while actually running (see
+    engines.py) - currently just {"related_extension_index": {k: real Condition.extension[]
+    index}}, non-empty only for the Python engine; {} (the Java engine) means "no real hints,
+    use the fallback". `lm_values`: {lm_path: raw_xml_value} for this SAME record (see
+    source_tree.flatten_lm_values) - used to look up each edge's raw source value and, via
+    value_match.expected_value(), what the REAL transform should have produced from it, so
+    resolve_target_path can attempt a VALUE-MATCH (see this module's docstring, "Part 3")
+    before falling back to the runtime-hint/order-based/static behaviour. {} or None disables
+    value-matching entirely (every edge falls back exactly as before this layer existed)."""
     related_index_map = (runtime_hints or {}).get("related_extension_index") or {}
+    lm_values = lm_values or {}
     cond_edges, prov_edges = load_static_edges()
     out = []
     for resource, edges in (("condition", cond_edges), ("provenance", prov_edges)):
         resource_json = resource_jsons.get(resource) or {}
         for e in edges:
             src_pattern = e.source_path.replace("diagnosis[]", "diagnosis[%d]" % diagnosis_index, 1)
+            # "coding[]" (diagnosisCode/typeOfDiagnosis's single nested Coding - the only
+            # OTHER array source field fml_parser.ARRAY_SOURCE_FIELDS tracks, besides
+            # diagnosis/relatedDiagnosis which are resolved above/below) always has exactly
+            # ONE entry in this source model (lm_diagnosis_json_builder.py's
+            # _codeable_concept() builds a single coding dict, never several) - resolving it
+            # to its one concrete index here, the same way source_tree.py's leaves already do
+            # (their lm_path literally says "coding[0]"), is what makes a source_path
+            # produced here ever equal to source_tree's (needed for both the frontend's
+            # hover-highlighting AND this function's own lm_values lookup below - neither
+            # worked for these two fields before this fix, since "coding[]" vs "coding[0]"
+            # never matched as strings).
+            src_pattern = src_pattern.replace("coding[]", "coding[0]")
+            # ConceptMap/translate()-driven edges stay on the static-rule-based trace at
+            # whole-element granularity by design (Oskar's own follow-up, relayed via the
+            # orchestrating session): the .map file's translate() call plus the ConceptMap
+            # resource IS the authoritative definition of where a coded element lands, so
+            # value-matching a sub-field of it would be re-verifying an already-solved
+            # question with a less reliable technique, not strengthening it.
+            skip_value_match = e.kind == "translate"
             if "relatedDiagnosis[]" in src_pattern:
                 for k in range(related_count):
                     src = src_pattern.replace("relatedDiagnosis[]", "relatedDiagnosis[%d]" % k, 1)
-                    tgt, ok = resolve_target_path(
+                    exp = None if skip_value_match else value_match.expected_value(e.rule, lm_values.get(src))
+                    tgt, ok, match_source = resolve_target_path(
                         e.target_path, resource_json, e.rule, related_k=k,
-                        related_index_hint=related_index_map.get(k),
+                        related_index_hint=related_index_map.get(k), expected_value=exp,
                     )
                     if ok:
                         out.append({"source_path": src, "resource": resource, "target_path": tgt,
-                                    "rule": e.rule, "kind": e.kind, "conceptmap": e.conceptmap})
+                                    "rule": e.rule, "kind": e.kind, "conceptmap": e.conceptmap,
+                                    "match_source": match_source})
             else:
-                tgt, ok = resolve_target_path(e.target_path, resource_json, e.rule, related_k=None)
+                exp = None if skip_value_match else value_match.expected_value(e.rule, lm_values.get(src_pattern))
+                tgt, ok, match_source = resolve_target_path(
+                    e.target_path, resource_json, e.rule, related_k=None, expected_value=exp
+                )
                 if ok:
                     out.append({"source_path": src_pattern, "resource": resource, "target_path": tgt,
-                                "rule": e.rule, "kind": e.kind, "conceptmap": e.conceptmap})
+                                "rule": e.rule, "kind": e.kind, "conceptmap": e.conceptmap,
+                                "match_source": match_source})
     return out
 
 

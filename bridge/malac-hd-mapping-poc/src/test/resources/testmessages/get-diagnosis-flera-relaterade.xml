@@ -3,17 +3,17 @@
     <ns2:diagnosis>
         <diagnosisHeader>
             <documentId>doc-3</documentId>
-            <sourceSystemHSAId>SE2321000016-4HK5</sourceSystemHSAId>
+            <sourceSystemHSAId>SE2321000016-SRC2</sourceSystemHSAId>
             <patientId>
                 <id>191212121212</id>
                 <type>1.2.752.129.2.1.3.1</type>
             </patientId>
             <accountableHealthcareProfessional>
-                <authorTime>20240315090000</authorTime>
-                <healthcareProfessionalHSAId>SE2321000016-4HK5</healthcareProfessionalHSAId>
+                <authorTime>20240318103000</authorTime>
+                <healthcareProfessionalHSAId>SE2321000016-REC7</healthcareProfessionalHSAId>
                 <healthcareProfessionalName>Anna Andersson</healthcareProfessionalName>
-                <healthcareProfessionalCareUnitHSAId>SE2321000016-1001</healthcareProfessionalCareUnitHSAId>
-                <healthcareProfessionalCareGiverHSAId>SE2321000016-4HK5</healthcareProfessionalCareGiverHSAId>
+                <healthcareProfessionalCareUnitHSAId>SE2321000016-1002</healthcareProfessionalCareUnitHSAId>
+                <healthcareProfessionalCareGiverHSAId>SE2321000016-CG88</healthcareProfessionalCareGiverHSAId>
             </accountableHealthcareProfessional>
             <legalAuthenticator>
                 <signatureTime>20240315091500</signatureTime>
@@ -24,7 +24,7 @@
         <diagnosisBody>
             <typeOfDiagnosis>Huvuddiagnos</typeOfDiagnosis>
             <chronicDiagnosis>false</chronicDiagnosis>
-            <diagnosisTime>20240315090000</diagnosisTime>
+            <diagnosisTime>20240312070000</diagnosisTime>
             <diagnosisCode>
                 <code>J45.9</code>
                 <codeSystem>1.2.752.116.1.1.1.1.3</codeSystem>

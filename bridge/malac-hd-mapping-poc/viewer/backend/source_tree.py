@@ -165,6 +165,28 @@ def build_body_node(body_elem, diag_path, lm_diag_path):
     return _obj(path, "diagnosisBody", children)
 
 
+def flatten_lm_values(tree):
+    """Flattens a diagnosis tree (see build_diagnosis_tree) into {lm_path: raw_xml_value} for
+    every leaf that survives into the shared lm-diagnosis source model (lm_path is not None -
+    a genuinely unmapped field has none and is skipped). Used by lineage.py's value-matching
+    layer (value_match.py) to look up the RAW XML value a given static/driver edge's
+    source_path leaf actually carried for THIS record, so it can compute that rule's known
+    transform (if any) and search the REAL output JSON for the result - see value_match.py's
+    module docstring."""
+    out = {}
+
+    def walk(node):
+        if node["kind"] == "leaf":
+            if node["lm_path"] is not None:
+                out[node["lm_path"]] = node["value"]
+        else:
+            for child in node["children"]:
+                walk(child)
+
+    walk(tree)
+    return out
+
+
 def build_diagnosis_tree(diag_elem, index):
     """One <diagnosis> entry's full tree, rooted at "diagnosis[<index>]" (the SAME index the
     chosen fixture's <diagnosis> entry has among its siblings - see server.py)."""

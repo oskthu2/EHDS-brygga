@@ -32,7 +32,6 @@ PYTHON_DIR = HERE.parent.parent / "python"
 sys.path.insert(0, str(PYTHON_DIR))
 import guard  # noqa: E402
 import lm_diagnosis_json_builder  # noqa: E402
-import run_pipeline  # noqa: E402
 
 FIXTURES_DIR = HERE.parent.parent / "src" / "test" / "resources" / "testmessages"
 FRONTEND_DIR = HERE.parent / "frontend"
@@ -77,7 +76,7 @@ def build_response(fixture_name: str, engine_name: str, diagnosis_index: int):
 
     src_tree = source_tree.build_diagnosis_tree(diag_elem, diagnosis_index)
 
-    condition, provenance, lineage_edges, cross_links = {}, {}, [], []
+    condition, provenance, lineage_edges, cross_links, runtime_hints = {}, {}, [], [], {}
     note = None
     if not guard_ok:
         note = ("DIAG-001: denna diagnospost saknar en giltig 12-siffrig patientidentitet "
@@ -87,21 +86,25 @@ def build_response(fixture_name: str, engine_name: str, diagnosis_index: int):
         cond_src = lm_diagnosis_json_builder.build_source(diag_elem, author_time_as_instant=False)
         prov_src = lm_diagnosis_json_builder.build_source(diag_elem, author_time_as_instant=True)
         if engine_name == "python":
-            raw_diag_time = run_pipeline._extract_diagnosis_time_raw(diag_elem)
-            raw_sig_time = run_pipeline._extract_signature_time_raw(diag_elem)
-            raw_author_time = run_pipeline._extract_author_time_raw(diag_elem)
-            condition, provenance = engines.run_python_engine(
-                cond_src, prov_src, raw_diag_time, raw_sig_time, raw_author_time
-            )
+            condition, provenance, runtime_hints = engines.run_python_engine(cond_src, prov_src)
         elif engine_name == "java":
-            condition, provenance = engines.run_java_engine(cond_src, prov_src)
+            condition, provenance, runtime_hints = engines.run_java_engine(cond_src, prov_src)
         else:
             raise ValueError("unknown engine %r (want 'python' or 'java')" % engine_name)
 
         lineage_edges = lineage.resolve_edges(
-            diagnosis_index, related_count, {"condition": condition, "provenance": provenance}
+            diagnosis_index, related_count, {"condition": condition, "provenance": provenance}, runtime_hints
         )
         cross_links = lineage.resolve_cross_target_links({"condition": condition, "provenance": provenance})
+
+    # Honest provenance of the relatedDiagnosis -> extension[] pairing specifically (the one
+    # place a repeating target container's index used to be an order-based ASSUMPTION rather
+    # than a FACT - see lineage.py/traced_python_engine.py) - shown by the frontend so nobody
+    # mistakes the Java engine's fallback for a real trace.
+    related_index_source = (
+        "runtime" if (runtime_hints or {}).get("related_extension_index") else
+        "heuristic (order-based assumption - no real execution trace for this engine, see README)"
+    ) if related_count and guard_ok else None
 
     return {
         "fixture": fixture_name,
@@ -109,6 +112,7 @@ def build_response(fixture_name: str, engine_name: str, diagnosis_index: int):
         "diagnosis_index": diagnosis_index,
         "diagnosis_count": len(all_diag),
         "related_count": related_count,
+        "related_index_source": related_index_source,
         "guard_ok": guard_ok,
         "note": note,
         "source_tree": src_tree,

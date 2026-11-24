@@ -2,6 +2,8 @@ package se.inera.ehds.malac.hapi;
 
 import ca.uhn.fhir.context.FhirContext;
 import ca.uhn.fhir.parser.IParser;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import org.hl7.fhir.r4.model.Base;
@@ -12,11 +14,16 @@ import org.hl7.fhir.r4.model.InstantType;
 import org.hl7.fhir.r4.model.Provenance;
 import org.hl7.fhir.r4.model.Reference;
 
+import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 /**
@@ -41,14 +48,124 @@ import java.util.UUID;
  * does - no raw-RIVTA-string re-parsing needed here, since the viewer backend already produced
  * fully-resolved values.
  *
+ * <p>WHICH fields those are, and where each comes from/goes, is no longer hardcoded here - it
+ * is read from {@code ../../driver-fields.json} (this module's base directory, i.e. the SAME
+ * file run_pipeline.py/driver_fields.py read on the Python side and lineage.py reads for the
+ * viewer's trace - see driver_fields.py's module docstring for the full account of why this
+ * used to be three independent copies). Only the "how to place a value of this shape into the
+ * typed HAPI model" mechanics - inherently per-field, since HAPI's model is statically typed -
+ * still live in Java, as the {@link #CONDITION_SETTERS}/{@link #PROVENANCE_SETTERS} dispatch
+ * tables below; {@code DriverFieldsConfigTest} fails if that dispatch ever drifts from the
+ * config's own field-id list (an id in the config with no setter wired, or vice versa).
+ *
  * <p>Usage: {@code HapiLineageCli <condition-source.json> <provenance-source.json>}
  */
 public final class HapiLineageCli {
 
-    private static final String ASSERTED_DATE_EXTENSION_URL =
-            "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date";
-
     private HapiLineageCli() {}
+
+    @FunctionalInterface
+    interface ConditionFieldSetter {
+        void apply(Condition condition, String value, JsonObject field);
+    }
+
+    @FunctionalInterface
+    interface ProvenanceFieldSetter {
+        void apply(Provenance provenance, String value, JsonObject field);
+    }
+
+    /** One entry per "condition" field driver-fields.json declares - see that file and this
+     * class's own Javadoc. Adding a config entry without adding a setter here (or vice versa)
+     * is caught by DriverFieldsConfigTest, not silently ignored. */
+    static final Map<String, ConditionFieldSetter> CONDITION_SETTERS = buildConditionSetters();
+
+    /** Same as {@link #CONDITION_SETTERS}, for the "provenance" field list. */
+    static final Map<String, ProvenanceFieldSetter> PROVENANCE_SETTERS = buildProvenanceSetters();
+
+    private static Map<String, ConditionFieldSetter> buildConditionSetters() {
+        Map<String, ConditionFieldSetter> setters = new LinkedHashMap<>();
+        setters.put("driver-onset", (condition, value, field) -> condition.setOnset(new DateTimeType(value)));
+        setters.put("assertedDate-value", (condition, value, field) -> {
+            String extensionUrl = field.get("extension_url").getAsString();
+            for (Extension ext : condition.getExtension()) {
+                if (extensionUrl.equals(ext.getUrl())) {
+                    ext.setValue(new DateTimeType(value));
+                }
+            }
+        });
+        setters.put("driver-meta-source", (condition, value, field) -> {
+            if (condition.hasMeta()) {
+                condition.getMeta().setSource(value);
+            }
+        });
+        setters.put("driver-subject-identifier-system", (condition, value, field) -> {
+            if (condition.hasSubject() && condition.getSubject().hasIdentifier()) {
+                condition.getSubject().getIdentifier().setSystem(value);
+            }
+        });
+        setters.put("driver-code-coding-system", (condition, value, field) -> {
+            if (condition.hasCode() && !condition.getCode().getCoding().isEmpty()) {
+                condition.getCode().getCodingFirstRep().setSystem(value);
+            }
+        });
+        return setters;
+    }
+
+    private static Map<String, ProvenanceFieldSetter> buildProvenanceSetters() {
+        Map<String, ProvenanceFieldSetter> setters = new LinkedHashMap<>();
+        setters.put("driver-recorded", (provenance, value, field) -> provenance.setRecordedElement(new InstantType(value)));
+        return setters;
+    }
+
+    /** Reads ../../driver-fields.json (moduleRoot/driver-fields.json) - the ONE declarative
+     * list of driver-set fields, see this class's own Javadoc. */
+    static JsonObject loadDriverFieldsConfig(Path moduleRoot) throws IOException {
+        String text = Files.readString(moduleRoot.resolve("driver-fields.json"), StandardCharsets.UTF_8);
+        return JsonParser.parseString(text).getAsJsonObject();
+    }
+
+    /** Applies every "condition" entry in `fields` whose source value is present in
+     * `condJsonText` (the SAME per-call lm-diagnosis JSON the transform just consumed) -
+     * mirrors driver_fields.apply_condition_fields() on the Python side. Returns the set of
+     * field ids actually applied (used by DriverFieldsConfigTest). */
+    static Set<String> applyConditionFields(Condition condition, String condJsonText, JsonArray fields) {
+        Set<String> applied = new LinkedHashSet<>();
+        for (JsonElement el : fields) {
+            JsonObject field = el.getAsJsonObject();
+            String id = field.get("id").getAsString();
+            String value = stringAtPath(condJsonText, field.get("source_path").getAsString());
+            if (value == null) continue;
+            ConditionFieldSetter setter = CONDITION_SETTERS.get(id);
+            if (setter == null) {
+                throw new IllegalStateException(
+                        "driver-fields.json has a 'condition' entry '" + id
+                                + "' with no Java setter wired in HapiLineageCli.CONDITION_SETTERS - add one");
+            }
+            setter.apply(condition, value, field);
+            applied.add(id);
+        }
+        return applied;
+    }
+
+    /** Same as {@link #applyConditionFields}, for the "provenance" field list. */
+    static Set<String> applyProvenanceFields(Provenance provenance, String provJsonText, JsonArray fields) {
+        Set<String> applied = new LinkedHashSet<>();
+        for (JsonElement el : fields) {
+            JsonObject field = el.getAsJsonObject();
+            String id = field.get("id").getAsString();
+            String value = stringAtPath(provJsonText, field.get("source_path").getAsString());
+            if (value == null) continue;
+            ProvenanceFieldSetter setter = PROVENANCE_SETTERS.get(id);
+            if (setter == null) {
+                throw new IllegalStateException(
+                        "driver-fields.json has a 'provenance' entry '" + id
+                                + "' with no Java setter wired in HapiLineageCli.PROVENANCE_SETTERS - add one");
+            }
+            setter.apply(provenance, value, field);
+            applied.add(id);
+        }
+        return applied;
+    }
 
     public static void main(String[] args) throws Exception {
         if (args.length != 2) {
@@ -69,6 +186,7 @@ public final class HapiLineageCli {
         try {
             Path moduleRoot = Path.of(".").toAbsolutePath().normalize();
             HapiFmlEngine engine = new HapiFmlEngine(moduleRoot);
+            JsonObject driverFields = loadDriverFieldsConfig(moduleRoot);
 
             Base condSource = engine.parseSource(condJsonText);
             if (!engine.passesDiag001Guard(condSource)) {
@@ -80,18 +198,13 @@ public final class HapiLineageCli {
                 Condition condition = (Condition) engine.transformToCondition(condSource);
                 String conditionId = UUID.randomUUID().toString();
                 condition.setId(conditionId);
-                setOnsetAndAssertedDate(condition, condJsonText);
-                setUriFields(condition, condJsonText);
+                applyConditionFields(condition, condJsonText, driverFields.getAsJsonArray("condition"));
 
                 Base provSource = engine.parseSource(provJsonText);
                 Provenance provenance = (Provenance) engine.transformToProvenance(provSource);
                 provenance.setId(UUID.randomUUID().toString());
                 provenance.addTarget(new Reference("urn:uuid:" + conditionId));
-                String recordedInstant = stringAt(
-                        provJsonText, "diagnosisHeader", "accountableHealthcareProfessional", "authorTime");
-                if (recordedInstant != null) {
-                    provenance.setRecordedElement(new InstantType(recordedInstant));
-                }
+                applyProvenanceFields(provenance, provJsonText, driverFields.getAsJsonArray("provenance"));
 
                 FhirContext ctx = FhirContext.forR4();
                 IParser parser = ctx.newJsonParser().setPrettyPrint(true);
@@ -107,74 +220,23 @@ public final class HapiLineageCli {
         System.out.println(result);
     }
 
-    /** Sets Condition.onsetDateTime and the ext-asserted-date extension's valueDateTime
-     * directly from values ALREADY ISO-8601-converted by the viewer backend's JSON builder -
-     * see get-diagnosis-to-condition.map's header comment for why FML cannot set these two
-     * dateTime-typed choice elements on either engine. Mirrors
-     * HapiMapperDump.setOnsetAndAssertedDate / run_pipeline.py's
-     * _set_onset_and_asserted_date, but reads the already-converted ISO string straight out
-     * of the source JSON instead of re-parsing a raw RIVTA date, since the input here is
-     * already the resolved lm-diagnosis document. */
-    private static void setOnsetAndAssertedDate(Condition condition, String condJsonText) {
-        String diagnosisTime = stringAt(condJsonText, "diagnosisBody", "diagnosisTime");
-        if (diagnosisTime != null) {
-            condition.setOnset(new DateTimeType(diagnosisTime));
-        }
-        String signatureTime = stringAt(condJsonText, "diagnosisHeader", "legalAuthenticator", "signatureTime");
-        if (signatureTime != null) {
-            for (Extension ext : condition.getExtension()) {
-                if (ASSERTED_DATE_EXTENSION_URL.equals(ext.getUrl())) {
-                    ext.setValue(new DateTimeType(signatureTime));
-                }
+    /** Reads `path` (e.g. "diagnosis[].diagnosisBody.diagnosisTime") out of `jsonText` -
+     * "[]" always resolves to index 0, since every driver-field source_path's only repeating
+     * segment is "diagnosis[]" and this CLI is only ever given a single-diagnosis document
+     * (see driver_fields.py's _get_source_value(), the identical Python-side resolver). */
+    private static String stringAtPath(String jsonText, String path) {
+        JsonElement cur = JsonParser.parseString(jsonText);
+        for (String token : path.split("\\.")) {
+            boolean isArray = token.endsWith("[]");
+            String name = isArray ? token.substring(0, token.length() - 2) : token;
+            if (cur == null || !cur.isJsonObject() || !cur.getAsJsonObject().has(name)) return null;
+            cur = cur.getAsJsonObject().get(name);
+            if (isArray) {
+                if (cur == null || !cur.isJsonArray() || cur.getAsJsonArray().size() == 0) return null;
+                cur = cur.getAsJsonArray().get(0);
             }
         }
-    }
-
-    /** Sets Condition.meta.source, Condition.subject.identifier.system and
-     * Condition.code.coding[0].system directly from the already-resolved source JSON - see
-     * HapiMapperDump.setUriFields's Javadoc for why these three "uri" fields cannot be set via
-     * FML on HAPI (a confirmed engine bug when create('uri') consumes a navigated Element). */
-    private static void setUriFields(Condition condition, String condJsonText) {
-        JsonObject root = JsonParser.parseString(condJsonText).getAsJsonObject();
-        JsonObject diag = root.getAsJsonArray("diagnosis").get(0).getAsJsonObject();
-        JsonObject header = diag.has("diagnosisHeader") ? diag.getAsJsonObject("diagnosisHeader") : new JsonObject();
-        JsonObject body = diag.has("diagnosisBody") ? diag.getAsJsonObject("diagnosisBody") : new JsonObject();
-
-        if (header.has("sourceSystemHSAId") && condition.hasMeta()) {
-            JsonObject sourceHsa = header.getAsJsonObject("sourceSystemHSAId");
-            if (sourceHsa.has("value")) {
-                condition.getMeta().setSource(sourceHsa.get("value").getAsString());
-            }
-        }
-        if (header.has("patientId") && condition.hasSubject() && condition.getSubject().hasIdentifier()) {
-            JsonObject patientId = header.getAsJsonObject("patientId");
-            if (patientId.has("system")) {
-                condition.getSubject().getIdentifier().setSystem(patientId.get("system").getAsString());
-            }
-        }
-        if (body.has("diagnosisCode") && condition.hasCode() && !condition.getCode().getCoding().isEmpty()) {
-            JsonObject diagnosisCode = body.getAsJsonObject("diagnosisCode");
-            if (diagnosisCode.has("coding") && diagnosisCode.getAsJsonArray("coding").size() > 0) {
-                JsonObject coding = diagnosisCode.getAsJsonArray("coding").get(0).getAsJsonObject();
-                if (coding.has("system")) {
-                    condition.getCode().getCodingFirstRep().setSystem(coding.get("system").getAsString());
-                }
-            }
-        }
-    }
-
-    /** Reads diagnosis[0].&lt;path...&gt; as a string, or null if any segment is absent. */
-    private static String stringAt(String jsonText, String... path) {
-        JsonObject root = JsonParser.parseString(jsonText).getAsJsonObject();
-        if (!root.has("diagnosis") || root.getAsJsonArray("diagnosis").size() == 0) return null;
-        JsonObject cur = root.getAsJsonArray("diagnosis").get(0).getAsJsonObject();
-        for (int i = 0; i < path.length - 1; i++) {
-            if (!cur.has(path[i])) return null;
-            cur = cur.getAsJsonObject(path[i]);
-        }
-        String last = path[path.length - 1];
-        if (!cur.has(last)) return null;
-        return cur.get(last).getAsString();
+        return (cur != null && cur.isJsonPrimitive()) ? cur.getAsString() : null;
     }
 
     private static String indent(String json, int spaces) {

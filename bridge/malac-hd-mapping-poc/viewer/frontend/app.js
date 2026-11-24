@@ -59,6 +59,17 @@ async function loadMap() {
   fillDiagnosisSelect(data.diagnosis_count);
   el("#diagnosis").value = String(data.diagnosis_index);
   el("#note").textContent = data.note || "";
+  // Honest provenance of the relatedDiagnosis -> extension[] pairing specifically - see
+  // lineage.py/traced_python_engine.py: "runtime" means a real execution trace produced this
+  // engine's indices, anything else names the order-based fallback instead.
+  const traceNote = el("#trace-note");
+  if (data.related_index_source) {
+    traceNote.textContent = "relatedDiagnosis-index: " + data.related_index_source;
+    traceNote.className = data.related_index_source === "runtime" ? "trace-runtime" : "trace-heuristic";
+  } else {
+    traceNote.textContent = "";
+    traceNote.className = "";
+  }
   buildIndexes(data);
   render(data);
 }

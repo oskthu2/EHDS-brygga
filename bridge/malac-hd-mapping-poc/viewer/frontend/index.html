@@ -22,6 +22,7 @@
     </select>
   </label>
   <span id="note"></span>
+  <span id="trace-note"></span>
   <span class="legend">
     <span><span class="swatch" style="background:#5fb3ff"></span>kedja (hovrad k&auml;lla)</span>
     <span><span class="swatch" style="background:#ff9f5f"></span>kedja (hovrad m&aring;l/korsl&auml;nk)</span>
@@ -36,8 +37,10 @@
 </div>
 <footer>
   Demo-verktyg, inte del av produktionsbryggan eller Maven-bygget. K&auml;ll&rarr;m&aring;l-kedjan kommer fr&aring;n en statisk tolkning av
-  <code>get-diagnosis-to-{condition,provenance}.map</code> plus ett litet handskrivet tillägg för de f&aring; f&auml;lt drivrutinen
-  s&auml;tter direkt p&aring; resultatet (onset, assertedDate, de tre "uri"-f&auml;lten, Provenance.recorded/.target) &mdash; se README.md.
+  <code>get-diagnosis-to-{condition,provenance}.map</code> plus <code>driver-fields.json</code> (den ENDA deklarativa listan &ouml;ver
+  f&auml;lt drivrutinen s&auml;tter direkt p&aring; resultatet &mdash; onset, assertedDate, de tre "uri"-f&auml;lten, Provenance.recorded).
+  F&ouml;r Python/MaLaC-HD-motorn &auml;r index f&ouml;r upprepade element (t.ex. <code>relatedDiagnosis</code>) en VERKLIG, observerad k&ouml;rtidsfakta,
+  inte en gissning &mdash; se "related_index_source" ovan och README.md.
 </footer>
 <script src="app.js"></script>
 </body>

@@ -8,13 +8,15 @@ lm_diagnosis_json_builder.py/riv_date.py module docstrings):
   - Provenance.target (needs the sibling Condition's own generated id - a real StructureMap
     transform() only ever has ONE target, see get-diagnosis-to-provenance.map's header comment
     and fml-evaluation.md's "en transform() tar bara EN target", confirmed true for MaLaC-HD
-    too) and Provenance.recorded (needs authorTime converted to a TRUE UTC instant, a
-    different conversion of the SAME raw field than Condition.recordedDate needs - see
-    ProvenanceBuilder.build() vs. GetDiagnosisMapper.java).
-  - Condition.onset[x] / the ext-asserted-date extension's value[x] (irreconcilable dateTime-
-    choice-element conflict) and Condition.meta.source / subject.identifier.system /
-    code.coding[0].system (a confirmed HAPI-only bug for these three "uri" fields) - see
-    get-diagnosis-to-condition.map's header comment for both.
+    too).
+  - The five other driver-set fields (Condition.onset[x], the ext-asserted-date extension's
+    value[x], Condition.meta.source/subject.identifier.system/code.coding[0].system, and
+    Provenance.recorded) - see ../driver-fields.json for WHY each one cannot be set via FML on
+    either engine, and driver_fields.py for how they are applied here (and, identically in
+    shape, by the viewer's HapiLineageCli.java on the Java side): every one of them is read
+    straight out of the SAME lm-diagnosis JSON the compiled transform just consumed, which
+    already carries every date-like value in its final, converted form (see
+    lm_diagnosis_json_builder.py) - no second RIVTA-date parse/conversion happens here.
 
 Only a SINGLE <diagnosis> entry per GetDiagnosisResponse is exercised end to end by each run
 of the compiled transform (a StructureMap transform() takes one source and one target - see
@@ -41,9 +43,9 @@ from pathlib import Path
 
 from lxml import etree
 
+import driver_fields
 import guard
 import lm_diagnosis_json_builder
-import riv_date
 
 HERE = Path(__file__).resolve().parent
 COMPILED_CONDITION = HERE / "compiled" / "get-diagnosis-to-condition.py"
@@ -97,72 +99,6 @@ def _run_compiled(script_path, source_json, output_json_path, tmp_dir, tag):
         return json.load(f)
 
 
-def _extract_author_time_raw(diagnosis_elem):
-    header = _find_child(diagnosis_elem, "diagnosisHeader")
-    ahp = _find_child(header, "accountableHealthcareProfessional") if header is not None else None
-    author_time = _find_child(ahp, "authorTime") if ahp is not None else None
-    return author_time.text if author_time is not None else None
-
-
-def _extract_diagnosis_time_raw(diagnosis_elem):
-    body = _find_child(diagnosis_elem, "diagnosisBody")
-    diagnosis_time = _find_child(body, "diagnosisTime") if body is not None else None
-    return diagnosis_time.text if diagnosis_time is not None else None
-
-
-def _extract_signature_time_raw(diagnosis_elem):
-    header = _find_child(diagnosis_elem, "diagnosisHeader")
-    la = _find_child(header, "legalAuthenticator") if header is not None else None
-    signature_time = _find_child(la, "signatureTime") if la is not None else None
-    return signature_time.text if signature_time is not None else None
-
-
-ASSERTED_DATE_EXTENSION_URL = "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date"
-
-
-def _set_onset_and_asserted_date(condition, raw_diagnosis_time, raw_signature_time):
-    """Sets Condition.onsetDateTime and the ext-asserted-date extension's valueDateTime
-    directly on the transform() RESULT, exactly like Provenance.target/.recorded are set
-    outside FML - see get-diagnosis-to-condition.map's header comment for why NEITHER engine
-    can be asked to set a dateTime-typed CHOICE element sourced from a custom model: a
-    confirmed, irreconcilable conflict between MaLaC-HD and HAPI, found by actually testing
-    every combination against both."""
-    if raw_diagnosis_time:
-        condition["onsetDateTime"] = riv_date.riv_to_offset_datetime(raw_diagnosis_time)
-    if raw_signature_time:
-        for ext in condition.get("extension", []):
-            if ext.get("url") == ASSERTED_DATE_EXTENSION_URL:
-                ext["valueDateTime"] = riv_date.riv_to_offset_datetime(raw_signature_time)
-
-
-def _set_uri_fields(condition, cond_source):
-    """Sets Condition.meta.source, Condition.subject.identifier.system and
-    Condition.code.coding[0].system directly on the transform() RESULT, reading the already-
-    resolved values straight back out of cond_source (the SAME dict the compiled transform
-    just consumed - no re-derivation needed). See get-diagnosis-to-condition.map's header
-    comment: a confirmed HAPI-only bug corrupts these three "uri" fields when FML sets them
-    via create('uri') from a navigated (non-literal) source Element - MaLaC-HD itself has no
-    such bug, but the file is shared, so these three moved out of FML on both sides, exactly
-    like onset/assertedDate above."""
-    diag = cond_source.get("diagnosis", [{}])[0]
-    header = diag.get("diagnosisHeader", {})
-    body = diag.get("diagnosisBody", {})
-
-    source_hsa = header.get("sourceSystemHSAId")
-    if source_hsa and source_hsa.get("value") and "meta" in condition:
-        condition["meta"]["source"] = source_hsa["value"]
-
-    patient_id = header.get("patientId")
-    if patient_id and patient_id.get("system"):
-        condition.get("subject", {}).get("identifier", {})["system"] = patient_id["system"]
-
-    diagnosis_code = body.get("diagnosisCode")
-    if diagnosis_code and diagnosis_code.get("coding"):
-        coding = diagnosis_code["coding"][0]
-        if coding.get("system") and "code" in condition:
-            condition["code"]["coding"][0]["system"] = coding["system"]
-
-
 def map_get_diagnosis_response(xml_path):
     """Returns a list of {"condition": <dict>, "provenance": <dict>} - one per surviving
     <diagnosis> entry, after the DIAG-001 guard (see guard.py). An empty list means either a
@@ -181,9 +117,6 @@ def map_get_diagnosis_response(xml_path):
         for i, diag_index in enumerate(kept_indices):
             single_root = _single_diagnosis_tree(root, diag_index)
             single_diag = [c for c in single_root if _local_tag(c) == "diagnosis"][0]
-            raw_author_time = _extract_author_time_raw(single_diag)
-            raw_diagnosis_time = _extract_diagnosis_time_raw(single_diag)
-            raw_signature_time = _extract_signature_time_raw(single_diag)
 
             # Condition pass: authorTime -> offset dateTime (recordedDate).
             cond_source = lm_diagnosis_json_builder.build_source(single_diag, author_time_as_instant=False)
@@ -192,8 +125,7 @@ def map_get_diagnosis_response(xml_path):
 
             condition_id = str(uuid.uuid4())
             condition["id"] = condition_id
-            _set_onset_and_asserted_date(condition, raw_diagnosis_time, raw_signature_time)
-            _set_uri_fields(condition, cond_source)
+            driver_fields.apply_condition_fields(condition, cond_source)
 
             # Provenance pass: authorTime -> TRUE UTC instant (Provenance.recorded).
             prov_source = lm_diagnosis_json_builder.build_source(single_diag, author_time_as_instant=True)
@@ -202,8 +134,7 @@ def map_get_diagnosis_response(xml_path):
 
             provenance["id"] = str(uuid.uuid4())
             provenance["target"] = [{"reference": "urn:uuid:" + condition_id}]
-            if raw_author_time:
-                provenance["recorded"] = riv_date.riv_to_utc_instant(raw_author_time)
+            driver_fields.apply_provenance_fields(provenance, prov_source)
 
             entries.append({"condition": condition, "provenance": provenance})
 

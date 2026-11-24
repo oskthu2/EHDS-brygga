@@ -1,9 +1,13 @@
 """Runs the SAME lm-diagnosis-shaped source JSON (built once, in Python, by
 lm_diagnosis_json_builder.py - see its module docstring for why one builder suffices for both
-engines) through EITHER the MaLaC-HD-compiled Python transforms (run_pipeline.py's own
-helpers, reused as-is) or the HAPI/StructureMapUtilities Java engine (via the HapiLineageCli
-CLI added in this same PR - see src/main/java/.../HapiLineageCli.java), returning a plain
-{"condition": dict, "provenance": dict} either way.
+engines) through EITHER the MaLaC-HD-compiled Python transforms, run IN-PROCESS with real
+execution tracing (traced_python_engine.py - see its own module docstring for why), or the
+HAPI/StructureMapUtilities Java engine (via the HapiLineageCli CLI added in this same PR - see
+src/main/java/.../HapiLineageCli.java), returning ("condition": dict, "provenance": dict,
+runtime_hints: dict) either way - runtime_hints is non-empty only for the Python engine (the
+real {relatedDiagnosis index -> Condition.extension index} pairing observed while the actual
+generated code ran; see lineage.py's resolve_edges() for how it is used instead of an
+order-based assumption).
 """
 import json
 import os
@@ -18,31 +22,31 @@ MODULE_ROOT = HERE.parent.parent  # bridge/malac-hd-mapping-poc
 PYTHON_DIR = MODULE_ROOT / "python"
 
 sys.path.insert(0, str(PYTHON_DIR))
-import run_pipeline  # noqa: E402  (needs PYTHON_DIR on sys.path first)
-import riv_date  # noqa: E402
+import driver_fields  # noqa: E402
+
+import traced_python_engine  # noqa: E402
 
 
 class EngineError(RuntimeError):
     pass
 
 
-def run_python_engine(cond_src: dict, prov_src: dict, raw_diagnosis_time, raw_signature_time, raw_author_time):
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp = Path(tmp)
-        cond_out = tmp / "cond_out.json"
-        condition = run_pipeline._run_compiled(run_pipeline.COMPILED_CONDITION, cond_src, cond_out, tmp, "cond")
-        condition_id = str(uuid.uuid4())
-        condition["id"] = condition_id
-        run_pipeline._set_onset_and_asserted_date(condition, raw_diagnosis_time, raw_signature_time)
-        run_pipeline._set_uri_fields(condition, cond_src)
+def run_python_engine(cond_src: dict, prov_src: dict):
+    """Runs the SAME compiled scripts run_pipeline.py runs (unmodified; see
+    traced_python_engine.py), then applies the SAME five driver-set fields run_pipeline.py
+    applies - via driver_fields.py, the single source of truth both now read (see its module
+    docstring) - reading them straight out of cond_src/prov_src (the per-call lm-diagnosis
+    JSON the transform itself just consumed), no separate raw-RIVTA-date extraction needed
+    any more."""
+    condition, provenance, runtime_hints = traced_python_engine.run_traced_python_engine(cond_src, prov_src)
+    condition_id = str(uuid.uuid4())
+    condition["id"] = condition_id
+    driver_fields.apply_condition_fields(condition, cond_src)
 
-        prov_out = tmp / "prov_out.json"
-        provenance = run_pipeline._run_compiled(run_pipeline.COMPILED_PROVENANCE, prov_src, prov_out, tmp, "prov")
-        provenance["id"] = str(uuid.uuid4())
-        provenance["target"] = [{"reference": "urn:uuid:" + condition_id}]
-        if raw_author_time:
-            provenance["recorded"] = riv_date.riv_to_utc_instant(raw_author_time)
-    return condition, provenance
+    provenance["id"] = str(uuid.uuid4())
+    provenance["target"] = [{"reference": "urn:uuid:" + condition_id}]
+    driver_fields.apply_provenance_fields(provenance, prov_src)
+    return condition, provenance, runtime_hints
 
 
 _CLASSPATH_FILE = MODULE_ROOT / "target" / "classpath.txt"
@@ -87,4 +91,7 @@ def run_java_engine(cond_src: dict, prov_src: dict):
         except json.JSONDecodeError as exc:
             raise EngineError("HapiLineageCli did not print valid JSON:\n%s\n(stderr: %s)"
                                % (result.stdout, result.stderr)) from exc
-    return data.get("condition") or {}, data.get("provenance") or {}
+    # No runtime_hints for this engine - see HapiFmlEngine.java's Javadoc and ../README.md for
+    # why real execution tracing was not reasonably achievable for HAPI's StructureMapUtilities;
+    # lineage.py falls back to its order-based assumption whenever hints come back empty.
+    return data.get("condition") or {}, data.get("provenance") or {}, {}

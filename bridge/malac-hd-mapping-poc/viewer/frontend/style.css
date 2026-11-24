@@ -58,6 +58,23 @@ select {
   font-size: 12px;
 }
 
+#trace-note {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+#trace-note.trace-runtime {
+  color: #1a7f37;
+  background: rgba(26, 127, 55, 0.12);
+}
+
+#trace-note.trace-heuristic {
+  color: #9a6700;
+  background: rgba(154, 103, 0, 0.12);
+}
+
 #layout {
   position: relative;
   display: flex;

@@ -261,6 +261,28 @@ function onHover(row) {
         }
       }
     }
+    // The reverse case: a LEAF with no edge of its own (e.g. "category[0].coding[0].code")
+    // whose nearest ANCESTOR owns a whole-element edge (a translate() result - a ConceptMap
+    // maps the whole source code element to the whole target Coding, not field by field, see
+    // lineage.py/value_match.py) - walk up the path and inherit the closest ancestor's edges,
+    // so hovering the sub-fields a translate() landed on ("kod-mappningar") still draws the
+    // line instead of only the exact container row doing so.
+    if (sources.length === 0) {
+      let ancestorKey = key;
+      while (ancestorKey.includes(".")) {
+        ancestorKey = ancestorKey.slice(0, ancestorKey.lastIndexOf("."));
+        const ancestorSources = state.byTarget.get(ancestorKey);
+        if (ancestorSources && ancestorSources.length) {
+          for (const s of ancestorSources) {
+            for (const sRow of findSourceRowsByLmPath(s.lm_path)) {
+              sRow.classList.add("hl-source");
+              pairs.push({ a: sRow, b: row, kind: "lineage", matchSource: s.match_source });
+            }
+          }
+          break;
+        }
+      }
+    }
     for (const link of state.crossByKey.get(key) || []) {
       const otherRow = findTargetRow(link.resource, link.path);
       if (otherRow) {

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+  <parent>
+    <groupId>se.inera.ehds</groupId>
+    <artifactId>ehds-brygga-bridge</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+  </parent>
+  <artifactId>malac-hd-mapping-poc</artifactId>
+  <name>EHDS Brygga – MaLaC-HD mapping POC (Java comparison harness)</name>
+
+  <!--
+    Two things live in this module now (see malac-hd-evaluation.md, "Den enade kallmodellen"):
+      - The ORIGINAL comparison harness: dumps GetDiagnosisMapper.java's actual output (the
+        production Java mapper, unmodified) to JSON so the Python side
+        (../compare/run_comparison.py) can diff it against the other two tracks' output for
+        the SAME fixtures. It depends on mapping-engine read-only and changes nothing there.
+      - se.inera.ehds.malac.hapi.*: a SECOND engine running the SAME .map files MaLaC-HD
+        compiles (../python/fml/*.map) via HAPI FHIR's own
+        org.hl7.fhir.r4.utils.StructureMapUtilities, so the files are a genuinely shared
+        artifact, not two diverging sets. hapi-fhir-validation/-resources-r4 bring
+        StructureMapUtilities + an offline-capable IWorkerContext, same as
+        claude/fml-mapping-9ovqyh's fml-mapping-poc (prior art, reimplemented here rather than
+        depended on - that branch is unmerged and may change independently).
+    The MaLaC-HD/Python mapping track itself still lives entirely under ../python/ (FML,
+    ConceptMaps, the lm-diagnosis model builder, run_pipeline.py) - this module has no
+    Python/FML content of its own, only the two Java-side engines that read it.
+  -->
+
+  <dependencies>
+    <dependency>
+      <groupId>se.inera.ehds</groupId>
+      <artifactId>mapping-engine</artifactId>
+      <version>${project.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-structures-r4</artifactId>
+    </dependency>
+    <!-- StructureMapUtilities (FML parser/engine) + an offline-capable IWorkerContext. -->
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-validation</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>ca.uhn.hapi.fhir</groupId>
+      <artifactId>hapi-fhir-validation-resources-r4</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>com.google.code.gson</groupId>
+      <artifactId>gson</artifactId>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+    </plugins>
+  </build>
+</project>

@@ -1,0 +1,18 @@
+// Shared RIVTA building block: IIType (HL7v3-style {root, extension} identifier pair) ->
+// FHIR Identifier. Generic for ANY IIType field in ANY RIVTA contract - needs no ConceptMap,
+// since the OID IS the identifier system (as a urn:oid: URI) by construction. Independently
+// testable: compile this file alone (no -sr needed) and run it against a tiny II-shaped
+// source. See malac-hd-evaluation.md, "Delad bibliotek".
+//
+// NOTE on comment style: "//" not "///" - matchbox's FML parser treats "///" as reserved
+// metadata syntax and rejects it (see fml-evaluation.md, "matchbox:s FML-parser"); kept
+// consistent here even though MaLaC-HD itself has not been tested against "///".
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LibIIType" = "LibIIType"
+
+uses "http://ehds-brygga.inera.se/fhir/rivta/getdiagnosis/IIType" alias RivtaIIType as source
+uses "http://hl7.org/fhir/StructureDefinition/Identifier" alias Identifier as target
+
+group IITypeToIdentifier(source src : RivtaIIType, target tgt : Identifier) {
+  src.root as r -> tgt.system = ('urn:oid:' & r) "ii-system";
+  src.extension as e -> tgt.value = e "ii-value";
+}

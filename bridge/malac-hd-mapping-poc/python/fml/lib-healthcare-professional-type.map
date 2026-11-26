@@ -1,0 +1,32 @@
+// Shared RIVTA building block: HealthcareProfessionalType -> the recorder Reference used by
+// GetDiagnosisMapper.java's "recorder" field (practitionerRoleRef(...)). authorTime itself is
+// a plain TimeStampType scalar (see lib-timestamp-type.map for why it is not its own group)
+// and is read directly by the composed map instead of through a group here.
+//
+// healthcareProfessionalRoleCode (CVType) and healthcareProfessionalOrgUnit (OrgUnitType) are
+// modelled too (HealthcareProfessionalToRoleCodeableConcept / HealthcareProfessionalToOrgUnitReference),
+// for the same "exhaustive but not consumed by today's Condition output" reason as
+// lib-org-unit-type.map - see malac-hd-evaluation.md.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LibHealthcareProfessionalType" = "LibHealthcareProfessionalType"
+
+uses "http://ehds-brygga.inera.se/fhir/rivta/getdiagnosis/HealthcareProfessionalType" alias RivtaHCP as source
+uses "http://hl7.org/fhir/StructureDefinition/Reference" alias Reference as target
+
+imports "http://ehds-brygga.inera.se/fhir/StructureMap/LibOrgUnitType"
+
+// NOTE: see lib-org-unit-type.map - the HSA-id identifier is inlined, not a call to
+// lib-hsa-reference.map's HsaIdToIdentifier, for the same reason.
+group HealthcareProfessionalToRecorderReference(source src : RivtaHCP, target tgt : Reference) {
+  src -> tgt.type = 'PractitionerRole' "hcp-type";
+  src.healthcareProfessionalHSAId as hsa -> tgt.identifier = create('Identifier') as idf then {
+    hsa as hsaV -> idf.system = 'urn:oid:1.2.752.129.2.1.4.1' "hcp-identifier-system";
+    hsa as hsaV2 -> idf.value = hsaV2 "hcp-identifier-value";
+  } "hcp-identifier";
+  src.healthcareProfessionalName as n -> tgt.display = n "hcp-display";
+}
+
+group HealthcareProfessionalToOrgUnitReference(source src : RivtaHCP, target tgt : Reference) {
+  src.healthcareProfessionalOrgUnit as ou then {
+    ou then OrgUnitTypeToReference(ou, tgt) "hcp-orgunit-call";
+  } "hcp-orgunit";
+}

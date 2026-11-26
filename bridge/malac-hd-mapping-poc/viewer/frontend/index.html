@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GetDiagnosis FML lineage viewer</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>GetDiagnosis &rarr; Condition/Provenance &mdash; FML-lineage</h1>
+  <label>Exempelmeddelande
+    <select id="fixture"></select>
+  </label>
+  <label>Diagnospost
+    <select id="diagnosis"></select>
+  </label>
+  <label>Motor
+    <select id="engine">
+      <option value="python">Python (MaLaC-HD-kompilerad)</option>
+      <option value="java">Java (HAPI StructureMapUtilities)</option>
+    </select>
+  </label>
+  <span id="note"></span>
+  <span id="trace-note"></span>
+  <span id="match-summary"></span>
+  <span class="legend">
+    <span><span class="swatch" style="background:#2dd4bf"></span>v&auml;rde-matchad (verklig output)</span>
+    <span><span class="swatch" style="background:#1a7f37"></span>k&ouml;rtid (python)</span>
+    <span><span class="swatch" style="background:#9a6700"></span>heuristik</span>
+    <span><span class="swatch" style="background:#5fb3ff"></span>statisk/entydig</span>
+    <span>gr&aring; rad = inte mappad till FHIR</span>
+  </span>
+</header>
+<div id="layout">
+  <svg id="lines"></svg>
+  <div class="column" id="col-source"><h2>K&auml;lla &mdash; RIVTA GetDiagnosis</h2><div id="tree-source"></div></div>
+  <div class="column" id="col-condition"><h2>M&aring;l &mdash; Condition</h2><div id="tree-condition"></div></div>
+  <div class="column" id="col-provenance"><h2>M&aring;l &mdash; Provenance</h2><div id="tree-provenance"></div></div>
+</div>
+<footer>
+  Demo-verktyg, inte del av produktionsbryggan eller Maven-bygget. K&auml;ll&rarr;m&aring;l-kedjan kommer fr&aring;n en statisk tolkning av
+  <code>get-diagnosis-to-{condition,provenance}.map</code> plus <code>driver-fields.json</code> (den ENDA deklarativa listan &ouml;ver
+  f&auml;lt drivrutinen s&auml;tter direkt p&aring; resultatet &mdash; onset, assertedDate, de tre "uri"-f&auml;lten, Provenance.recorded).
+  F&ouml;r b&aring;da motorerna f&ouml;rs&ouml;ker en tredje, mest tillf&ouml;rlitliga niv&aring; f&ouml;rst: v&auml;rde-matchning s&ouml;ker upp det k&auml;nda,
+  typ-s&auml;kra transformerade v&auml;rdet i den VERKLIGA output-JSON:en fr&aring;n en faktiskt k&ouml;rd, om&auml;ndrad transform &mdash; se
+  linjef&auml;rgen/legenden ovan och README.md ("Part 3"). Python/MaLaC-HD-motorns k&ouml;rtidssp&aring;rning av upprepade element
+  (t.ex. <code>relatedDiagnosis</code>) anv&auml;nds bara d&auml;r v&auml;rde-matchning inte redan l&ouml;ser det entydigt.
+</footer>
+<script src="app.js"></script>
+</body>
+</html>

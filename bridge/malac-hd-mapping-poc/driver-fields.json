@@ -1,0 +1,50 @@
+{
+  "_comment": "Single source of truth for the handful of Condition/Provenance fields that are set DIRECTLY on the transform() result by the DRIVER code, not by either .map file - see get-diagnosis-to-condition.map / get-diagnosis-to-provenance.map's own header comments for exactly why each one cannot be set via FML on either engine (an irreconcilable dateTime-choice-element conflict for onset/assertedDate, a confirmed HAPI-only bug for the three 'uri' fields, and 'a transform() only has one target' for Provenance.recorded). Read (not copied) by: python/driver_fields.py (applies these fields in run_pipeline.py and the viewer's Python engine), viewer/backend/lineage.py (the viewer's trace, via driver_fields.py), and HapiLineageCli.java (applies these fields in the viewer's Java engine, plus DriverFieldsConfigTest.java, which fails if the Java code's applied field ids ever drift from this list). A change to WHICH fields are driver-set, or to WHERE they come from/go, is made HERE - every consumer re-reads this file, none of them hard-code this list any more.",
+  "condition": [
+    {
+      "id": "driver-onset",
+      "rule": "driver-onset",
+      "description": "Condition.onsetDateTime - a dateTime-typed CHOICE element sourced from this custom logical model; confirmed irreconcilable between MaLaC-HD and HAPI (see get-diagnosis-to-condition.map's header comment).",
+      "source_path": "diagnosis[].diagnosisBody.diagnosisTime",
+      "target_path": "onsetDateTime"
+    },
+    {
+      "id": "assertedDate-value",
+      "rule": "assertedDate-value",
+      "description": "The ext-asserted-date extension's valueDateTime - same dateTime-choice-element conflict as onsetDateTime.",
+      "source_path": "diagnosis[].diagnosisHeader.legalAuthenticator.signatureTime",
+      "target_path": "extension[].valueDateTime",
+      "extension_url": "https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date"
+    },
+    {
+      "id": "driver-meta-source",
+      "rule": "driver-meta-source",
+      "description": "Condition.meta.source - confirmed HAPI-only bug when create('uri') consumes a navigated (non-literal) source Element.",
+      "source_path": "diagnosis[].diagnosisHeader.sourceSystemHSAId.value",
+      "target_path": "meta.source"
+    },
+    {
+      "id": "driver-subject-identifier-system",
+      "rule": "driver-subject-identifier-system",
+      "description": "Condition.subject.identifier.system - same HAPI 'uri' bug as meta.source.",
+      "source_path": "diagnosis[].diagnosisHeader.patientId.system",
+      "target_path": "subject.identifier.system"
+    },
+    {
+      "id": "driver-code-coding-system",
+      "rule": "driver-code-coding-system",
+      "description": "Condition.code.coding[0].system - same HAPI 'uri' bug as meta.source.",
+      "source_path": "diagnosis[].diagnosisBody.diagnosisCode.coding[].system",
+      "target_path": "code.coding[].system"
+    }
+  ],
+  "provenance": [
+    {
+      "id": "driver-recorded",
+      "rule": "driver-recorded",
+      "description": "Provenance.recorded - needs accountableHealthcareProfessional.authorTime as a TRUE UTC instant, a different conversion of the same raw field than Condition.recordedDate needs; a real StructureMap transform() only ever has one target, so Condition and Provenance cannot be filled from one transform() call (see get-diagnosis-to-provenance.map's header comment).",
+      "source_path": "diagnosis[].diagnosisHeader.accountableHealthcareProfessional.authorTime",
+      "target_path": "recorded"
+    }
+  ]
+}

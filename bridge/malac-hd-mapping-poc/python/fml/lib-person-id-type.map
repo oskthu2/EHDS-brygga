@@ -1,0 +1,34 @@
+// Shared RIVTA building block: PersonIdType {id, type} -> FHIR Identifier, OID "type" ->
+// system URI via the ConceptMap mirroring NamingSystemRegistry (../conceptmaps/codesystem-oid.json).
+//
+// Independently testable and correct AS ITS OWN compile (run malac-hd on just this file with
+// -sr ../conceptmaps -mod ../model/model_plugin.py): proven below in
+// malac-hd-evaluation.md's "Delad bibliotek, fristående" by running it against a tiny fixture.
+//
+// NOT literally "imports"-ed into get-diagnosis-to-condition.map, even though its logic is
+// mirrored there rule-for-rule (same translate() call, same unmapped fallback pattern): a
+// confirmed MaLaC-HD 1.10.0 engine bug (malac/hd/resources.py, SupportingResource.parse())
+// mutates a supporting ConceptMap resource's raw dict in place on its first parse (injecting
+// an internal "@node" key), and crashes with "KeyError: '@node'" the moment a SECOND .map
+// file in the same compile (any file reached via "imports", regardless of whether that file
+// itself calls translate()) triggers a second parse of the very same resource - which always
+// happens once there is more than one file in the import graph and at least one -sr
+// ConceptMap registered. See malac-hd-evaluation.md, "En motorbugg: @node", for the full
+// repro and the one-line fix (copy.deepcopy(self.data) before use) this proof of concept
+// would report upstream.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LibPersonIdType" = "LibPersonIdType"
+
+uses "http://ehds-brygga.inera.se/fhir/rivta/getdiagnosis/PersonIdType" alias RivtaPersonIdType as source
+uses "http://hl7.org/fhir/StructureDefinition/Identifier" alias Identifier as target
+
+group PersonIdTypeToIdentifier(source src : RivtaPersonIdType, target tgt : Identifier) {
+  src.id as v -> tgt.value = v "pid-value";
+  // Known OID -> URI via ConceptMap. An OID NOT in codesystem-oid.json falls back to
+  // "urn:oid:<oid>" - the SAME two-mutually-exclusive-rules pattern already documented for
+  // the HAPI-based FML track (fml-evaluation.md, point 1 in "Felhantering"): translate()'s
+  // own ConceptMap.group.unmapped mode can only return a FIXED code, never a computed
+  // string, so the fallback needs its own rule with the literal negation of the first rule's
+  // condition.
+  src.type as t where matches('^(1\.2\.752\.129\.2\.1\.3\.1|1\.2\.752\.129\.2\.1\.3\.3)$') -> tgt.system = translate(t, 'http://ehds-brygga.inera.se/fhir/ConceptMap/codesystem-oid', 'code') "pid-system-mapped";
+  src.type as t2 where matches('^(1\.2\.752\.129\.2\.1\.3\.1|1\.2\.752\.129\.2\.1\.3\.3)$').not() -> tgt.system = ('urn:oid:' & t2) "pid-system-fallback";
+}

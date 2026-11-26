@@ -1,0 +1,278 @@
+// GetDiagnosis (RIVTA) -> Condition. THE SHARED/PORTABLE FML FILE for Oskar's "run Java on top
+// of the same .map files MaLaC-HD compiles" track (claude/project-thread-fow2p9). Confirmed to
+// compile and run UNCHANGED on both engines evaluated so far:
+//   - MaLaC-HD 1.10.0 (../compile.sh -> ../compiled/get-diagnosis-to-condition.py)
+//   - HAPI FHIR's org.hl7.fhir.r4.utils.StructureMapUtilities, via
+//     se.inera.ehds.malac.hapi.HapiFmlEngine in this module's src/main/java
+//     (HapiMapperDumpTest exercises it against the SAME fixtures).
+// See malac-hd-evaluation.md, "Den enade kallmodellen" and "Den portabla delmangden av FML",
+// for the full account of what changed from the earlier version of this file and why, and
+// exactly which FML constructs it deliberately avoids so it keeps compiling identically on
+// both engines - this header only summarizes.
+//
+// Source: EHDS-TK's published inera-ehds-lm-diagnosis logical model - the SAME model the
+// Java/HAPI track (claude/fml-mapping-9ovqyh, bridge/fml-mapping-poc) already used for this
+// exact map, NOT rivta_getdiagnosis_model.py (the raw generateDS/XSD model the previous
+// version of this file used; still kept for the independently-testable lib-*.map reference
+// files, see malac-hd-evaluation.md). See ../../fhir/lm-diagnosis.json,
+// ../lm_diagnosis_json_builder.py (Python side) and
+// se.inera.ehds.malac.hapi.LmDiagnosisJsonSourceBuilder (Java side, builds the identical JSON
+// shape, parsed via HAPI's own org.hl7.fhir.r4.elementmodel.JsonParser against the real
+// StructureDefinition - no adapter needed on that side either).
+//
+// Fields assumed ALREADY converted by whichever side's JSON builder ran (both do the SAME
+// conversions, for the SAME reasons - see riv_date.py / LmDiagnosisJsonSourceBuilder.java):
+//   - accountableHealthcareProfessional.authorTime, legalAuthenticator.signatureTime,
+//     diagnosisBody.diagnosisTime: ISO-8601 dateTime strings with an explicit Europe/Stockholm
+//     UTC offset (GENERAL-001) - FML/FHIRPath has no timezone database, on either engine.
+//   - patientId.system and diagnosisCode.coding[0].system: already resolved from a bare OID to
+//     its URI (urn:oid:<oid> fallback for an unknown OID).
+//   - diagnosisHeader.sourceSystemHSAId.value: already the full tjanstekatalogen Endpoint URL
+//     (meta.source's final value).
+// The last two points are a NEW, shared-file-specific constraint, not purely a MaLaC-HD one:
+// HAPI's own earlier version of this file built the Endpoint URL and the OID urn:oid: fallback
+// with FML "&" string concatenation directly (see fml-evaluation.md) - that works fine on
+// HAPI, but a confirmed MaLaC-HD 1.10.0 bug silently drops "&"'s right operand whenever it is
+// sourced from ANY non-built-in-FHIR model (reconfirmed after this model switch - see
+// riv_date.py). Since this file must compile IDENTICALLY on both engines, not merely work on
+// one, both OID resolutions and the Endpoint-URL build moved out of FML entirely (both JSON
+// builders do it, not just the Python one) - the one piece of "&"-shaped logic the OLD
+// MaLaC-HD-only version of this file already avoided is now avoided on BOTH sides, by
+// decision, not necessity, so the file can stay byte-for-byte shared.
+// diagnosisType -> category is UNAFFECTED (no "&" in that flow either way) and still goes
+// through the diagnosis-type ConceptMap below - the one translate() call left in this file.
+//
+// NOT mapped in THIS file, by necessity, not by choice: Condition.onset[x], the
+// ext-asserted-date extension's Extension.value[x] (BOTH dateTime-typed choice elements), AND
+// THREE "uri"-typed fields - Meta.source, Condition.subject.identifier.system (patientId's
+// resolved system) and Condition.code.coding[0].system (diagnosisCode's resolved system). All
+// five are set instead by the driver (run_pipeline.py / HapiMapperDump.java) directly on the
+// transform() RESULT, the same way Provenance.target/.recorded already are (see
+// get-diagnosis-to-provenance.map's header comment).
+//
+// The dateTime pair is a confirmed, genuinely IRRECONCILABLE conflict between the two engines,
+// found by actually running every combination against both:
+//   - a bare scalar assigned to the NAMED choice variant ("tgt.onsetDateTime = onsetTime") -
+//     the form MaLaC-HD needs (malac-hd-evaluation.md's original bug 9) - makes HAPI's
+//     StructureMapUtilities throw "Attempt to write to invalid property 'onsetDateTime'"
+//     (confirmed for both Condition.onsetDateTime directly and Extension.valueDateTime).
+//   - a bare scalar assigned to the GENERIC field ("tgt.onset = onsetTime") - the form that
+//     works on HAPI (fml-evaluation.md: castToDateTime()'s fhirType()-based fallback) -
+//     compiles without error on MaLaC-HD but silently sets an undeclared, never-exported
+//     Python attribute (confirmed by inspecting exportJson() output: the field is simply
+//     absent) - the SAME silent-drop bug 9 already documented, just reconfirmed here for the
+//     generic form specifically.
+//   - the generic field name PAIRED with create('dateTime') (the fix that works for every
+//     OTHER choice element in this file - chronicDiagnosis, data-absent-reason) - crashes
+//     MaLaC-HD's COMPILER outright, a new, different bug: malac/hd/core/fhir/r5/generator/
+//     structuremap.py's _handle_target_copy() does
+//     "hasattr(utils.get_module(src_type), 'dateTime')" to decide whether the value needs a
+//     string->dateTime cast, and crashes with "'NoneType' object has no attribute
+//     '__module__'" whenever src_type is unknown (always true for a value sourced from this,
+//     or ANY, non-built-in-FHIR model) - unrelated to the named/generic distinction above.
+// No combination of {named, generic} x {bare, create()} satisfies both engines for a
+// dateTime-typed CHOICE element sourced from a custom model - see malac-hd-evaluation.md,
+// "Den portabla delmangden av FML", for the full matrix.
+//
+// The three "uri" fields are a SEPARATE, newly-found bug, confirmed by actually running this
+// file on both engines and diffing the result (not merely reading a spec): MaLaC-HD produces
+// the correct plain URI string for all three. HAPI, for the exact same construct -
+// create('uri') as X then { ... X.value = <value navigated off a non-literal source Element,
+// e.g. srcSys.value or pid.system> ... } - silently serializes the SOURCE Element's own debug
+// representation instead of its primitive content (e.g. "value=string[https://...]" or
+// "system=uri[http://...]"), with NO error or warning. The same create('uri')/.value= pattern
+// works fine on HAPI when the right-hand side is a FML string LITERAL (see profile-se/
+// profile-eu below, unaffected) - only a dynamically navigated Element triggers it. Since
+// create('uri') is itself required for MaLaC-HD (a bare "m.source = srcSysVal" is never
+// auto-wrapped into a uri element there - the ORIGINAL reason this pattern exists at all), and
+// is the construct that corrupts the value on HAPI, there is no single FML form that is both
+// correct on MaLaC-HD and correct on HAPI here either - the same "move it out of FML" escape
+// used for the dateTime pair above. See malac-hd-evaluation.md, "Den portabla delmangden av
+// FML", for the full writeup.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/GetDiagnosisToCondition" = "GetDiagnosisToCondition"
+
+uses "https://fhir.inera.se/ig/ehds-tk/StructureDefinition/inera-ehds-lm-diagnosis" alias LmDiagnosis as source
+uses "http://hl7.org/fhir/StructureDefinition/Condition" alias Condition as target
+
+group GetDiagnosisToCondition(source src : LmDiagnosis, target tgt : Condition) {
+
+  src -> tgt.clinicalStatus = cc('http://terminology.hl7.org/CodeSystem/condition-clinical', 'active') "clinicalStatus";
+  src -> tgt.verificationStatus = cc('http://terminology.hl7.org/CodeSystem/condition-ver-status', 'confirmed') "verificationStatus";
+
+  src.diagnosis as d then {
+    d.diagnosisHeader as h then {
+
+      // documentId -> Condition.identifier. NOT mapped by GetDiagnosisMapper.java today - a
+      // genuine addition this exhaustive pass makes, see malac-hd-evaluation.md.
+      // NOTE: "as docId2" is a FRESH re-binding at the point of use, not a reuse of the outer
+      // "docId" by name - reusing an already-bound model-sourced variable directly as a value
+      // (instead of rebinding it right where it is used) is a confirmed MaLaC-HD 1.10.0 quirk
+      // (unaffected by the model switch - see malac-hd-evaluation.md).
+      h.documentId as docId -> tgt.identifier = create('Identifier') as docIdentifier then {
+        docId as docId2 -> docIdentifier.value = docId2 "documentId-value";
+      } "documentId";
+
+      // meta.source: NOT set here - see the file header comment ("uri" field sourced from a
+      // navigated Element; broken on HAPI). Set by the driver on the transform() result.
+      // NOTE: meta.profile still goes through FML fine (its value is a LITERAL, not a
+      // navigated Element - unaffected by the bug). meta.profile's two entries share ONE "m"
+      // variable in ONE then-block - two separate top-level rules that each do "tgt.meta =
+      // create('Meta') as ..." would each silently REPLACE the whole tgt.meta instead of
+      // merging (see malac-hd-evaluation.md).
+      h.sourceSystemHSAId as srcSys then {
+        srcSys.value as srcSysVal -> tgt.meta = create('Meta') as m then {
+          srcSysVal -> m.profile = create('canonical') as profSe then {
+            srcSysVal -> profSe.value = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/se-ehds-condition' "profile-se-value";
+          } "profile-se";
+          srcSysVal -> m.profile = create('canonical') as profEu then {
+            srcSysVal -> profEu.value = 'http://hl7.eu/fhir/eps/StructureDefinition/condition-obl-eu-eps' "profile-eu-value";
+          } "profile-eu";
+        } "meta";
+      } "sourceSystemHSAId";
+
+      // subject: patientId.value -> Reference.identifier.value, a LOGICAL identifier reference
+      // (GENERAL-002), never a resolved Patient resource reference. patientId.system is NOT
+      // set here - see the file header comment ("uri" field sourced from a navigated Element;
+      // broken on HAPI). Set by the driver on the transform() result (the Identifier object
+      // itself still has to exist via FML, for .value to have somewhere to land).
+      h.patientId as pid then {
+        pid -> tgt.subject = create('Reference') as subjRef then {
+          pid -> subjRef.identifier = create('Identifier') as subjId then {
+            pid.value as pidVal -> subjId.value = pidVal "subject-value";
+          } "subject-identifier";
+        } "subject-ref";
+      } "patientId";
+
+      // recorder / recordedDate: accountableHealthcareProfessional.
+      h.accountableHealthcareProfessional as ahp then {
+        ahp.healthcareProfessionalHSAId as rec then {
+          rec.value as recVal -> tgt.recorder = create('Reference') as recorderRef then {
+            recVal -> recorderRef.type = 'PractitionerRole' "recorder-type";
+            recVal -> recorderRef.identifier = create('Identifier') as recorderId then {
+              recVal as recValSys -> recorderId.system = 'urn:oid:1.2.752.129.2.1.4.1' "recorder-identifier-system";
+              recVal as recValV -> recorderId.value = recValV "recorder-identifier-value";
+            } "recorder-identifier";
+          } "recorder-ref";
+        } "recorder";
+        ahp.authorTime as authorTime -> tgt.recordedDate = authorTime "recordedDate";
+      } "ahp";
+
+      // asserter / ext-asserted-date: legalAuthenticator.
+      h.legalAuthenticator as la then {
+        la.legalAuthenticatorHSAId as ass then {
+          ass.value as assVal -> tgt.asserter = create('Reference') as asserterRef then {
+            assVal -> asserterRef.type = 'PractitionerRole' "asserter-type";
+            assVal -> asserterRef.identifier = create('Identifier') as asserterId then {
+              assVal as assValSys -> asserterId.system = 'urn:oid:1.2.752.129.2.1.4.1' "asserter-identifier-system";
+              assVal as assValV -> asserterId.value = assValV "asserter-identifier-value";
+            } "asserter-identifier";
+          } "asserter-ref";
+        } "asserter";
+        // ext-asserted-date: only the extension's url (a plain string) is built in FML - its
+        // dateTime VALUE is deliberately NOT set here, for the same reason Condition.onset[x]
+        // above is not: see the file header comment. The driver finds this extension (by
+        // url) on the transform() result and sets .valueDateTime itself.
+        la.signatureTime as sigTime -> tgt.extension = create('Extension') as assertedDateExt then {
+          sigTime -> assertedDateExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-asserted-date' "assertedDate-url";
+        } "assertedDate-ext";
+      } "la";
+    } "header";
+
+    d.diagnosisBody as b then {
+
+      // onset: diagnosisTime - deliberately NOT set here. See the file header comment: a
+      // dateTime-typed choice element (Condition.onset[x]) sourced from a custom model has no
+      // FML form that satisfies both engines - set by the driver on the transform() result
+      // instead (run_pipeline.py / HapiMapperDump.java).
+
+      // category: typeOfDiagnosis (Huvuddiagnos/Bidiagnos) via the diagnosis-type ConceptMap.
+      // No entry -> category[absent] with data-absent-reason=unknown (DIAG-003), never a
+      // guessed code. translate()'s ConceptMap.group.unmapped mode can only fall back to a
+      // FIXED code, never switch to a different element SHAPE (an extension instead of a
+      // coding), so the two outcomes need two separate rules with literally negated
+      // conditions (see fml-evaluation.md, point 1, for the identical HAPI-engine finding -
+      // this part was already engine-independent).
+      b.typeOfDiagnosis as tod then {
+        tod.coding as dtc where code.matches('^(Huvuddiagnos|Bidiagnos)$')
+            -> tgt.category = create('CodeableConcept') as catMapped then {
+          dtc.code as dtcCode -> catMapped.coding = translate(dtcCode, 'http://ehds-brygga.inera.se/fhir/ConceptMap/diagnosis-type', 'Coding') "category-mapped";
+        } "category-mapped-cc";
+        tod.coding as dtc2 where code.matches('^(Huvuddiagnos|Bidiagnos)$').not()
+            -> tgt.category = create('CodeableConcept') as catAbsent then {
+          dtc2 -> catAbsent.extension = create('Extension') as darExt then {
+            dtc2 -> darExt.url = 'http://hl7.org/fhir/StructureDefinition/data-absent-reason' "dar-url";
+            dtc2 -> darExt.value = create('code') as darCode then {
+              dtc2 -> darCode.value = 'unknown' "dar-value";
+            } "dar-code";
+          } "dar-ext";
+        } "category-absent-cc";
+      } "typeOfDiagnosis";
+
+      // chronicDiagnosis: extension[chronicDiagnosis] boolean. NOTE: ".value" navigation on
+      // the bare primitive source field (not a complex Identifier/CodeableConcept) is
+      // required for HAPI - its generic Element model wraps EVERY field, primitives
+      // included, so the real boolean is one level deeper than the field itself (confirmed:
+      // without it, HAPI stringifies the Element wrapper, not "true"/"false"). MaLaC-HD's own
+      // model has no such wrapping for a bare JSON bool by default, so this ".value" step
+      // would normally be a dead end there - see lm_diagnosis_model.py's _BoolValue, which
+      // exists purely to make this ".value" navigation correct on both engines. NOTE: written
+      // as TWO separate rules (bind chronicEl, THEN navigate ".value" in a nested rule), same
+      // as every other multi-segment path in this file (e.g. sourceSystemHSAId above) - a
+      // single combined "b.chronicDiagnosis.value as chronic" collapses to just
+      // "getattr(b, 'chronicDiagnosis', None)" in MaLaC-HD's generated code, silently
+      // dropping the ".value" step entirely (confirmed by inspecting the generated code).
+      b.chronicDiagnosis as chronicEl then {
+        chronicEl.value as chronic -> tgt.extension = create('Extension') as chronicExt then {
+          chronic -> chronicExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-chronic-condition' "chronic-url";
+          chronic -> chronicExt.value = create('boolean') as chronicVal then {
+            chronic as chronic2 -> chronicVal.value = chronic2 "chronic-value";
+          } "chronic-el";
+        } "chronicCondition";
+      } "chronicDiagnosis";
+
+      // relatedDiagnosis: 0..* - one extension per entry.
+      b.relatedDiagnosis as rel then {
+        rel.documentId as relDocId -> tgt.extension = create('Extension') as relatedExt then {
+          relDocId -> relatedExt.url = 'https://ehds-brygga.inera.se/fhir/StructureDefinition/ext-related-condition' "related-url";
+          relDocId -> relatedExt.value = create('Reference') as relatedRef then {
+            relDocId -> relatedRef.identifier = create('Identifier') as relatedId then {
+              relDocId as relDocId2 -> relatedId.value = relDocId2 "related-identifier-value";
+            } "related-identifier";
+          } "related-value";
+        } "related-ext";
+      } "relatedDiagnosis";
+
+      // code: diagnosisCode.coding[0].{code,display} + diagnosisCode.text. .system is handled
+      // by the driver, not here (see the comment below) - no translate()/ConceptMap/"&"
+      // needed in this rule any more either way.
+      b.diagnosisCode as dCode then {
+        dCode -> tgt.code = create('CodeableConcept') as codeCc then {
+          dCode.coding as dCoding -> codeCc.coding = create('Coding') as codeCoding then {
+            dCoding.code as codeVal -> codeCoding.code = codeVal "code-value";
+            dCoding.display as dispVal -> codeCoding.display = dispVal "code-display";
+            // .system is NOT set here - see the file header comment ("uri" field sourced from
+            // a navigated Element; broken on HAPI). Set by the driver on the transform() result.
+          } "code-coding";
+          // code.text: GetDiagnosisMapper.java uses originalText when present, ELSE falls back
+          // to displayName (never leaves text unset as long as either is present) - a
+          // mutually-exclusive two-rule pattern, same shape as the category ConceptMap
+          // fallback above. where() uses the bare/implicit-$this form throughout (never
+          // re-qualified with the "as" alias) - a confirmed MaLaC-HD 1.10.0 quirk: re-
+          // qualifying with the alias makes the condition silently never match, for both the
+          // positive and the negated rule (unaffected by the model switch).
+          dCode.text as origText where exists()
+              -> codeCc.text = origText "code-text-original";
+          // NOTE: a right-hand navigation off a freshly-"as"-bound model variable, on the SAME
+          // rule line as a where() guard, silently drops the navigation and assigns the whole
+          // bound object instead (unaffected by the model switch) - fixed by moving the
+          // navigation into its OWN nested rule inside a then{} block.
+          dCode as dCode2 where text.empty() then {
+            dCode2.coding as dCoding2 then {
+              dCoding2.display as dispVal2 -> codeCc.text = dispVal2 "code-text-fallback-value";
+            } "code-text-fallback-coding";
+          } "code-text-fallback";
+        } "code-cc";
+      } "diagnosisCode";
+    } "body";
+  } "diagnosis";
+}

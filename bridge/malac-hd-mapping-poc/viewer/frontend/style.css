@@ -1,0 +1,196 @@
+:root {
+  --bg: #0f1115;
+  --panel: #161a21;
+  --border: #2a2f3a;
+  --text: #e6e8eb;
+  --muted: #8b93a1;
+  --leaf: #c7d0dc;
+  --accent: #5fb3ff;
+  --accent2: #ff9f5f;
+  --unmapped: #4a3030;
+  --line: #3a4150;
+  /* Trace confidence (lineage.py's `match_source` per edge - see its module docstring,
+     "Part 3"): value-matched (real output, searched for the real transformed input - highest
+     confidence) > runtime (real observed index, Python-only) > heuristic (order-based
+     assumption) > static (a single, already-unambiguous candidate, correct by construction
+     but not independently value-verified). */
+  --match-value: #2dd4bf;
+  --match-runtime: #1a7f37;
+  --match-heuristic: #9a6700;
+  --match-static: var(--accent);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 16px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+
+header h1 {
+  font-size: 15px;
+  margin: 0;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+header label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+}
+
+select {
+  background: #1d2128;
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+
+#note {
+  color: var(--accent2);
+  font-size: 12px;
+}
+
+#trace-note {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 3px;
+}
+
+#trace-note.trace-value {
+  color: var(--match-value);
+  background: rgba(45, 212, 191, 0.14);
+}
+
+#trace-note.trace-runtime {
+  color: var(--match-runtime);
+  background: rgba(26, 127, 55, 0.12);
+}
+
+#trace-note.trace-heuristic {
+  color: var(--match-heuristic);
+  background: rgba(154, 103, 0, 0.12);
+}
+
+#match-summary {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+#layout {
+  position: relative;
+  display: flex;
+  gap: 0;
+  padding: 16px;
+  align-items: flex-start;
+}
+
+.column {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.column h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  margin: 0 0 8px 2px;
+}
+
+#col-source { flex-basis: 38%; }
+#col-condition { flex-basis: 31%; }
+#col-provenance { flex-basis: 31%; }
+
+.row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 3px;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.row .name { color: var(--muted); }
+.row.leaf .name { color: var(--leaf); }
+.row .value {
+  color: var(--text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.row.unmapped { opacity: 0.55; }
+.row.unmapped .value { font-style: italic; }
+.row.hoverable:hover { background: #1f2430; }
+
+.row.hl-source { background: rgba(95, 179, 255, 0.22); outline: 1px solid var(--accent); }
+.row.hl-target { background: rgba(255, 159, 95, 0.22); outline: 1px solid var(--accent2); }
+
+svg#lines {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+svg#lines path.lineage {
+  fill: none;
+  stroke: var(--line);
+  stroke-width: 1;
+  opacity: 0.35;
+}
+svg#lines path.lineage.active {
+  stroke: var(--match-static);
+  stroke-width: 2;
+  opacity: 0.95;
+}
+svg#lines path.lineage.match-value.active { stroke: var(--match-value); }
+svg#lines path.lineage.match-runtime.active { stroke: var(--match-runtime); }
+svg#lines path.lineage.match-heuristic.active { stroke: var(--match-heuristic); }
+svg#lines path.lineage.match-static.active { stroke: var(--match-static); }
+svg#lines path.crosslink.active {
+  stroke: var(--accent2);
+  stroke-width: 2;
+  opacity: 0.95;
+}
+
+footer {
+  padding: 8px 16px;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.legend {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--muted);
+}
+.legend .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }

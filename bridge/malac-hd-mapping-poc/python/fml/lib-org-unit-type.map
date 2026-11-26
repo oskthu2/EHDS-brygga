@@ -1,0 +1,27 @@
+// Shared RIVTA building block: OrgUnitType -> a logical (identifier-based, GENERAL-002 style)
+// Reference to an Organization. Not consumed by GetDiagnosis -> Condition today (the Java
+// mapper, GetDiagnosisMapper.java, does not surface healthcareProfessionalOrgUnit at all -
+// see malac-hd-evaluation.md, "Exhaustive men oanvänt"), but OrgUnitType is one of the shared
+// datatypes Oskar asked be modelled regardless, for reuse by later contracts that DO surface
+// an org unit (e.g. GetCareDocumentation's author/legalAuthenticator org context).
+//
+// imports lib-hsa-reference.map for the orgUnitHSAId -> Identifier step, demonstrating two
+// shared-library files composed together.
+map "http://ehds-brygga.inera.se/fhir/StructureMap/LibOrgUnitType" = "LibOrgUnitType"
+
+uses "http://ehds-brygga.inera.se/fhir/rivta/getdiagnosis/OrgUnitType" alias RivtaOrgUnitType as source
+uses "http://hl7.org/fhir/StructureDefinition/Reference" alias Reference as target
+
+// NOTE: lib-hsa-reference.map's HsaIdToIdentifier group is NOT imported/called here - see
+// get-diagnosis-to-provenance.map's header comment and malac-hd-evaluation.md, "En
+// motorbugg: oinslagna primitiv över grupp-gränsen", for why: orgUnitHSAId is a raw Python
+// str (a plain HSAIdType, not a complex type), and passing it as a group ARGUMENT loses its
+// FHIR-primitive wrapping. The two-line pattern is inlined instead.
+group OrgUnitTypeToReference(source src : RivtaOrgUnitType, target tgt : Reference) {
+  src -> tgt.type = 'Organization' "orgunit-type";
+  src.orgUnitHSAId as hsa -> tgt.identifier = create('Identifier') as idf then {
+    hsa as hsaV -> idf.system = 'urn:oid:1.2.752.129.2.1.4.1' "orgunit-identifier-system";
+    hsa as hsaV2 -> idf.value = hsaV2 "orgunit-identifier-value";
+  } "orgunit-identifier";
+  src.orgUnitName as n -> tgt.display = n "orgunit-display";
+}
